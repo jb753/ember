@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Grid &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
+    <title>Grid &#8212; ember 0.4.4.dev21+g6a3e5594c documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=83ef07b4"></script>
+    <script src="../_static/documentation_options.js?v=f9b58397"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
+<p class="blurb">Version 0.4.4.dev21+g6a3e5594c</p>
 
 
 
@@ -98,7 +98,6 @@
 <li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.smooth"><code class="docutils literal notranslate"><span class="pre">smooth()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.update_bconds"><code class="docutils literal notranslate"><span class="pre">update_bconds()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.update_cached_conserved"><code class="docutils literal notranslate"><span class="pre">update_cached_conserved()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.update_filter"><code class="docutils literal notranslate"><span class="pre">update_filter()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.update_residual"><code class="docutils literal notranslate"><span class="pre">update_residual()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.update_sources"><code class="docutils literal notranslate"><span class="pre">update_sources()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.grid.Grid.update_timestep"><code class="docutils literal notranslate"><span class="pre">update_timestep()</span></code></a></li>
@@ -435,7 +434,7 @@ has blown up.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.get_convergence" title="ember.grid.Grid.get_convergence"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.get_convergence</span></code></a>()</p></td>
 <td><p>Grid-representative convergence monitors at one step, non-dimensional.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.smooth" title="ember.grid.Grid.smooth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.smooth</span></code></a>(sf4, sf2[, adaptive])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.smooth" title="ember.grid.Grid.smooth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.smooth</span></code></a>(sf4, sf2[, adaptive, sf2_T])</p></td>
 <td><p>Apply blended 2nd/4th-order artificial dissipation to every block.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.update_bconds" title="ember.grid.Grid.update_bconds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_bconds</span></code></a>([freeze, cfl])</p></td>
@@ -444,17 +443,14 @@ has blown up.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.update_cached_conserved" title="ember.grid.Grid.update_cached_conserved"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_cached_conserved</span></code></a>()</p></td>
 <td><p>Refresh conserved-dependent caches on every block.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.update_filter" title="ember.grid.Grid.update_filter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_filter</span></code></a>(cfl, delta_filt)</p></td>
-<td><p>Evolve the SFD low-pass filter one step on every block.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.update_residual" title="ember.grid.Grid.update_residual"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_residual</span></code></a>([sf])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.update_residual" title="ember.grid.Grid.update_residual"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_residual</span></code></a>([sf])</p></td>
 <td><p>Rebuild the unintegrated net-flow residual on every block.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.update_sources" title="ember.grid.Grid.update_sources"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_sources</span></code></a>(inviscid, gain_filt)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.update_sources" title="ember.grid.Grid.update_sources"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_sources</span></code></a>(inviscid[, wall_law])</p></td>
 <td><p>Zero and rebuild the body force on every block of this grid level.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.update_timestep" title="ember.grid.Grid.update_timestep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_timestep</span></code></a>(rf[, fac_visc])</p></td>
-<td><p>Recompute the volumetric time step on every block.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.update_timestep" title="ember.grid.Grid.update_timestep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.update_timestep</span></code></a>(rf[, fac_visc, ...])</p></td>
+<td><p>Recompute the volumetric time step, and the cell sources, on every block.</p></td>
 </tr>
 </tbody>
 </table>
@@ -541,21 +537,15 @@ store data on arbitrary point clouds in Cartesian coordinates.</p>
 <p>Automatically detects the coordinate permutation and sign mapping that
 aligns the Cartesian data with the structured grid, converts coordinates
 to polar, and transforms the momentum vector accordingly.</p>
-<p>The input conserved state vector is:</p>
-<div class="math notranslate nohighlight">
-\[\mathcal{U}_{\mathrm{cart}} =
-\begin{pmatrix} \rho,\ \rho V_x,\ \rho V_y,\ \rho V_z,\ \rho e \end{pmatrix}\]</div>
-<p>The Cartesian momentum components are first converted to velocities,
-rotated into the polar frame <span class="math notranslate nohighlight">\((x, r, \theta)\)</span>, then reassembled
-as polar conserved variables:</p>
-<div class="math notranslate nohighlight">
-\[\mathcal{U} =
-\begin{pmatrix} \rho,\ \rho V_x,\ \rho V_r,\ \rho r V_\theta,\ \rho e \end{pmatrix}\]</div>
-<p>where the polar velocity components are:</p>
+<p>The input state
+<span class="math notranslate nohighlight">\((\rho,\ \rho V_x,\ \rho V_y,\ \rho V_z,\ \rho e)\)</span> has its
+momentum converted to velocity and rotated into the polar frame
+<span class="math notranslate nohighlight">\((x, r, \theta)\)</span> by</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}V_r &amp;= V_y \cos\theta - V_z \sin\theta \\
 V_\theta &amp;= -V_y \sin\theta - V_z \cos\theta\end{split}\]</div>
-<p>with <span class="math notranslate nohighlight">\(\theta = \mathrm{atan2}(-z,\, y)\)</span>.</p>
+<p>with <span class="math notranslate nohighlight">\(\theta = \mathrm{atan2}(-z,\, y)\)</span>, then reassembled as
+<span class="math notranslate nohighlight">\((\rho,\ \rho V_x,\ \rho V_r,\ \rho r V_\theta,\ \rho e)\)</span>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>The total energy <span class="math notranslate nohighlight">\(\rho e\)</span> is assumed to be measured from
@@ -616,20 +606,13 @@ store data on arbitrary point clouds in Cartesian coordinates.</p>
 <p>Automatically detects the coordinate permutation and sign mapping that
 aligns the Cartesian data with the structured grid, converts coordinates
 to polar, and rotates the velocity vector accordingly.</p>
-<p>The input primitive state vector is:</p>
-<div class="math notranslate nohighlight">
-\[\mathcal{P}_{\mathrm{cart}} =
-\begin{pmatrix} \rho,\ V_x,\ V_y,\ V_z,\ p \end{pmatrix}\]</div>
-<p>The Cartesian velocity components are rotated into the polar frame
-<span class="math notranslate nohighlight">\((x, r, \theta)\)</span> to give the polar primitive state:</p>
-<div class="math notranslate nohighlight">
-\[\mathcal{P} =
-\begin{pmatrix} \rho,\ V_x,\ V_r,\ V_\theta,\ p \end{pmatrix}\]</div>
-<p>where:</p>
+<p>The input state <span class="math notranslate nohighlight">\((\rho,\ V_x,\ V_y,\ V_z,\ p)\)</span> has its velocity
+rotated into the polar frame <span class="math notranslate nohighlight">\((x, r, \theta)\)</span> by</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}V_r &amp;= V_y \cos\theta - V_z \sin\theta \\
 V_\theta &amp;= -V_y \sin\theta - V_z \cos\theta\end{split}\]</div>
-<p>with <span class="math notranslate nohighlight">\(\theta = \mathrm{atan2}(-z,\, y)\)</span>.</p>
+<p>with <span class="math notranslate nohighlight">\(\theta = \mathrm{atan2}(-z,\, y)\)</span>, giving the polar
+primitive state <span class="math notranslate nohighlight">\((\rho,\ V_x,\ V_r,\ V_\theta,\ p)\)</span>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -889,7 +872,7 @@ different entropy and energy datums – with no conversion needed.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="ember.grid.Grid.smooth">
-<span class="sig-name descname"><span class="pre">smooth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sf4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">adaptive</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.smooth"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.smooth" title="Link to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">smooth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sf4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">adaptive</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sf2_T</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.smooth"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.smooth" title="Link to this definition">¶</a></dt>
 <dd><p>Apply blended 2nd/4th-order artificial dissipation to every block.</p>
 <p>Both kernels share one stencil family and one set of biased boundary
 closures, so <code class="docutils literal notranslate"><span class="pre">sf4</span></code> and <code class="docutils literal notranslate"><span class="pre">sf2</span></code> mean the same thing either way and a
@@ -901,10 +884,11 @@ run can be switched over without retuning them.</p>
 <li><p><strong>sf2</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Second-difference smoothing factor. Constant everywhere when
 <code class="docutils literal notranslate"><span class="pre">adaptive</span></code> is False; the <em>ceiling</em> a JST shock sensor scales when
 it is True.</p></li>
-<li><p><strong>adaptive</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a>) – <p>Use the sensor-driven kernel. <code class="docutils literal notranslate"><span class="pre">sf2</span></code> is passed as both the
-pressure and the temperature sensor weight, and the fourth-order
-factor is clipped against the sensor as <code class="docutils literal notranslate"><span class="pre">max(sf4</span> <span class="pre">-</span> <span class="pre">sf2n,</span> <span class="pre">0)</span></code>, so
-the fourth-order term switches off inside a shock.</p>
+<li><p><strong>adaptive</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a>) – <p>Use the sensor-driven kernel. <code class="docutils literal notranslate"><span class="pre">sf2</span></code> is the pressure sensor
+weight, and the temperature sensor weight too unless <code class="docutils literal notranslate"><span class="pre">sf2_T</span></code> is
+given, and the fourth-order factor is clipped against the sensor as
+<code class="docutils literal notranslate"><span class="pre">max(sf4</span> <span class="pre">-</span> <span class="pre">sf2n,</span> <span class="pre">0)</span></code>, so the fourth-order term switches off
+inside a shock.</p>
 <p>Costs two nodal sensor passes over
 <a class="reference internal" href="block.html#ember.block.Block.P_nd" title="ember.block.Block.P_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P_nd</span></code></a> and
 <a class="reference internal" href="block.html#ember.block.Block.T_nd" title="ember.block.Block.T_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">T_nd</span></code></a>, and nothing else: both are cache
@@ -917,6 +901,9 @@ one step behind the state being smoothed. That lag is deliberate
 and it is what makes the sensor free; it matters only where a
 feature moves an appreciable distance in one step.</p>
 </p></li>
+<li><p><strong>sf2_T</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a><em>, </em><em>optional</em>) – Temperature sensor weight for the adaptive kernel, <code class="docutils literal notranslate"><span class="pre">sf2</span></code> when
+omitted; zero senses on pressure alone. Ignored when <code class="docutils literal notranslate"><span class="pre">adaptive</span></code>
+is False.</p></li>
 </ul>
 </dd>
 </dl>
@@ -952,20 +939,6 @@ call, for a grid stepped by hand.</p>
 each block’s cached properties keyed on the conserved variables to
 recompute on next access. Needed after writing <code class="docutils literal notranslate"><span class="pre">conserved_nd</span></code> directly
 (bypassing the setters), e.g. the explicit time march.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="ember.grid.Grid.update_filter">
-<span class="sig-name descname"><span class="pre">update_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfl</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta_filt</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.update_filter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.update_filter" title="Link to this definition">¶</a></dt>
-<dd><p>Evolve the SFD low-pass filter one step on every block.</p>
-<p>First-order exponential moving average of each block’s cell-centred
-conserved state toward its current cell state, with per-cell timestep
-<code class="docutils literal notranslate"><span class="pre">dt</span> <span class="pre">=</span> <span class="pre">cfl</span> <span class="pre">*</span> <span class="pre">dt_vol</span> <span class="pre">*</span> <span class="pre">vol</span></code>. <code class="docutils literal notranslate"><span class="pre">cfl</span></code> may be a per-cell/per-equation
-array of shape <code class="docutils literal notranslate"><span class="pre">(ni-1,</span> <span class="pre">nj-1,</span> <span class="pre">nk-1,</span> <span class="pre">5)</span></code> or a single scalar; the rank
-selects the matching kernel. <code class="docutils literal notranslate"><span class="pre">delta_filt</span></code> is the filter time constant.</p>
-<p>Must run after the CFL and <code class="docutils literal notranslate"><span class="pre">dt_vol</span></code> for the step are current. This is
-the only writer of the read-only <code class="docutils literal notranslate"><span class="pre">conserved_filt_nd</span></code> buffer, so it
-owns the <code class="docutils literal notranslate"><span class="pre">flags.writeable</span></code> toggle (mirrors the timestep writers).</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1012,13 +985,15 @@ the march reuses the head of <code class="docutils literal notranslate"><span cl
 
 <dl class="py method">
 <dt class="sig sig-object py" id="ember.grid.Grid.update_sources">
-<span class="sig-name descname"><span class="pre">update_sources</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inviscid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gain_filt</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.update_sources"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.update_sources" title="Link to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">update_sources</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inviscid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wall_law</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fit'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.update_sources"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.update_sources" title="Link to this definition">¶</a></dt>
 <dd><p>Zero and rebuild the body force on every block of this grid level.</p>
-<p>Assembles, into each <code class="docutils literal notranslate"><span class="pre">block.F_body_nd</span></code>, the viscous shear stresses
-(unless <code class="docutils literal notranslate"><span class="pre">inviscid</span></code>), the polar source, and the optional SFD force
-(when <code class="docutils literal notranslate"><span class="pre">gain_filt</span></code> is nonzero) – in that order, so the viscous
-momentum/energy negation does not flip the polar source added
-afterwards.</p>
+<p>Zeroes each <code class="docutils literal notranslate"><span class="pre">block.F_body_nd</span></code> and assembles into it the viscous shear
+stresses (unless <code class="docutils literal notranslate"><span class="pre">inviscid</span></code>). That is only the first half of the body
+force: the polar source and the optional SFD force are cell sources,
+added by the <a class="reference internal" href="#ember.grid.Grid.update_timestep" title="ember.grid.Grid.update_timestep"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_timestep()</span></code></a> that follows with
+<code class="docutils literal notranslate"><span class="pre">add_sources=True</span></code>, from cell averages that kernel already forms.
+<code class="docutils literal notranslate"><span class="pre">F_body_nd</span></code> is complete, and fit for <a class="reference internal" href="#ember.grid.Grid.update_residual" title="ember.grid.Grid.update_residual"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_residual()</span></code></a>, only
+after both.</p>
 <p>The viscous calculation is phased across the whole grid: every block’s
 BOUNDARY tau/q is computed first, then a single periodic seam exchange
 runs over the face buffers, then interior tau/q and the face fluxes are
@@ -1031,9 +1006,10 @@ read a stale neighbour halo.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>inviscid</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a>) – Skip the viscous shear-stress/heat-flux terms when True.</p></li>
-<li><p><strong>gain_filt</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Selective-frequency-damping gain; the SFD force is added only when
-nonzero.</p></li>
+<li><p><strong>inviscid</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a>) – Skip the viscous shear-stress/heat-flux terms when True, leaving
+<code class="docutils literal notranslate"><span class="pre">F_body_nd</span></code> zeroed.</p></li>
+<li><p><strong>wall_law</strong> (<em>{&quot;fit&quot;</em><em>, </em><em>&quot;reichardt&quot;}</em>) – Skin-friction law at no-slip walls; see
+<a class="reference internal" href="solver.html#ember.solver.Solver.wall_law" title="ember.solver.Solver.wall_law"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ember.solver.Solver.wall_law</span></code></a>.</p></li>
 </ul>
 </dd>
 </dl>
@@ -1041,25 +1017,31 @@ nonzero.</p></li>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="ember.grid.Grid.update_timestep">
-<span class="sig-name descname"><span class="pre">update_timestep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fac_visc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.update_timestep"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.update_timestep" title="Link to this definition">¶</a></dt>
-<dd><p>Recompute the volumetric time step on every block.</p>
-<p>Uses a max-of-directional-radii variant of the JST/Blazek definition
-<code class="docutils literal notranslate"><span class="pre">dt_vol</span> <span class="pre">=</span> <span class="pre">1</span> <span class="pre">/</span> <span class="pre">max(lam_conv,</span> <span class="pre">lam_diff)</span></code>, where <code class="docutils literal notranslate"><span class="pre">lam_conv</span></code> is the
-largest of the convective spectral radii
-<code class="docutils literal notranslate"><span class="pre">Lambda_d</span> <span class="pre">=</span> <span class="pre">|V_rel</span> <span class="pre">.</span> <span class="pre">dA_d|</span> <span class="pre">+</span> <span class="pre">a*||dA_d||</span></code> over the three directions and
-<code class="docutils literal notranslate"><span class="pre">lam_diff</span> <span class="pre">=</span> <span class="pre">fac_visc</span> <span class="pre">*</span> <span class="pre">(mu_turb/rho)*max_d||dA_d||^2/vol</span></code> is the
-turbulent-diffusion radius over the same faces
-(<code class="xref py py-func docutils literal notranslate"><span class="pre">set_timestep_spectral()</span></code>). Taking the max of the directional radii
-(rather than Blazek’s sum) makes the CFL number the true 1D Courant limit
-(~``2*sqrt(2)`` for the 4-stage RK march) while staying
-aspect-ratio-independent for the viscous limit too.</p>
-<p><code class="docutils literal notranslate"><span class="pre">rf</span></code> is the relaxation factor blending the new <code class="docutils literal notranslate"><span class="pre">dt_vol</span></code> with the
-existing buffer as <code class="docutils literal notranslate"><span class="pre">rf*new</span> <span class="pre">+</span> <span class="pre">(1-rf)*old</span></code> (pass <code class="docutils literal notranslate"><span class="pre">rf=1.0</span></code> for a fresh
-recompute). This is the lone writer of each block’s read-only
-<code class="docutils literal notranslate"><span class="pre">dt_vol_nd</span></code> buffer, so it owns the <code class="docutils literal notranslate"><span class="pre">flags.writeable</span></code> toggle.</p>
-<p><code class="docutils literal notranslate"><span class="pre">fac_visc</span></code> (&gt;= 1) multiplies the diffusion radius so the viscous march
-tolerates the same cfl as the inviscid one; <code class="docutils literal notranslate"><span class="pre">1.0</span></code> leaves the bare
-directional radius untouched.</p>
+<span class="sig-name descname"><span class="pre">update_timestep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fac_visc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">add_sources</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gain_filt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta_filt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.update_timestep"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.update_timestep" title="Link to this definition">¶</a></dt>
+<dd><p>Recompute the volumetric time step, and the cell sources, on every block.</p>
+<p><code class="docutils literal notranslate"><span class="pre">dt_vol</span> <span class="pre">=</span> <span class="pre">1</span> <span class="pre">/</span> <span class="pre">max(lam_conv,</span> <span class="pre">lam_diff)</span></code>: the largest single-direction
+convective radius <code class="docutils literal notranslate"><span class="pre">|V_rel</span> <span class="pre">.</span> <span class="pre">dA_d|</span> <span class="pre">+</span> <span class="pre">a*||dA_d||</span></code> or turbulent-diffusion
+radius <code class="docutils literal notranslate"><span class="pre">fac_visc</span> <span class="pre">*</span> <span class="pre">(mu_turb/rho)*max_d||dA_d||^2/vol</span></code> (see
+<code class="xref py py-func docutils literal notranslate"><span class="pre">set_timestep_sources()</span></code>). The max, not Blazek’s sum, makes the CFL
+number the true 1D Courant limit (~``2*sqrt(2)`` for the 4-stage RK
+march). <code class="docutils literal notranslate"><span class="pre">rf</span></code> blends <code class="docutils literal notranslate"><span class="pre">rf*new</span> <span class="pre">+</span> <span class="pre">(1-rf)*old</span></code> (<code class="docutils literal notranslate"><span class="pre">1.0</span></code> for a fresh
+recompute); <code class="docutils literal notranslate"><span class="pre">fac_visc</span></code> (&gt;= 1) tightens the viscous limit.</p>
+<p>The same walk finishes the cell sources, from the cell averages it
+already holds:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">add_sources=True</span></code> adds the polar source and, at nonzero
+<code class="docutils literal notranslate"><span class="pre">gain_filt</span></code>, the SFD force <code class="docutils literal notranslate"><span class="pre">gain_filt</span> <span class="pre">*</span> <span class="pre">(cons_filt</span> <span class="pre">-</span> <span class="pre">cons_cell)</span> <span class="pre">*</span>
+<span class="pre">vol</span></code> onto <code class="docutils literal notranslate"><span class="pre">F_body_nd</span></code>. Pass it exactly when <a class="reference internal" href="#ember.grid.Grid.update_sources" title="ember.grid.Grid.update_sources"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_sources()</span></code></a>
+has just rebuilt the viscous part; otherwise <code class="docutils literal notranslate"><span class="pre">F_body_nd</span></code> is held.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">gain_filt</span> <span class="pre">!=</span> <span class="pre">0</span></code> advances the SFD filter <code class="docutils literal notranslate"><span class="pre">conserved_filt_nd</span></code> by
+<code class="docutils literal notranslate"><span class="pre">dt</span> <span class="pre">*</span> <span class="pre">(cons_cell</span> <span class="pre">-</span> <span class="pre">cons_filt)</span> <span class="pre">/</span> <span class="pre">delta_filt</span></code>, <code class="docutils literal notranslate"><span class="pre">dt</span> <span class="pre">=</span> <span class="pre">cfl</span> <span class="pre">*</span> <span class="pre">dt_vol</span> <span class="pre">*</span>
+<span class="pre">vol</span></code> on the <code class="docutils literal notranslate"><span class="pre">dt_vol</span></code> just computed. Once per step, whatever the
+source cadence; the force reads the filter before the update.</p></li>
+</ul>
+<p>This is the lone writer of <code class="docutils literal notranslate"><span class="pre">dt_vol_nd</span></code>, of <code class="docutils literal notranslate"><span class="pre">F_body_nd</span></code>’s cell
+sources and of <code class="docutils literal notranslate"><span class="pre">conserved_filt_nd</span></code>, so it owns their
+<code class="docutils literal notranslate"><span class="pre">flags.writeable</span></code> toggles. At zero gain the filter is never touched,
+and so never allocated.</p>
 </dd></dl>
 
 <dl class="py method">

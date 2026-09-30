@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.fluid &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
+    <title>ember.fluid &#8212; ember 0.4.4.dev21+g6a3e5594c documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=83ef07b4"></script>
+    <script src="../../_static/documentation_options.js?v=f9b58397"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
+<p class="blurb">Version 0.4.4.dev21+g6a3e5594c</p>
 
 
 
@@ -2049,14 +2049,12 @@
 
     <span class="c1"># Step below which the stall test is allowed to end the loop. That test</span>
     <span class="c1"># reads a step which failed to shrink as a step at the arithmetic&#39;s floor,</span>
-    <span class="c1"># which is only true once Newton is in its quadratic regime. On the</span>
-    <span class="c1"># approach from a cold seed it is not: the step is relative in density, so</span>
-    <span class="c1"># a solve walking from the box centre out to the low-density edge takes two</span>
-    <span class="c1"># large steps of much the same size, and a step cut short by the box clamp</span>
-    <span class="c1"># can be larger than the one before it. Either reads as a stall and stops a</span>
-    <span class="c1"># solve that was closing on the answer -- which is how a datum inside the</span>
-    <span class="c1"># box came back reported as outside it. A solve at the floor is orders</span>
-    <span class="c1"># below this, so the gate costs the early exit nothing.</span>
+    <span class="c1"># true only once Newton is in its quadratic regime. On the approach from a</span>
+    <span class="c1"># cold seed it is not -- the step is relative in density, so two successive</span>
+    <span class="c1"># large steps can be much the same size, and one cut short by the box clamp</span>
+    <span class="c1"># can even grow -- and either reads as a stall, stopping a solve that was</span>
+    <span class="c1"># still closing on the answer. A solve at the floor is orders below this,</span>
+    <span class="c1"># so the gate costs the early exit nothing.</span>
     <span class="n">_NEWTON_SETTLED</span> <span class="o">=</span> <span class="mf">1e-2</span>
 
     <span class="c1"># What _state returns, and what _state_buffers makes room for beyond it:</span>
@@ -2128,17 +2126,11 @@
         <span class="c1"># A datum nobody asked for is placed at the centre of the fit box. The</span>
         <span class="c1"># box is the only region where this fluid exists, so its middle is the</span>
         <span class="c1"># one state always available to default to, whereas any fixed pressure</span>
-        <span class="c1"># and temperature belongs to some other fluid&#39;s box. Ambient is the</span>
-        <span class="c1"># tempting choice and is the wrong one: it falls inside the box of an</span>
-        <span class="c1"># air-like fit and hundreds of bar outside that of a dense working</span>
-        <span class="c1"># fluid, which is the case a real gas is here for.</span>
-        <span class="c1">#</span>
-        <span class="c1"># Read off the fitted surface rather than the table behind it, which</span>
-        <span class="c1"># this no longer has, and which would in any case put the datum a</span>
-        <span class="c1"># residual away from the surface it is supposed to be the origin of.</span>
-        <span class="c1"># The first pass above is what makes that possible: it configures the</span>
-        <span class="c1"># surface on a zero datum, after which get_P and get_T are evaluable --</span>
-        <span class="c1"># as _build_companion below already relies on.</span>
+        <span class="c1"># and temperature belongs to some other fluid&#39;s box -- ambient falls</span>
+        <span class="c1"># inside an air-like fit and hundreds of bar outside that of a dense</span>
+        <span class="c1"># working fluid. Read off the fitted surface, not the table behind it,</span>
+        <span class="c1"># which this no longer has; the first pass above configures the surface</span>
+        <span class="c1"># on a zero datum precisely so get_P and get_T are evaluable here.</span>
         <span class="k">if</span> <span class="n">P_dtm</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">T_dtm</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">rho_mid</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rho_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rho_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
             <span class="n">u_mid</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_u_lim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_u_lim</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>

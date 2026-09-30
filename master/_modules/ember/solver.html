@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.solver &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
+    <title>ember.solver &#8212; ember 0.4.4.dev21+g6a3e5594c documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=83ef07b4"></script>
+    <script src="../../_static/documentation_options.js?v=f9b58397"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
+<p class="blurb">Version 0.4.4.dev21+g6a3e5594c</p>
 
 
 
@@ -182,38 +182,37 @@
 <span class="sd">   the conserved state has gone non-finite. Sets a flag on the returned</span>
 <span class="sd">   :class:`~ember.convergence_history.ConvergenceHistory` and leaves the</span>
 <span class="sd">   invalid field in place for inspection.</span>
-<span class="sd">3. **Source terms**: :meth:`~ember.grid.Grid.update_sources` updates viscous</span>
-<span class="sd">   forces and the polar coordinates source term needed to balance the radial</span>
-<span class="sd">   momentum equation. With the Runge--Kutta integrator,</span>
-<span class="sd">   :attr:`~Solver.n_stage` ``&gt; 0``, this runs once every full step</span>
-<span class="sd">   with the source terms held constant for all stages. When using the scree</span>
-<span class="sd">   integrator, :attr:`~Solver.n_stage` ``== 0``, the source terms are</span>
-<span class="sd">   recomputed every few steps to save cost.</span>
+<span class="sd">3. **Source terms**: :meth:`~ember.grid.Grid.update_sources` rebuilds the</span>
+<span class="sd">   viscous forces in :attr:`~ember.block.Block.F_body_nd`. With the</span>
+<span class="sd">   Runge--Kutta integrator, :attr:`~Solver.n_stage` ``&gt; 0``, this runs once</span>
+<span class="sd">   every full step with the source terms held constant for all stages. When</span>
+<span class="sd">   using the scree integrator, :attr:`~Solver.n_stage` ``== 0``, the source</span>
+<span class="sd">   terms are recomputed every few steps to save cost.</span>
 <span class="sd">4. **Update time step**: :meth:`~ember.grid.Grid.update_timestep` computes</span>
 <span class="sd">   the time step and stores it pre-divided by cell volume in</span>
-<span class="sd">   :attr:`~ember.block.Block.dt_vol_nd`.</span>
-<span class="sd">5. **Filter**: when :attr:`~Solver.gain_filt` is nonzero,</span>
-<span class="sd">   :meth:`~ember.grid.Grid.update_filter` advances the</span>
-<span class="sd">   selective-frequency-damping low-pass filter one step using that time step,</span>
-<span class="sd">   every step regardless of the source cadence above. The SFD body force of</span>
-<span class="sd">   stage 3 reads what this leaves behind on the following step. Skipped</span>
-<span class="sd">   entirely at the default zero gain.</span>
-<span class="sd">6. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the</span>
+<span class="sd">   :attr:`~ember.block.Block.dt_vol_nd`. On the steps where stage 3 ran, the</span>
+<span class="sd">   same pass adds the cell sources to the body force: the polar coordinates</span>
+<span class="sd">   source term needed to balance the radial momentum equation and, when</span>
+<span class="sd">   :attr:`~Solver.gain_filt` is nonzero, the selective-frequency-damping</span>
+<span class="sd">   force. When the gain is nonzero it also advances the SFD low-pass filter</span>
+<span class="sd">   one step on the time step just computed, every step regardless of the</span>
+<span class="sd">   source cadence; the force reads the filter before that update.</span>
+<span class="sd">5. **Residual**: :meth:`~ember.grid.Grid.update_residual` calculates the</span>
 <span class="sd">   unintegrated net-flow residual, with optional implicit residual smoothing</span>
 <span class="sd">   , :attr:`~Solver.sf_resid`.</span>
-<span class="sd">7. **Convergence logging**: every :attr:`~Solver.n_step_log` steps,</span>
+<span class="sd">6. **Convergence logging**: every :attr:`~Solver.n_step_log` steps,</span>
 <span class="sd">   :meth:`~ember.convergence_history.ConvergenceHistory.record_convergence`</span>
 <span class="sd">   and :meth:`~ember.convergence_history.ConvergenceHistory.format_message`</span>
 <span class="sd">   record and print a :class:`~ember.convergence_history.ConvergenceHistory`</span>
 <span class="sd">   row using the current residual.</span>
-<span class="sd">8. **March**: advance the solution with the selected integrator -- Denton&#39;s</span>
+<span class="sd">7. **March**: advance the solution with the selected integrator -- Denton&#39;s</span>
 <span class="sd">   scree march, :func:`scree_step`, or Jameson multi-stage Runge--Kutta,</span>
 <span class="sd">   :func:`rk_step` -- optionally accelerated by multigrid.</span>
-<span class="sd">9. **Smoothing**: :meth:`~ember.grid.Grid.smooth` applies a</span>
+<span class="sd">8. **Smoothing**: :meth:`~ember.grid.Grid.smooth` applies a</span>
 <span class="sd">   constant-coefficient blended second- and fourth-order filter to the</span>
 <span class="sd">   post-march :attr:`ember.block.Block.conserved_nd` field, to provide artificial dissipation and</span>
 <span class="sd">   suppress odd-even decoupling.</span>
-<span class="sd">10. **Pseudotime averaging**: over the final :attr:`~Solver.n_step_avg`</span>
+<span class="sd">9. **Pseudotime averaging**: over the final :attr:`~Solver.n_step_avg`</span>
 <span class="sd">    steps, :meth:`~ember.grid.Grid.accumulate_avg` accumulates the conserved</span>
 <span class="sd">    state into a running average, which</span>
 <span class="sd">    :meth:`~ember.grid.Grid.finalise_average` uses to replace the</span>
@@ -388,8 +387,10 @@
 <span class="sd">------------------------------</span>
 
 <span class="sd">The cell-centred body-force buffer (``block.F_body_nd``) accumulates all</span>
-<span class="sd">source terms before they are added to the residual, rebuilt by</span>
-<span class="sd">:meth:`ember.grid.Grid.update_sources`:</span>
+<span class="sd">source terms before they are added to the residual. It is rebuilt in two</span>
+<span class="sd">passes: :meth:`ember.grid.Grid.update_sources` zeroes it and adds the viscous</span>
+<span class="sd">terms, then :meth:`ember.grid.Grid.update_timestep` with ``add_sources=True``</span>
+<span class="sd">adds the cell sources from the cell averages its timestep walk already forms:</span>
 
 <span class="sd">- Viscous shear stresses and heat flux, computed unless</span>
 <span class="sd">  ``Solver.inviscid`` is set. The viscous pass is phased across the</span>
@@ -402,7 +403,9 @@
 <span class="sd">  ``Solver.gain_filt`` is nonzero.</span>
 
 <span class="sd">The mixing-length turbulent viscosity uses a fixed turbulent Prandtl number</span>
-<span class="sd">of 1.0 and is evaluated from the absolute-frame vorticity magnitude.</span>
+<span class="sd">of 1.0 and is evaluated from the absolute-frame vorticity magnitude. No-slip</span>
+<span class="sd">walls take their shear stress from a wall function, a skin-friction law in the</span>
+<span class="sd">Reynolds number of the wall-adjacent cell, chosen by ``Solver.wall_law``.</span>
 <span class="sd">``Solver.fac_visc`` multiplies the turbulent-diffusion timestep radius</span>
 <span class="sd">independently of this, tightening the viscous stability limit to recover the</span>
 <span class="sd">inviscid stable CFL where needed.</span>
@@ -575,7 +578,16 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Second-order smoothing factor.</span>
 
 <span class="sd">    Constant everywhere unless :attr:`adaptive_smoothing` is set, in which case</span>
-<span class="sd">    it is the ceiling a JST shock sensor scales.&quot;&quot;&quot;</span>
+<span class="sd">    it is the ceiling a JST shock sensor scales: the weight on the pressure</span>
+<span class="sd">    sensor, and on the temperature sensor too unless :attr:`sf2_T` says</span>
+<span class="sd">    otherwise.&quot;&quot;&quot;</span>
+
+    <span class="n">sf2_T</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Weight on the temperature limb of the adaptive sensor.</span>
+
+<span class="sd">    None takes :attr:`sf2`, so both limbs share one weight, as they always</span>
+<span class="sd">    have; zero leaves the sensor on pressure alone, as classical JST has it.</span>
+<span class="sd">    Read only when :attr:`adaptive_smoothing` is set.&quot;&quot;&quot;</span>
 
     <span class="n">adaptive_smoothing</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Drive the second-order smoothing with a JST shock sensor.</span>
@@ -593,6 +605,19 @@
     <span class="n">fac_visc</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Multiplier on the turbulent-diffusion timestep radius; &gt;1 tightens the</span>
 <span class="sd">    viscous limit to recover the inviscid stable CFL.&quot;&quot;&quot;</span>
+
+    <span class="n">wall_law</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;fit&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Skin-friction law at no-slip walls, ``&quot;fit&quot;`` or ``&quot;reichardt&quot;``.</span>
+
+<span class="sd">    Both give the wall shear stress from the Reynolds number of the</span>
+<span class="sd">    wall-adjacent cell, on the velocity at the first off-wall node. ``&quot;fit&quot;``</span>
+<span class="sd">    is a curve fit in ``ln(Re)``, switching to the laminar ``cf = 2/Re`` at</span>
+<span class="sd">    ``y+ = 11.3``; it follows the log law to a few percent above ``y+ = 30``</span>
+<span class="sd">    but reads up to 25% low in the buffer layer just above the switch.</span>
+<span class="sd">    ``&quot;reichardt&quot;`` inverts Reichardt&#39;s law, one expression from the viscous</span>
+<span class="sd">    sublayer through the buffer layer to the log layer, at the cost of two</span>
+<span class="sd">    Newton steps per wall face. Pass the same law to</span>
+<span class="sd">    :func:`ember.block_util.wall_yplus` for consistent y+.&quot;&quot;&quot;</span>
 
     <span class="n">sf_resid</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Implicit residual smoothing factor. Applied to the fine residual by</span>
@@ -687,39 +712,32 @@
 <span class="sd">    condition that stays non-reflecting to the harmonics. This replaces all of</span>
 <span class="sd">    that with the simplest thing that couples two rows -- at every span station</span>
 <span class="sd">    the conserved variables of both faces are set to the average of the two</span>
-<span class="sd">    sides&#39; circumferential means, and the whole face is reset to it on every</span>
-<span class="sd">    application -- and it is worth being clear about what is given up and what</span>
-<span class="sd">    is not.</span>
+<span class="sd">    sides&#39; circumferential means, the whole face reset to it on every</span>
+<span class="sd">    application.</span>
 
-<span class="sd">    What is given up is accuracy at the plane. Every pitchwise harmonic</span>
-<span class="sd">    reaching either face is annihilated at the boundary node rather than</span>
-<span class="sd">    absorbed, so the plane reflects; the state imposed is the *area* average of</span>
-<span class="sd">    the conserved variables, which preserves each row&#39;s mass flow exactly (the</span>
-<span class="sd">    face mass flux is linear in the conserved vector, and</span>
-<span class="sd">    :attr:`~ember.patch.RevolutionPatch.weight_pitch` is the same trapezoidal</span>
-<span class="sd">    quadrature the face quads use) but not the momentum or energy flux, so it</span>
-<span class="sd">    is not the flux-conserving mixed-out state a loss audit would want; and</span>
-<span class="sd">    there is no under-relaxation anywhere, so the two rows are yanked onto</span>
-<span class="sd">    their common mean every stage. :attr:`rf_mix` and :attr:`rf_exchange` both</span>
-<span class="sd">    address machinery this switches off, and so do nothing while it is set.</span>
+<span class="sd">    What is given up is accuracy at the plane. Every pitchwise harmonic is</span>
+<span class="sd">    annihilated at the boundary node rather than absorbed, so the plane</span>
+<span class="sd">    reflects; the state imposed is the *area* average of the conserved</span>
+<span class="sd">    variables, which preserves each row&#39;s mass flow exactly but not its</span>
+<span class="sd">    momentum or energy flux, so it is not the flux-conserving mixed-out state a</span>
+<span class="sd">    loss audit would want; and with no under-relaxation anywhere the two rows</span>
+<span class="sd">    are yanked onto their common mean every stage. :attr:`rf_mix` and</span>
+<span class="sd">    :attr:`rf_exchange` address machinery this switches off, and so do nothing</span>
+<span class="sd">    while it is set.</span>
 
 <span class="sd">    What is *not* given up is conservation. The inviscid face flow is built</span>
 <span class="sd">    from the four boundary nodes of each face quad and the face area vector</span>
 <span class="sd">    alone, so two faces carrying the same pitch-uniform state pass identical</span>
-<span class="sd">    mass, meridional momentum, angular momentum and energy per unit annulus --</span>
-<span class="sd">    whatever their blade counts and pitchwise resolutions, and whatever their</span>
-<span class="sd">    rotational speeds, since the frame terms enter only through the</span>
-<span class="sd">    circumferential component of the face area, which vanishes on a surface of</span>
-<span class="sd">    revolution.</span>
+<span class="sd">    mass, meridional momentum, angular momentum and energy per unit annulus,</span>
+<span class="sd">    whatever their blade counts, pitchwise resolutions and rotational speeds.</span>
 
 <span class="sd">    As :attr:`rf_inlet`, this is imposed on every mixing patch of every level at</span>
 <span class="sd">    the start of the run, so the default overrides whatever a grid was pickled</span>
 <span class="sd">    with, and both sides of every plane necessarily agree; pass None to leave</span>
-<span class="sd">    each plane as it is. A grid with no mixing plane is unaffected whatever</span>
-<span class="sd">    this is set to.&quot;&quot;&quot;</span>
+<span class="sd">    each plane as it is. A grid with no mixing plane is unaffected.&quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reject averaging windows the march cannot honour.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reject averaging windows the march cannot honour, and unknown wall laws.</span>
 
 <span class="sd">        :attr:`n_step_avg` counts the steps at the end of the march that</span>
 <span class="sd">        :meth:`~ember.grid.Grid.accumulate_avg` sums into the pseudotime</span>
@@ -731,7 +749,10 @@
 <span class="sd">        bit as finite as the real one and neither the divergence check nor the</span>
 <span class="sd">        convergence history has any way to notice. Caught at construction</span>
 <span class="sd">        rather than after a march has been paid for.</span>
+
+<span class="sd">        An unknown :attr:`wall_law` is caught here for the same reason.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ember</span><span class="o">.</span><span class="n">block_util</span><span class="o">.</span><span class="n">_wall_law_code</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wall_law</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_step_avg</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;n_step_avg must be &gt;= 0, got </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_step_avg</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_step_avg</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_step</span><span class="p">:</span>
@@ -749,6 +770,18 @@
 <span class="sd">        The public :class:`BaseSolver` entry point for the stage-by-stage march.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">_run</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Solver.run_fmg">
+<a class="viewcode-back" href="../../api/solver.html#ember.solver.Solver.run_fmg">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">run_fmg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Full-multigrid startup on ``grid`` in place.</span>
+
+<span class="sd">        Returns a list of per-level :class:`ConvergenceHistory`, coarsest first.</span>
+<span class="sd">        Not part of the :class:`BaseSolver` contract (plugins have no FMG</span>
+<span class="sd">        analogue).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_run_fmg</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="Solver.soft">
@@ -776,18 +809,6 @@
             <span class="c1"># lower value (turbigen sweep9 0094 and 0017).</span>
             <span class="n">rf_exchange</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
         <span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="Solver.run_fmg">
-<a class="viewcode-back" href="../../api/solver.html#ember.solver.Solver.run_fmg">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">run_fmg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Full-multigrid startup on ``grid`` in place.</span>
-
-<span class="sd">        Returns a list of per-level :class:`ConvergenceHistory`, coarsest first.</span>
-<span class="sd">        Not part of the :class:`BaseSolver` contract (plugins have no FMG</span>
-<span class="sd">        analogue).</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">_run_fmg</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span></div>
 </div>
 
 
@@ -824,30 +845,13 @@
         <span class="c1"># that ordering.</span>
         <span class="k">if</span> <span class="n">n_levels_eff</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="c1"># Denton block-sum multigrid over the scheme-agnostic engine</span>
-            <span class="c1"># (mg_restrict_levels), like advance_rk_stage_mg&#39;s coarse path but</span>
-            <span class="c1"># for the scree fine term. Every level -- fine and coarse -- uses the</span>
-            <span class="c1"># Denton-lagged quantity q = 2*residual - store, not plain residual;</span>
-            <span class="c1"># verified against multall&#39;s TSTEP, which sums the lagged</span>
-            <span class="c1"># STORE = F1*DELTA + F2*DIFF into its block accumulators. For coarse</span>
-            <span class="c1"># level l = 1..n_levels (block size b = 2**l) the correction scales by</span>
-            <span class="c1"># coef_l = cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1) (advance_rk_stage_mg&#39;s</span>
-            <span class="c1"># formula at alpha=1, since scree takes one full-weight step), with</span>
-            <span class="c1"># the coarse timestep the volume-weighted harmonic mean of</span>
-            <span class="c1"># dt_vol over the block, sum(vol)/sum(vol/dt_vol). The correction</span>
-            <span class="c1"># is injected into the fine cell increment and fused with the fine</span>
-            <span class="c1"># term&#39;s cell-&gt;node scatter, so like the RK path it takes a rolling</span>
-            <span class="c1"># two-plane buffer rather than a full-volume increment. ONE carve</span>
-            <span class="c1"># for everything the kernel gets from the arena: rbuf and the</span>
-            <span class="c1"># multigrid scratch are live in the same call, so carving them</span>
-            <span class="c1"># together is what makes them disjoint -- util.carve_view packs the</span>
-            <span class="c1"># shapes end to end and guarantees it.</span>
-            <span class="c1"># sf_irs &gt; 0 selects the coarse-IRS kernel; sf_irs == 0 selects</span>
-            <span class="c1"># the plain _noirs kernel, which enters no smoothing code at all (no</span>
-            <span class="c1"># Fortran-side IRS branch -- the two share the engine and differ only</span>
-            <span class="c1"># in the smoother passed). The fine term is not smoothed here: it</span>
-            <span class="c1"># already carries the residual the caller&#39;s update_residual smoothed.</span>
-            <span class="c1"># Coarse scratch is carved from the arena, dead outside the viscous</span>
-            <span class="c1"># pass (already completed and consumed before this call).</span>
+            <span class="c1"># (mg_restrict_levels), like advance_rk_stage_mg&#39;s coarse path at</span>
+            <span class="c1"># alpha=1 but for the scree fine term: every level uses the</span>
+            <span class="c1"># Denton-lagged q = 2*residual - store, and the correction is</span>
+            <span class="c1"># injected into the fine cell increment, fused with its cell-&gt;node</span>
+            <span class="c1"># scatter, so a rolling two-plane buffer serves. sf_irs &gt; 0 picks</span>
+            <span class="c1"># the coarse-IRS kernel; the fine term arrives already smoothed by</span>
+            <span class="c1"># the caller. ONE carve: rbuf and coarse scratch reach one call.</span>
             <span class="n">rbuf</span><span class="p">,</span> <span class="o">*</span><span class="n">mg_bufs</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span>
                 <span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span>
                 <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
@@ -955,122 +959,35 @@
 <span class="p">):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;One Jameson RK stage, optionally with Denton block-sum multigrid.</span>
 
-<span class="sd">    The single RK stage integrator. Each stage marches every block off its</span>
-<span class="sd">    step-start conserved snapshot (``block.store``, seeded by the caller) using</span>
-<span class="sd">    the residual evaluated on the previous stage&#39;s state. In one pass it</span>
-<span class="sd">    assembles a cell-centred increment -- the fine RK term plus the injected</span>
-<span class="sd">    coarse block corrections of ``n_levels`` coarse levels -- and scatters it</span>
-<span class="sd">    onto the snapshot (multall&#39;s DO 1500 combine, then ``cell_to_node``)::</span>
+<span class="sd">    Each stage marches every block off its step-start snapshot (``block.store``,</span>
+<span class="sd">    seeded by the caller) using the previous stage&#39;s residual, assembling in one</span>
+<span class="sd">    pass a cell-centred increment -- fine RK term plus injected coarse -- thus::</span>
 
 <span class="sd">        dU_cell = alpha*cfl*dt_vol*residual                          (fine)</span>
 <span class="sd">                + sum_l  inject_l( coef_l * dt_coarse_l * restrict_l(residual) )</span>
 <span class="sd">        cons    = snapshot + cell_to_node(dU_cell)</span>
 
-<span class="sd">    ``n_levels`` counts the coarse levels only. ``n_levels == 0`` (the default)</span>
-<span class="sd">    is the trivial subcase: the coarse loop is empty, so the stage reduces to a</span>
-<span class="sd">    plain Jameson RK step ``cons = snapshot + alpha*cfl*dt_vol*residual``. For</span>
-<span class="sd">    ``l = 1..n_levels`` the coarse block has ``b = 2**l`` and</span>
-<span class="sd">    ``coef_l = alpha*cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1)``. The</span>
-<span class="sd">    ``expon_mgrid**-(l-1)`` term damps successively coarser levels: level 1</span>
-<span class="sd">    (finest coarse, ``b=2``) carries the full ``fac_mgrid``, level 2</span>
-<span class="sd">    ``fac_mgrid/expon_mgrid``, level 3 ``fac_mgrid/expon_mgrid**2``, and so on</span>
-<span class="sd">    (the default ``expon_mgrid=2.0`` reproduces the original fixed factor-2</span>
-<span class="sd">    decay).</span>
+<span class="sd">    ``n_levels`` counts coarse levels only; at the default 0 the coarse loop is</span>
+<span class="sd">    empty and this is a plain Jameson RK step. Level ``l`` has block size</span>
+<span class="sd">    ``b = 2**l`` and ``coef_l = alpha*cfl*fac_mgrid/b**2 * expon_mgrid**-(l-1)``,</span>
+<span class="sd">    so coarser levels damp further. ``dt_coarse_l`` is the volume-weighted</span>
+<span class="sd">    HARMONIC mean of ``dt_vol``, the block wanting ``1/&lt;Lambda&gt;`` per cell.</span>
 
-<span class="sd">    ``dt_coarse_l`` is the volume-weighted HARMONIC mean of ``dt_vol`` over the</span>
-<span class="sd">    coarse block, ``sum(vol)/sum(vol/dt_vol)``, which is why the kernels take</span>
-<span class="sd">    ``block.vol_nd``. Harmonic because the block needs the reciprocal of the</span>
-<span class="sd">    block&#39;s spectral radius, ``1/&lt;Lambda&gt;``, and ``dt_vol`` is ``1/Lambda`` per</span>
-<span class="sd">    cell; by Jensen the arithmetic mean ``sum(dt_vol*vol)/sum(vol)`` that this</span>
-<span class="sd">    used to take is the larger of the two whenever ``Lambda`` varies over the</span>
-<span class="sd">    block, so it overstated the coarse timestep on a stretched mesh and</span>
-<span class="sd">    over-drove the block&#39;s smallest cells. This mirrors multall&#39;s ``STEP1 =</span>
-<span class="sd">    CFL*FBLK*PERPMIN/VSOUND/VOLB``: our ``dt_vol*vol`` is the per-cell</span>
-<span class="sd">    ``perp/(a+V)`` that multall sums into ``PERPMIN``, and the ``1/b**2`` stays</span>
-<span class="sd">    in ``coef_l``. Sampling ``dt_vol`` at the block&#39;s centre cell instead --</span>
-<span class="sd">    what this used to do -- is wrong by the local clustering ratio on a</span>
-<span class="sd">    stretched mesh. On a uniform mesh the two agree identically.</span>
-<span class="sd">    Scaling the block push by the same ``alpha`` as the fine term keeps the stage</span>
-<span class="sd">    consistent; the final stage (``alpha=1``) therefore lands the full-weight</span>
-<span class="sd">    coarse correction, matching Denton, while earlier stages damp it like the</span>
-<span class="sd">    fine residual.</span>
+<span class="sd">    Restriction is hierarchical, only level 1 reading the fine grid;</span>
+<span class="sd">    prolongation is injection, the transpose of the block-sum restriction on</span>
+<span class="sd">    any mesh, collapsed in place inside ``corr_all`` so the correction rides</span>
+<span class="sd">    the fine term&#39;s scatter, differing from it only at block faces.</span>
 
-<span class="sd">    Prolongation is **injection**: every fine cell under a coarse block takes</span>
-<span class="sd">    that block&#39;s correction unaltered, so ``inject_l`` above is a lookup.</span>
-<span class="sd">    ``mg_collapse_levels`` sums the levels in place inside ``corr_all`` --</span>
-<span class="sd">    coarsest first, each slot gaining the injected total of the one above it --</span>
-<span class="sd">    and ``mg_fine_scatter`` reads the finest slot once per fine cell. The</span>
-<span class="sd">    correction is then a cell quantity like the fine term, so both are added</span>
-<span class="sd">    into the increment and ride the one ``cell_to_node`` scatter. That costs</span>
-<span class="sd">    nothing: within a coarse block the correction is constant and the scatter is</span>
-<span class="sd">    a partition of unity, so it comes through exactly; the two differ only at</span>
-<span class="sd">    block faces, where the node takes the mean of the two adjoining blocks&#39;</span>
-<span class="sd">    corrections. That is a one-cell smoothing of the staircase applied where the</span>
-<span class="sd">    staircase is.</span>
+<span class="sd">    The per-block body is one fused Fortran kernel (``rk_plain`` with no coarse</span>
+<span class="sd">    levels, else ``rk_mg_irs``/``rk_mg_noirs`` over the shared engine</span>
+<span class="sd">    ``mg_restrict_levels``), taking all its scratch from ``block.scratch`` in ONE</span>
+<span class="sd">    ``carve_view``, which is what makes the pieces disjoint. ``sf_irs`` (default</span>
+<span class="sd">    0, off) smooths the coarse residual as the caller already smoothed the fine.</span>
 
-<span class="sd">    Injection is exactly the transpose of the block-sum restriction, on any mesh</span>
-<span class="sd">    and with no normalisation, weights or geometry. This replaced a cascade of</span>
-<span class="sd">    factor-2 trilinear interpolations whose final hop targeted the fine nodes</span>
-<span class="sd">    through geometry-derived weights; that scheme, its per-block weight cache and</span>
-<span class="sd">    the ill-conditioning that made ``MG_W_LO``/``MG_W_HI`` necessary are all</span>
-<span class="sd">    gone. See ``docs/dev/plan_piecewise_constant_mgrid.md``.</span>
-
-<span class="sd">    The whole per-block body -- fine term, all coarse levels, and the final</span>
-<span class="sd">    scatter -- runs in one fused Fortran kernel (``rk_mg_irs``/``rk_mg_noirs``,</span>
-<span class="sd">    thin wrappers over the shared scheme-agnostic engine ``mg_restrict_levels``),</span>
-<span class="sd">    with no per-level Python crossings or numpy temporaries. With</span>
-<span class="sd">    ``n_levels == 0`` (or ``fac_mgrid == 0``) the coarse machinery is skipped</span>
-<span class="sd">    entirely by the ``rk_plain`` kernel (fine term + scatter, no coarse scratch).</span>
-<span class="sd">    Restriction is **hierarchical**: only level 1</span>
-<span class="sd">    reads the fine grid, coarser levels reduce the running accumulators</span>
-<span class="sd">    (``rawbuf`` for the residual, ``sdt``/``sv`` for the volume-weighted dt),</span>
-<span class="sd">    cutting restriction reads from ``n_levels x N`` to ~``1.14 x N``. Prolongation</span>
-<span class="sd">    is **injection**, collapsed IN PLACE inside ``corr_all``: its per-level</span>
-<span class="sd">    slots are compact and disjoint, so no accumulator is needed and nothing but</span>
-<span class="sd">    the final read touches the fine grid.</span>
-
-<span class="sd">    The coarse timestep (``dtblk``), the restriction accumulators, ``corr_all``,</span>
-<span class="sd">    the coarse-IRS coefficients (``triw``) and the rolling increment are</span>
-<span class="sd">    all carved from ``block.scratch`` at non-overlapping offsets, in ONE</span>
-<span class="sd">    ``carve_view`` -- they reach the same kernel call, so carving them together</span>
-<span class="sd">    is what makes them disjoint. The scatter reads the snapshot</span>
-<span class="sd">    from ``block.store`` and writes ``conserved_nd`` directly (frozen pressure,</span>
-<span class="sd">    bypasses the P/T cache).</span>
-
-<span class="sd">    ``dtblk`` is rebuilt inside the kernel on every call, so for RK it is</span>
-<span class="sd">    recomputed once per stage even though ``dt_vol`` only changes once per step.</span>
-<span class="sd">    That redundancy is deliberate: confining ``dtblk``&#39;s live range to a single</span>
-<span class="sd">    kernel call is what makes it safe to borrow the arena, which</span>
-<span class="sd">    :meth:`~ember.grid.Grid.update_residual` clobbers between stages. The</span>
-<span class="sd">    pre-pass costs under 1.15 fine-cell passes of two multiply-adds per level,</span>
-<span class="sd">    against a full residual evaluation already paid every stage.</span>
-
-<span class="sd">    No boundary masking is applied here: ``grid.apply_bconds`` re-imposes the</span>
-<span class="sd">    inlet/outlet/mixing/cusp targets between stages and at the next step top, so</span>
-<span class="sd">    the coarse push cannot leave a BC-controlled node inconsistent -- exactly as</span>
-<span class="sd">    for the fine RK term, which is likewise unmasked.</span>
-
-<span class="sd">    ``sf_irs`` (0 disables it, the default) applies implicit residual</span>
-<span class="sd">    smoothing (Jameson IRS) to the coarse block-restricted residual at every</span>
-<span class="sd">    level, exactly like the fine-grid smoothing ``Grid.update_residual``</span>
-<span class="sd">    already applies via its ``sf`` argument -- both are driven by the same</span>
-<span class="sd">    ``Solver.sf_resid`` value (see :func:`rk_step`). ``sf_irs &gt; 0``</span>
-<span class="sd">    dispatches ``rk_mg_irs``; ``sf_irs == 0`` (the default) dispatches</span>
-<span class="sd">    ``rk_mg_noirs``, which enters no smoothing code at all. The two share</span>
-<span class="sd">    ``mg_restrict_levels`` and differ only in the coarse-residual smoother</span>
-<span class="sd">    passed to it, so the choice is a Python-side branch</span>
-<span class="sd">    with no ``sf_irs`` test inside the engine (the fine term is never smoothed</span>
-<span class="sd">    here -- it already carries the fine residual the caller smoothed). The</span>
-<span class="sd">    per-level scratch it needs (``triw``) is carved from</span>
-<span class="sd">    ``block.scratch`` -- caller-owned, no per-call allocation.</span>
-
-<span class="sd">    Assumes ``block.dt_vol_nd`` and ``block.residual_nd`` are populated and the</span>
-<span class="sd">    caller refreshes P/T, boundary conditions and the residual between stages.</span>
-
-<span class="sd">    ``fac_mgrid == 0`` scales every coarse correction to identically zero, so it</span>
-<span class="sd">    collapses to the plain-RK fast path (``n_levels`` passed as 0, empty coarse</span>
-<span class="sd">    loop) rather than running restrict/prolong for a guaranteed-zero push -- and</span>
-<span class="sd">    makes ``sf_irs`` inert, exactly as in :func:`scree_step`.</span>
+<span class="sd">    The scatter reads ``block.store`` and writes ``conserved_nd`` directly</span>
+<span class="sd">    (frozen pressure, bypassing the P/T cache). Unmasked: ``grid.apply_bconds``</span>
+<span class="sd">    re-imposes the targets between stages. Assumes ``dt_vol_nd`` and</span>
+<span class="sd">    ``residual_nd`` are populated.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># fac_mgrid == 0 makes the coarse loop a no-op; collapse to no-MG dispatch.</span>
     <span class="n">n_levels_eff</span> <span class="o">=</span> <span class="n">n_levels</span> <span class="k">if</span> <span class="n">fac_mgrid</span> <span class="o">&gt;</span> <span class="mf">0.0</span> <span class="k">else</span> <span class="mi">0</span>
@@ -1078,17 +995,13 @@
         <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span>
         <span class="k">if</span> <span class="n">n_levels_eff</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="c1"># Multigrid-on RK wrappers over the scheme-agnostic engine</span>
-            <span class="c1"># (mg_restrict_levels). sf_irs &gt; 0 selects the coarse-IRS kernel;</span>
+            <span class="c1"># (mg_restrict_levels). sf_irs &gt; 0 selects the coarse-IRS kernel,</span>
             <span class="c1"># otherwise the plain _noirs kernel, which enters no smoothing code</span>
-            <span class="c1"># (the two share the engine and differ only in the smoother passed --</span>
-            <span class="c1"># no Fortran-side IRS branch). Coarse scratch is carved from</span>
-            <span class="c1"># the arena, dead outside the viscous pass. mg_collapse_levels</span>
-            <span class="c1"># leaves the total in corr_all&#39;s finest slot and the fine scatter</span>
-            <span class="c1"># injects it into the increment alongside the fine term, so instead</span>
-            <span class="c1"># of a full-volume increment it takes a rolling two-plane buffer</span>
-            <span class="c1"># carved from scratch.</span>
-            <span class="c1"># One carve, same reason as scree_step above: rbuf and the</span>
-            <span class="c1"># multigrid scratch reach the same kernel call.</span>
+            <span class="c1"># at all; the two share the engine and differ only in the smoother</span>
+            <span class="c1"># passed. mg_collapse_levels leaves the total in corr_all&#39;s finest</span>
+            <span class="c1"># slot and the fine scatter injects it alongside the fine term, so</span>
+            <span class="c1"># a rolling two-plane buffer serves in place of a full-volume</span>
+            <span class="c1"># increment. One carve, as in scree_step: both reach one call.</span>
             <span class="n">rbuf</span><span class="p">,</span> <span class="o">*</span><span class="n">mg_bufs</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span>
                 <span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span>
                 <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
@@ -1143,15 +1056,14 @@
     <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">grid</span><span class="p">:</span>
         <span class="n">block</span><span class="o">.</span><span class="n">store</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span>
     <span class="k">for</span> <span class="n">i_stage</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">n_stage</span><span class="p">):</span>
-        <span class="c1"># Stage coefficient alpha_k = 1/(n_stage - k); the final stage takes the</span>
-        <span class="c1"># full step. advance_rk_stage_mg marches off the snapshot and folds in the</span>
-        <span class="c1"># Denton block-sum multigrid correction (empty coarse loop when</span>
-        <span class="c1"># conf.n_levels == 0, i.e. a plain RK stage). conf.sf_resid is the</span>
-        <span class="c1"># coarse-level IRS coefficient, so a nonzero sf_resid smooths both the</span>
-        <span class="c1"># fine residual (caller&#39;s update_residual) and the coarse block-restricted</span>
-        <span class="c1"># residual. Stage 0 reuses the step-top P/T flush and residual; later</span>
-        <span class="c1"># stages march off a changed conserved_nd, so P/T and bconds are</span>
-        <span class="c1"># refreshed below before the next advance.</span>
+        <span class="c1"># Stage coefficient alpha_k = 1/(n_stage - k); the final stage takes</span>
+        <span class="c1"># the full step. advance_rk_stage_mg marches off the snapshot and folds</span>
+        <span class="c1"># in the Denton block-sum multigrid correction (an empty coarse loop at</span>
+        <span class="c1"># conf.n_levels == 0, i.e. a plain RK stage). A nonzero conf.sf_resid</span>
+        <span class="c1"># smooths both the fine residual and the coarse block-restricted one.</span>
+        <span class="c1"># Stage 0 reuses the step-top P/T flush and residual; later stages</span>
+        <span class="c1"># march off a changed conserved_nd, so P/T and bconds are refreshed</span>
+        <span class="c1"># below before the next advance.</span>
         <span class="n">alpha</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">n_stage</span> <span class="o">-</span> <span class="n">i_stage</span><span class="p">)</span>
         <span class="n">advance_rk_stage_mg</span><span class="p">(</span>
             <span class="n">grid</span><span class="p">,</span>
@@ -1366,22 +1278,27 @@
         <span class="c1"># dt_vol is sized for an already-stale state and overshoots the</span>
         <span class="c1"># stability limit during a cold start, and the timestep refresh is cheap.</span>
         <span class="n">n_step_source</span> <span class="o">=</span> <span class="mi">5</span> <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_stage</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="mi">1</span>
-        <span class="k">if</span> <span class="n">i_step</span> <span class="o">%</span> <span class="n">n_step_source</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">grid</span><span class="o">.</span><span class="n">update_sources</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">inviscid</span><span class="p">,</span> <span class="n">conf</span><span class="o">.</span><span class="n">gain_filt</span><span class="p">)</span>
+        <span class="n">add_sources</span> <span class="o">=</span> <span class="n">i_step</span> <span class="o">%</span> <span class="n">n_step_source</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">add_sources</span><span class="p">:</span>
+            <span class="n">grid</span><span class="o">.</span><span class="n">update_sources</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">inviscid</span><span class="p">,</span> <span class="n">conf</span><span class="o">.</span><span class="n">wall_law</span><span class="p">)</span>
             <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;step </span><span class="si">%d</span><span class="s2"> after update_sources&quot;</span><span class="p">,</span> <span class="n">i_step</span><span class="p">)</span>
-        <span class="n">grid</span><span class="o">.</span><span class="n">update_timestep</span><span class="p">(</span><span class="n">rf</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">fac_visc</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">fac_visc</span><span class="p">)</span>
 
-        <span class="c1"># Advance the SFD low-pass filter the body force above reads. It needs</span>
-        <span class="c1"># the dt_vol just computed, so it runs here rather than alongside the</span>
-        <span class="c1"># sources, and it runs every step regardless of the source cadence:</span>
-        <span class="c1"># its dt is a per-step increment, so advancing it only on the scree</span>
-        <span class="c1"># march&#39;s every-fifth-step refresh would stretch the effective time</span>
-        <span class="c1"># constant fivefold. update_sources therefore picks up the state left</span>
-        <span class="c1"># here on the following step, the usual explicit SFD coupling. Skipped</span>
-        <span class="c1"># entirely at the default zero gain, where nothing reads the filter and</span>
-        <span class="c1"># the buffer is never allocated.</span>
-        <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">gain_filt</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">:</span>
-            <span class="n">grid</span><span class="o">.</span><span class="n">update_filter</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">cfl</span><span class="p">,</span> <span class="n">conf</span><span class="o">.</span><span class="n">delta_filt</span><span class="p">)</span>
+        <span class="c1"># The timestep pass also finishes the body force on a refresh step (the</span>
+        <span class="c1"># polar source and the SFD force, onto the viscous part just built) and</span>
+        <span class="c1"># advances the SFD low-pass filter on the dt_vol it has just computed.</span>
+        <span class="c1"># The filter advances every step regardless of the source cadence: its</span>
+        <span class="c1"># dt is a per-step increment, so advancing it on the scree march&#39;s</span>
+        <span class="c1"># every-fifth refresh would stretch the time constant fivefold. The</span>
+        <span class="c1"># force reads the filter before this step&#39;s update, the usual explicit</span>
+        <span class="c1"># SFD coupling. At the default zero gain the filter is never touched.</span>
+        <span class="n">grid</span><span class="o">.</span><span class="n">update_timestep</span><span class="p">(</span>
+            <span class="n">rf</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
+            <span class="n">fac_visc</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">fac_visc</span><span class="p">,</span>
+            <span class="n">add_sources</span><span class="o">=</span><span class="n">add_sources</span><span class="p">,</span>
+            <span class="n">gain_filt</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">gain_filt</span><span class="p">,</span>
+            <span class="n">cfl</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">cfl</span><span class="p">,</span>
+            <span class="n">delta_filt</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">delta_filt</span><span class="p">,</span>
+        <span class="p">)</span>
 
         <span class="c1"># Prepare the residual</span>
         <span class="n">grid</span><span class="o">.</span><span class="n">update_residual</span><span class="p">(</span><span class="n">sf</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">sf_resid</span><span class="p">)</span>
@@ -1418,6 +1335,7 @@
             <span class="n">conf</span><span class="o">.</span><span class="n">sf4</span> <span class="o">*</span> <span class="n">conf</span><span class="o">.</span><span class="n">cfl</span><span class="p">,</span>
             <span class="n">conf</span><span class="o">.</span><span class="n">sf2</span> <span class="o">*</span> <span class="n">conf</span><span class="o">.</span><span class="n">cfl</span><span class="p">,</span>
             <span class="n">adaptive</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">adaptive_smoothing</span><span class="p">,</span>
+            <span class="n">sf2_T</span><span class="o">=</span><span class="kc">None</span> <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">sf2_T</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">conf</span><span class="o">.</span><span class="n">sf2_T</span> <span class="o">*</span> <span class="n">conf</span><span class="o">.</span><span class="n">cfl</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">_log_rss</span><span class="p">(</span><span class="s2">&quot;step </span><span class="si">%d</span><span class="s2"> after smooth&quot;</span><span class="p">,</span> <span class="n">i_step</span><span class="p">)</span>
 
@@ -1430,20 +1348,13 @@
             <span class="n">grid</span><span class="o">.</span><span class="n">accumulate_avg</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">n_step_avg</span><span class="p">)</span>
 
     <span class="c1"># Copy the final average back into the primary storage. Skipped on</span>
-    <span class="c1"># divergence: the loop broke before accumulate_avg ran, so this would</span>
-    <span class="c1"># overwrite the invalid conserved_nd with a zeroed average buffer and</span>
-    <span class="c1"># destroy the evidence. Skipped too when no averaging was asked for, where</span>
-    <span class="c1"># the accumulator was never touched and copying it back would write zeros</span>
-    <span class="c1"># over a perfectly good solution.</span>
-    <span class="c1">#</span>
-    <span class="c1"># The cache invalidation is NOT optional on that path. The integrators and</span>
-    <span class="c1"># smooth write conserved_nd through the frozen-pressure path, which does</span>
-    <span class="c1"># not bump the conserved versions, so the last cached P/T can still be</span>
-    <span class="c1"># marked current while the field underneath has moved on. finalise_average</span>
-    <span class="c1"># ends in update_cached_conserved and was covering for that; gating it out</span>
-    <span class="c1"># without this leaves a scree march handing back a stale P (the RK path</span>
-    <span class="c1"># only escapes because its per-stage apply_bconds bumps the versions</span>
-    <span class="c1"># anyway, which is luck, not a contract).</span>
+    <span class="c1"># divergence, where the loop broke before accumulate_avg ran and this would</span>
+    <span class="c1"># overwrite the invalid conserved_nd with a zeroed buffer, and when no</span>
+    <span class="c1"># averaging was asked for, where it would write zeros over a good solution.</span>
+    <span class="c1"># The cache invalidation is NOT optional on those paths: the integrators</span>
+    <span class="c1"># and smooth write conserved_nd through the frozen-pressure path, which</span>
+    <span class="c1"># does not bump the conserved versions, so the last cached P/T can be</span>
+    <span class="c1"># marked current while the field underneath has moved on.</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">hist</span><span class="o">.</span><span class="n">diverged</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_step_avg</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">grid</span><span class="o">.</span><span class="n">finalise_average</span><span class="p">()</span>

@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.cusp &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
+    <title>ember.cusp &#8212; ember 0.4.4.dev21+g6a3e5594c documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=83ef07b4"></script>
+    <script src="../../_static/documentation_options.js?v=f9b58397"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
+<p class="blurb">Version 0.4.4.dev21+g6a3e5594c</p>
 
 
 
@@ -257,16 +257,9 @@
             <span class="k">if</span> <span class="n">other</span><span class="o">.</span><span class="n">_block_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="c1"># A sibling that is not attached yet cannot be asked what it</span>
                 <span class="c1"># spans: a limit of -1 is a block size away from a number.</span>
-                <span class="c1"># Both writing and reading a grid detach every patch and then</span>
-                <span class="c1"># attach them one at a time --- see `Grid.write_emb`, which</span>
-                <span class="c1"># detaches before pickling and restores in a `finally`, and</span>
-                <span class="c1"># `Grid.read_emb`, which attaches what it unpickled --- so at</span>
-                <span class="c1"># this point the block&#39;s other cusp routinely has no block.</span>
-                <span class="c1"># Skipped rather than resolved, because the pair is still</span>
-                <span class="c1"># checked: whichever attaches second finds the first attached</span>
-                <span class="c1"># and compares then. Raising here instead would break the</span>
-                <span class="c1"># restore, and inside a `finally` that leaves every patch on</span>
-                <span class="c1"># the grid detached.</span>
+                <span class="c1"># Reading and writing a grid attach patches one at a time, so</span>
+                <span class="c1"># an unattached sibling is routine here; skip rather than</span>
+                <span class="c1"># raise, since whichever attaches second compares the pair.</span>
                 <span class="k">continue</span>
             <span class="n">olim</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">ijk_lim_abs</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">lim</span><span class="p">[:</span><span class="mi">2</span><span class="p">],</span> <span class="n">olim</span><span class="p">[:</span><span class="mi">2</span><span class="p">]):</span>

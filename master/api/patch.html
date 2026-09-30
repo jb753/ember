@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Patch &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
+    <title>Patch &#8212; ember 0.4.4.dev21+g6a3e5594c documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=83ef07b4"></script>
+    <script src="../_static/documentation_options.js?v=f9b58397"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
+<p class="blurb">Version 0.4.4.dev21+g6a3e5594c</p>
 
 
 
@@ -1354,40 +1354,31 @@ configures an adjustment that adjusts nothing.</p></li>
 <dt class="sig sig-object py" id="ember.patch.OutletPatch.set_backflow_ho_s">
 <span class="sig-name descname"><span class="pre">set_backflow_ho_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/outlet.html#OutletPatch.set_backflow_ho_s"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.OutletPatch.set_backflow_ho_s" title="Link to this definition">¶</a></dt>
 <dd><p>Prescribe the stagnation enthalpy and entropy imposed where the exit flow reverses.</p>
-<p>Reversal is carried at two levels, and both draw on the four backflow
+<p>Reversal is carried at two levels, both drawing on the four backflow
 quantities this and its companion setters prescribe.</p>
 <p>A <strong>span station</strong> whose mean has reversed is genuinely an inflow plane
 and is treated as one. Four of its five characteristics turn incoming,
-so four quantities have to be prescribed, and the four backflow rows are
-exactly they; the one wave still leaving, the downstream-running
-pressure wave, is carried through from the interior as always. The
-prescribed static pressure is not imposed at such a station: pressure is
-what the free wave carries there. If a large part of the span ends up
-reversed the exit level is no longer under control, and the boundary
-wants moving downstream rather than the condition made cleverer.</p>
-<p>A <strong>node</strong> whose interior neighbour is pushing flow inward, at a station
-whose mean is still forward, is left to the interior march here: there is
-no characteristic split to change at that level – the split belongs to
-the station’s mean, and the Hilbert transform couples every node of a
-station to every other – and the base class’s node-level limiter, which
-would otherwise overwrite such a node with the four backflow rows and a
-derived density, is disabled here. It fed the very Mach number it drove
-back into its own correction rate, a closed positive feedback that ran
-away unbounded at the non-reflecting mixing plane; nothing about a
-physical outlet exempts it from the same loop.</p>
-<p>The rows that can be prescribed are set independently, by this method
-or <a class="reference internal" href="#ember.patch.OutletPatch.set_backflow_Po_To" title="ember.patch.OutletPatch.set_backflow_Po_To"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_backflow_Po_To()</span></code></a> for the thermodynamic pair and by
+and the four backflow rows are exactly they; the one still leaving, the
+downstream-running pressure wave, is carried through from the interior,
+so the prescribed static pressure is not imposed there. If much of the
+span reverses, the exit level is no longer under control and the
+boundary wants moving downstream.</p>
+<p>A <strong>node</strong> whose interior neighbour pushes flow inward, at a station
+whose mean is still forward, is left to the interior march: the split
+belongs to the station’s mean. The base class’s node-level limiter is
+disabled here, having fed the Mach number it drove back into its own
+correction rate – a closed positive feedback with nothing damping it.</p>
+<p>The rows are set independently, by this method or
+<a class="reference internal" href="#ember.patch.OutletPatch.set_backflow_Po_To" title="ember.patch.OutletPatch.set_backflow_Po_To"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_backflow_Po_To()</span></code></a> for the thermodynamic pair and by
 <a class="reference internal" href="#ember.patch.OutletPatch.set_backflow_Vt" title="ember.patch.OutletPatch.set_backflow_Vt"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_backflow_Vt()</span></code></a> for the swirl, so a run can prescribe one and
 leave the rest seeded. The meridional direction is not among them: the
 backflow comes in normal to the exit surface, so the velocity in the
 surface is pinned at zero. See the class docstring.</p>
 <p>Both quantities here are measured from the fluid datum state where
-<span class="math notranslate nohighlight">\(u = s = 0\)</span> at <span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>, the same
-convention as <a class="reference internal" href="block.html#ember.block.Block.ho" title="ember.block.Block.ho"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ho</span></code></a> and
-<a class="reference internal" href="block.html#ember.block.Block.s" title="ember.block.Block.s"><code class="xref py py-attr docutils literal notranslate"><span class="pre">s</span></code></a>.</p>
-<p>Calling any of the four is optional. Left alone, the rows are seeded
-once from the pitchwise mean of the exit plane at the first timestep and
-frozen there.</p>
+<span class="math notranslate nohighlight">\(u = s = 0\)</span> at <span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>, as for
+<a class="reference internal" href="block.html#ember.block.Block.ho" title="ember.block.Block.ho"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ho</span></code></a> and <a class="reference internal" href="block.html#ember.block.Block.s" title="ember.block.Block.s"><code class="xref py py-attr docutils literal notranslate"><span class="pre">s</span></code></a>.
+Calling any of the four is optional: left alone, a row is seeded from
+the pitchwise mean of the exit plane at the first timestep.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1465,68 +1456,28 @@ positive and finite. A scalar or any array that broadcasts to
 <span class="sig-name descname"><span class="pre">set_throttle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mdot_target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Kp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Ki</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.002</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/outlet.html#OutletPatch.set_throttle"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.OutletPatch.set_throttle" title="Link to this definition">¶</a></dt>
 <dd><p>Throttle the outlet to a target mass flow.</p>
 <p>Turns <a class="reference internal" href="#ember.patch.OutletPatch.set_P" title="ember.patch.OutletPatch.set_P"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P()</span></code></a> from the condition into a starting point. Each
-timestep <a class="reference internal" href="#ember.patch.OutletPatch.update_target" title="ember.patch.OutletPatch.update_target"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_target()</span></code></a> measures the mass flow through the patch
-and a proportional-integral controller moves the prescribed level until
-the two agree:</p>
+timestep <a class="reference internal" href="#ember.patch.OutletPatch.update_target" title="ember.patch.OutletPatch.update_target"><code class="xref py py-meth docutils literal notranslate"><span class="pre">update_target()</span></code></a> measures the mass flow, forms the error
+<span class="math notranslate nohighlight">\(\varepsilon = (\dot m - \dot m_t)/\dot m_t\)</span> against the target
+<span class="math notranslate nohighlight">\(\dot m_t\)</span>, and moves the prescribed level by</p>
 <div class="math notranslate nohighlight">
-\[\varepsilon = \frac{\dot m - \dot m_\mathrm{target}}
-                   {\dot m_\mathrm{target}}, \qquad
-\frac{\Delta p_\mathrm{throttle}}{p_\mathrm{ref}} =
-    K_p\, \varepsilon
-    + K_i \sum \varepsilon \,\mathrm{cfl}\]</div>
-<p>the sum running over timesteps. Raising the back pressure reduces the
-flow, so the sign is as written: a mass flow above target pushes the
-pressure up. What the boundary imposes is still a pressure, and the
-characteristic treatment is untouched – the throttle only chooses which
-pressure.</p>
-<p><strong>The gains are dimensionless and should not need tuning.</strong> For a duct
-or blade row passing <span class="math notranslate nohighlight">\(\dot m \sim A\sqrt{2\rho(p_0 - p)}\)</span>, the
-steady sensitivity of mass flow to exit pressure is</p>
-<div class="math notranslate nohighlight">
-\[\frac{d\dot m}{\dot m} = -\frac{dp}{2q}, \qquad
-q = \tfrac{1}{2}\rho V_m^2\]</div>
-<p>so a correction of <span class="math notranslate nohighlight">\(2q\,\varepsilon\)</span> cancels the error outright: a
-Newton step whose natural scale is the exit dynamic head. That is
-exactly the scale the nondimensionalisation already works in, since
-<span class="math notranslate nohighlight">\(p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2\)</span> with
-<span class="math notranslate nohighlight">\(V_\mathrm{ref}\)</span> a typical convection velocity. Hence the
-correction above is formed nondimensionally with no scale factor
-written anywhere, and <span class="math notranslate nohighlight">\(K_p = 1\)</span> is the notional Newton step.</p>
-<p>The default is half that, because a pure Newton step overshoots and
-rings: the mass flow answers a change in exit pressure only after a wave
-has crossed the domain. Proportional action alone would then settle at a
-standing droop, since it can hold a correction only in proportion to an
-error, and the correction wanted at the target is not zero; the integral
-is what removes it. Because the scale is a fixed reference quantity
-rather than the dynamic head of the current solution, neither gain
-depends on the flow field or on how good the initial guess was.</p>
-<p><strong>The integral is weighted by the CFL, not by the step.</strong> The
-proportional term is memoryless and safe under any lag: it holds a fixed
-correction until the flow answers. The integral is not – over the steps
-the domain takes to respond it keeps piling on correction for an error
-it has already acted on – so its gain has to be paced against how much
-ground each step covers. Under local timestepping that is the Courant
-number, so a march at twice the CFL needs half as many steps and
-<span class="math notranslate nohighlight">\(K_i \sum \varepsilon\,\mathrm{cfl}\)</span> keeps one gain valid across a
-CFL sweep. <a class="reference internal" href="grid.html#ember.grid.Grid.update_bconds" title="ember.grid.Grid.update_bconds"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.update_bconds()</span></code></a> passes the march’s cfl
-down; nothing is held on the patch.</p>
-<p>The step count also scales with mesh density, and with whatever
-multigrid and residual smoothing are doing, and none of that is
-knowable from here: a patch can count the cells along its own normal
-but not along the flow path, which for a multi-block machine, or a
-patch that is not on a streamwise face, is not the same number.
-Refining the mesh may therefore want <span class="math notranslate nohighlight">\(K_i\)</span> revisited. Changing the
-CFL does not.</p>
-<p>The price of the fixed pressure scale is a loop gain of
-<span class="math notranslate nohighlight">\(p_\mathrm{ref} / 2q = (\rho_\mathrm{ref}/\rho)
-(V_\mathrm{ref}/V_m)^2\)</span> rather than exactly one, so the gains do assume
-the reference scales are representative of the flow. A <code class="docutils literal notranslate"><span class="pre">V_ref</span></code> far
-from the exit velocity moves the loop gain by its square, and is the
-one case where these want retuning.</p>
-<p>Only one outlet patch in a grid may be throttled; the solver refuses a
-grid carrying more. Two patches
-driving independent controllers at the same target would each apply the
-full correction for an error they share.</p>
+\[\frac{\Delta p_\mathrm{throttle}}{p_\mathrm{ref}} =
+    K_p\, \varepsilon + K_i \sum \varepsilon \,\mathrm{cfl}\]</div>
+<p>summed over timesteps. The throttle only chooses which pressure the
+boundary imposes: a mass flow above target raises it, reducing the flow.</p>
+<p><strong>The gains are dimensionless and should not need tuning.</strong> The steady
+sensitivity <span class="math notranslate nohighlight">\(d\dot m/\dot m = -dp/2q\)</span> makes a correction of
+<span class="math notranslate nohighlight">\(2q\,\varepsilon\)</span> a Newton step whose natural scale is the exit
+dynamic head – the scale the nondimensionalisation already works in,
+since <span class="math notranslate nohighlight">\(p_\mathrm{ref} = \rho_\mathrm{ref}V_\mathrm{ref}^2\)</span>. So
+<span class="math notranslate nohighlight">\(K_p = 1\)</span> is that Newton step, and the default is half of it, a
+full step ringing because the flow answers only once a wave has crossed
+the domain; the integral removes the droop proportional action leaves. A
+<code class="docutils literal notranslate"><span class="pre">V_ref</span></code> far from the exit velocity moves the loop gain by its square.</p>
+<p><strong>The integral is weighted by the CFL, not by the step</strong>, since it would
+otherwise keep acting on an error already answered; one <span class="math notranslate nohighlight">\(K_i\)</span> then
+holds across a CFL sweep, though not across a change of mesh or scheme.</p>
+<p>Only one outlet patch in a grid may be throttled; two controllers at the
+same target would each apply the full correction for a shared error.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">

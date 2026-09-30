@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.block_util &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
+    <title>ember.block_util &#8212; ember 0.4.4.dev21+g6a3e5594c documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=83ef07b4"></script>
+    <script src="../../_static/documentation_options.js?v=f9b58397"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
+<p class="blurb">Version 0.4.4.dev21+g6a3e5594c</p>
 
 
 
@@ -212,6 +212,19 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">ember.block</span><span class="w"> </span><span class="kn">import</span> <span class="n">Block</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1"># Wall law names to the integer codes of viscous.f90&#39;s WALL_LAW_* parameters.</span>
+<span class="n">_WALL_LAW</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;fit&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;reichardt&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_wall_law_code</span><span class="p">(</span><span class="n">wall_law</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The ``viscous.f90`` code for a wall law name; raises on an unknown one.&quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_WALL_LAW</span><span class="p">[</span><span class="n">wall_law</span><span class="p">]</span>
+    <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;unknown wall_law </span><span class="si">{</span><span class="n">wall_law</span><span class="si">!r}</span><span class="s2">; expected one of </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">_WALL_LAW</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
 
 
 <div class="viewcode-block" id="concatenate">
@@ -897,7 +910,7 @@
 
 <div class="viewcode-block" id="wall_yplus">
 <a class="viewcode-back" href="../../api/block_util.html#ember.block_util.wall_yplus">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">wall_yplus</span><span class="p">(</span><span class="n">block</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">wall_yplus</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">wall_law</span><span class="o">=</span><span class="s2">&quot;fit&quot;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;y+ on all six wall-adjacent boundary faces of ``block``.</span>
 
 <span class="sd">    Post-processing only -- NOT part of the per-step viscous kernel.</span>
@@ -922,6 +935,10 @@
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    block : Block</span>
+<span class="sd">    wall_law : {&quot;fit&quot;, &quot;reichardt&quot;}</span>
+<span class="sd">        Wall law to evaluate y+ under, as :attr:`ember.solver.Solver.wall_law`.</span>
+<span class="sd">        The y+ at a face depends on the law&#39;s skin friction, so pass the law</span>
+<span class="sd">        the solution was marched with.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -941,8 +958,10 @@
         <span class="n">omega_block</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">Omega_nd</span><span class="p">,</span>
         <span class="n">r</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">r_nd</span><span class="p">,</span>
         <span class="n">mu</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">mu_nd</span><span class="p">,</span>
+        <span class="n">fac_lam</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">fac_lam</span><span class="p">,</span>
         <span class="o">**</span><span class="n">block</span><span class="o">.</span><span class="n">ijk_wall_visc</span><span class="p">,</span>
         <span class="o">**</span><span class="n">block</span><span class="o">.</span><span class="n">Omega_wall_nd</span><span class="p">,</span>
+        <span class="n">wall_law</span><span class="o">=</span><span class="n">_wall_law_code</span><span class="p">(</span><span class="n">wall_law</span><span class="p">),</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">result</span><span class="p">))</span></div>
 

@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.grid &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
+    <title>ember.grid &#8212; ember 0.4.4.dev21+g6a3e5594c documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=83ef07b4"></script>
+    <script src="../../_static/documentation_options.js?v=f9b58397"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
+<p class="blurb">Version 0.4.4.dev21+g6a3e5594c</p>
 
 
 
@@ -304,7 +304,6 @@
 <span class="sd">   Grid.smooth</span>
 <span class="sd">   Grid.update_bconds</span>
 <span class="sd">   Grid.update_cached_conserved</span>
-<span class="sd">   Grid.update_filter</span>
 <span class="sd">   Grid.update_residual</span>
 <span class="sd">   Grid.update_sources</span>
 <span class="sd">   Grid.update_timestep</span>
@@ -349,19 +348,19 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">ember.nonmatch_communicator</span>
 
 
-<span class="c1"># k-slab depth for the tiled kernels (set_visc_force, set_residual): cell</span>
-<span class="c1"># planes per slab, so that a slab&#39;s input planes stay cache-resident across</span>
-<span class="c1"># all three face directions.</span>
-<span class="c1">#</span>
-<span class="c1"># INERT TODAY, and kept only as a dummy the bench arms can share with</span>
-<span class="c1"># production. Both kernels were since rewritten to walk k once with rolling</span>
-<span class="c1"># face buffers, which subsumed the slab blocking: set_residual&#39;s slab loop</span>
-<span class="c1"># is now a pure re-nesting of `do k = 1, nk-1` (measured at 1M cells: every</span>
-<span class="c1"># kb from 2 to nk-1 is bitwise identical and within 1% on time), and</span>
-<span class="c1"># set_visc_force consumes kb only as a sanity guard. What bounds the</span>
-<span class="c1"># concurrent working set now is the j-panel width inside each kernel</span>
+<span class="c1"># k-slab depth for the tiled kernels (set_visc_force, set_residual), in cell</span>
+<span class="c1"># planes per slab. INERT, and kept only as a dummy the bench arms can share</span>
+<span class="c1"># with production: both kernels walk k once with rolling face buffers, which</span>
+<span class="c1"># subsumes the slab blocking, so set_residual&#39;s slab loop is a pure re-nesting</span>
+<span class="c1"># of `do k = 1, nk-1` and set_visc_force takes kb only as a sanity guard. What</span>
+<span class="c1"># bounds the concurrent working set is the j-panel width inside each kernel</span>
 <span class="c1"># (RES_JAREA/RES_JMIN, VISC_JAREA). Do not sweep this; see bench/README.md.</span>
 <span class="n">_KB_SLAB</span> <span class="o">=</span> <span class="mi">8</span>
+
+<span class="c1"># Stand-in for conserved_filt_nd when SFD is off: set_timestep_sources takes the</span>
+<span class="c1"># filter state with its own extents and never touches it at zero gain, so a</span>
+<span class="c1"># zero-size array keeps the (cell-sized) filter buffer unallocated.</span>
+<span class="n">_NO_FILT</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Grid">
@@ -767,30 +766,18 @@
 <span class="sd">        aligns the Cartesian data with the structured grid, converts coordinates</span>
 <span class="sd">        to polar, and transforms the momentum vector accordingly.</span>
 
-<span class="sd">        The input conserved state vector is:</span>
-
-<span class="sd">        .. math::</span>
-
-<span class="sd">            \mathcal{U}_{\mathrm{cart}} =</span>
-<span class="sd">            \begin{pmatrix} \rho,\ \rho V_x,\ \rho V_y,\ \rho V_z,\ \rho e \end{pmatrix}</span>
-
-<span class="sd">        The Cartesian momentum components are first converted to velocities,</span>
-<span class="sd">        rotated into the polar frame :math:`(x, r, \theta)`, then reassembled</span>
-<span class="sd">        as polar conserved variables:</span>
-
-<span class="sd">        .. math::</span>
-
-<span class="sd">            \mathcal{U} =</span>
-<span class="sd">            \begin{pmatrix} \rho,\ \rho V_x,\ \rho V_r,\ \rho r V_\theta,\ \rho e \end{pmatrix}</span>
-
-<span class="sd">        where the polar velocity components are:</span>
+<span class="sd">        The input state</span>
+<span class="sd">        :math:`(\rho,\ \rho V_x,\ \rho V_y,\ \rho V_z,\ \rho e)` has its</span>
+<span class="sd">        momentum converted to velocity and rotated into the polar frame</span>
+<span class="sd">        :math:`(x, r, \theta)` by</span>
 
 <span class="sd">        .. math::</span>
 
 <span class="sd">            V_r &amp;= V_y \cos\theta - V_z \sin\theta \\</span>
 <span class="sd">            V_\theta &amp;= -V_y \sin\theta - V_z \cos\theta</span>
 
-<span class="sd">        with :math:`\theta = \mathrm{atan2}(-z,\, y)`.</span>
+<span class="sd">        with :math:`\theta = \mathrm{atan2}(-z,\, y)`, then reassembled as</span>
+<span class="sd">        :math:`(\rho,\ \rho V_x,\ \rho V_r,\ \rho r V_\theta,\ \rho e)`.</span>
 
 <span class="sd">        .. warning::</span>
 
@@ -905,29 +892,16 @@
 <span class="sd">        aligns the Cartesian data with the structured grid, converts coordinates</span>
 <span class="sd">        to polar, and rotates the velocity vector accordingly.</span>
 
-<span class="sd">        The input primitive state vector is:</span>
-
-<span class="sd">        .. math::</span>
-
-<span class="sd">            \mathcal{P}_{\mathrm{cart}} =</span>
-<span class="sd">            \begin{pmatrix} \rho,\ V_x,\ V_y,\ V_z,\ p \end{pmatrix}</span>
-
-<span class="sd">        The Cartesian velocity components are rotated into the polar frame</span>
-<span class="sd">        :math:`(x, r, \theta)` to give the polar primitive state:</span>
-
-<span class="sd">        .. math::</span>
-
-<span class="sd">            \mathcal{P} =</span>
-<span class="sd">            \begin{pmatrix} \rho,\ V_x,\ V_r,\ V_\theta,\ p \end{pmatrix}</span>
-
-<span class="sd">        where:</span>
+<span class="sd">        The input state :math:`(\rho,\ V_x,\ V_y,\ V_z,\ p)` has its velocity</span>
+<span class="sd">        rotated into the polar frame :math:`(x, r, \theta)` by</span>
 
 <span class="sd">        .. math::</span>
 
 <span class="sd">            V_r &amp;= V_y \cos\theta - V_z \sin\theta \\</span>
 <span class="sd">            V_\theta &amp;= -V_y \sin\theta - V_z \cos\theta</span>
 
-<span class="sd">        with :math:`\theta = \mathrm{atan2}(-z,\, y)`.</span>
+<span class="sd">        with :math:`\theta = \mathrm{atan2}(-z,\, y)`, giving the polar</span>
+<span class="sd">        primitive state :math:`(\rho,\ V_x,\ V_r,\ V_\theta,\ p)`.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
@@ -1458,12 +1432,9 @@
             <span class="c1"># Scalar screen first: max propagates NaN, so this is exactly</span>
             <span class="c1"># isnan(rho).any() without materialising the full boolean mask --</span>
             <span class="c1"># a 1 MB temporary per step at 1M cells, on a path that passes</span>
-            <span class="c1"># every time. Infinities are deliberately not caught, matching the</span>
-            <span class="c1"># mask form it replaces. sum() would screen too, but is slower than</span>
-            <span class="c1"># the mask it saves (pairwise float32 summation does not vectorise</span>
-            <span class="c1"># as well as maximum.reduce) and warns on the NaN it is looking for.</span>
-            <span class="c1"># The mask is built below only once it is known to be non-empty,</span>
-            <span class="c1"># where the bounding box needs it anyway.</span>
+            <span class="c1"># every time. Infinities are deliberately not caught. The mask is</span>
+            <span class="c1"># built below only once it is known to be non-empty, where the</span>
+            <span class="c1"># bounding box needs it anyway.</span>
             <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">rho</span><span class="o">.</span><span class="n">max</span><span class="p">()):</span>
                 <span class="k">raise</span> <span class="n">DivergenceError</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;NaN in conserved_nd density of block </span><span class="si">{</span><span class="n">iblock</span><span class="si">}</span><span class="s2"> &quot;</span>
@@ -1580,7 +1551,7 @@
 <div class="viewcode-block" id="Grid.smooth">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.Grid.smooth">[docs]</a>
     <span class="nd">@util</span><span class="o">.</span><span class="n">profile</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">smooth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sf4</span><span class="p">,</span> <span class="n">sf2</span><span class="p">,</span> <span class="n">adaptive</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">smooth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sf4</span><span class="p">,</span> <span class="n">sf2</span><span class="p">,</span> <span class="n">adaptive</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">sf2_T</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply blended 2nd/4th-order artificial dissipation to every block.</span>
 
 <span class="sd">        Both kernels share one stencil family and one set of biased boundary</span>
@@ -1596,10 +1567,11 @@
 <span class="sd">            ``adaptive`` is False; the *ceiling* a JST shock sensor scales when</span>
 <span class="sd">            it is True.</span>
 <span class="sd">        adaptive : bool</span>
-<span class="sd">            Use the sensor-driven kernel. ``sf2`` is passed as both the</span>
-<span class="sd">            pressure and the temperature sensor weight, and the fourth-order</span>
-<span class="sd">            factor is clipped against the sensor as ``max(sf4 - sf2n, 0)``, so</span>
-<span class="sd">            the fourth-order term switches off inside a shock.</span>
+<span class="sd">            Use the sensor-driven kernel. ``sf2`` is the pressure sensor</span>
+<span class="sd">            weight, and the temperature sensor weight too unless ``sf2_T`` is</span>
+<span class="sd">            given, and the fourth-order factor is clipped against the sensor as</span>
+<span class="sd">            ``max(sf4 - sf2n, 0)``, so the fourth-order term switches off</span>
+<span class="sd">            inside a shock.</span>
 
 <span class="sd">            Costs two nodal sensor passes over</span>
 <span class="sd">            :attr:`~ember.block.Block.P_nd` and</span>
@@ -1612,6 +1584,10 @@
 <span class="sd">            one step behind the state being smoothed. That lag is deliberate</span>
 <span class="sd">            and it is what makes the sensor free; it matters only where a</span>
 <span class="sd">            feature moves an appreciable distance in one step.</span>
+<span class="sd">        sf2_T : float, optional</span>
+<span class="sd">            Temperature sensor weight for the adaptive kernel, ``sf2`` when</span>
+<span class="sd">            omitted; zero senses on pressure alone. Ignored when ``adaptive``</span>
+<span class="sd">            is False.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
             <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span>
@@ -1624,7 +1600,7 @@
                     <span class="n">t</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">T_nd</span><span class="p">,</span>
                     <span class="n">sf4</span><span class="o">=</span><span class="n">sf4</span><span class="p">,</span>
                     <span class="n">sf2p</span><span class="o">=</span><span class="n">sf2</span><span class="p">,</span>
-                    <span class="n">sf2t</span><span class="o">=</span><span class="n">sf2</span><span class="p">,</span>
+                    <span class="n">sf2t</span><span class="o">=</span><span class="n">sf2</span> <span class="k">if</span> <span class="n">sf2_T</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">sf2_T</span><span class="p">,</span>
                     <span class="n">sf2n</span><span class="o">=</span><span class="n">sf2n</span><span class="p">,</span>
                     <span class="n">dx</span><span class="o">=</span><span class="n">dx</span><span class="p">,</span>
                 <span class="p">)</span>
@@ -1711,47 +1687,6 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
             <span class="n">block</span><span class="o">.</span><span class="n">update_cached_conserved</span><span class="p">()</span></div>
-
-
-<div class="viewcode-block" id="Grid.update_filter">
-<a class="viewcode-back" href="../../api/grid.html#ember.grid.Grid.update_filter">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">update_filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfl</span><span class="p">,</span> <span class="n">delta_filt</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Evolve the SFD low-pass filter one step on every block.</span>
-
-<span class="sd">        First-order exponential moving average of each block&#39;s cell-centred</span>
-<span class="sd">        conserved state toward its current cell state, with per-cell timestep</span>
-<span class="sd">        ``dt = cfl * dt_vol * vol``. ``cfl`` may be a per-cell/per-equation</span>
-<span class="sd">        array of shape ``(ni-1, nj-1, nk-1, 5)`` or a single scalar; the rank</span>
-<span class="sd">        selects the matching kernel. ``delta_filt`` is the filter time constant.</span>
-
-<span class="sd">        Must run after the CFL and ``dt_vol`` for the step are current. This is</span>
-<span class="sd">        the only writer of the read-only ``conserved_filt_nd`` buffer, so it</span>
-<span class="sd">        owns the ``flags.writeable`` toggle (mirrors the timestep writers).</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">kernel</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">update_filter_scalar</span>
-            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">ndim</span><span class="p">(</span><span class="n">cfl</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
-            <span class="k">else</span> <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">update_filter_array</span>
-        <span class="p">)</span>
-        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
-            <span class="n">cons_filt</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">conserved_filt_nd</span>
-            <span class="n">cons_filt</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">True</span>
-            <span class="c1"># Cell-centred conserved state, materialised into the arena for</span>
-            <span class="c1"># this call alone (as the SFD force does; see update_sources). The</span>
-            <span class="c1"># arena is free in this method, and the buffer is the size of the</span>
-            <span class="c1"># multigrid-off march&#39;s, so it never binds.</span>
-            <span class="n">cons_cell</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">shape_cell</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span><span class="p">,))</span>
-            <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">node_to_cell</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span> <span class="n">cons_cell</span><span class="p">)</span>
-            <span class="n">kernel</span><span class="p">(</span>
-                <span class="n">cons_filt</span><span class="o">=</span><span class="n">cons_filt</span><span class="p">,</span>
-                <span class="n">cons_cell</span><span class="o">=</span><span class="n">cons_cell</span><span class="p">,</span>
-                <span class="n">cfl</span><span class="o">=</span><span class="n">cfl</span><span class="p">,</span>
-                <span class="n">dt_vol</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">dt_vol_nd</span><span class="p">,</span>
-                <span class="n">vol</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">vol_nd</span><span class="p">,</span>
-                <span class="n">delta_filt</span><span class="o">=</span><span class="n">delta_filt</span><span class="p">,</span>
-            <span class="p">)</span>
-            <span class="n">cons_filt</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">False</span></div>
 
 
 <div class="viewcode-block" id="Grid.update_residual">
@@ -1868,14 +1803,16 @@
 <div class="viewcode-block" id="Grid.update_sources">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.Grid.update_sources">[docs]</a>
     <span class="nd">@util</span><span class="o">.</span><span class="n">profile</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">update_sources</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inviscid</span><span class="p">,</span> <span class="n">gain_filt</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_sources</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inviscid</span><span class="p">,</span> <span class="n">wall_law</span><span class="o">=</span><span class="s2">&quot;fit&quot;</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Zero and rebuild the body force on every block of this grid level.</span>
 
-<span class="sd">        Assembles, into each ``block.F_body_nd``, the viscous shear stresses</span>
-<span class="sd">        (unless ``inviscid``), the polar source, and the optional SFD force</span>
-<span class="sd">        (when ``gain_filt`` is nonzero) -- in that order, so the viscous</span>
-<span class="sd">        momentum/energy negation does not flip the polar source added</span>
-<span class="sd">        afterwards.</span>
+<span class="sd">        Zeroes each ``block.F_body_nd`` and assembles into it the viscous shear</span>
+<span class="sd">        stresses (unless ``inviscid``). That is only the first half of the body</span>
+<span class="sd">        force: the polar source and the optional SFD force are cell sources,</span>
+<span class="sd">        added by the :meth:`update_timestep` that follows with</span>
+<span class="sd">        ``add_sources=True``, from cell averages that kernel already forms.</span>
+<span class="sd">        ``F_body_nd`` is complete, and fit for :meth:`update_residual`, only</span>
+<span class="sd">        after both.</span>
 
 <span class="sd">        The viscous calculation is phased across the whole grid: every block&#39;s</span>
 <span class="sd">        BOUNDARY tau/q is computed first, then a single periodic seam exchange</span>
@@ -1890,10 +1827,11 @@
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        inviscid : bool</span>
-<span class="sd">            Skip the viscous shear-stress/heat-flux terms when True.</span>
-<span class="sd">        gain_filt : float</span>
-<span class="sd">            Selective-frequency-damping gain; the SFD force is added only when</span>
-<span class="sd">            nonzero.</span>
+<span class="sd">            Skip the viscous shear-stress/heat-flux terms when True, leaving</span>
+<span class="sd">            ``F_body_nd`` zeroed.</span>
+<span class="sd">        wall_law : {&quot;fit&quot;, &quot;reichardt&quot;}</span>
+<span class="sd">            Skin-friction law at no-slip walls; see</span>
+<span class="sd">            :attr:`ember.solver.Solver.wall_law`.</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># F_body_nd is a read-only cached buffer. Unlock it for the assembly below</span>
@@ -1904,6 +1842,7 @@
             <span class="n">block</span><span class="o">.</span><span class="n">F_body_nd</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">inviscid</span><span class="p">:</span>
+            <span class="n">law</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">block_util</span><span class="o">.</span><span class="n">_wall_law_code</span><span class="p">(</span><span class="n">wall_law</span><span class="p">)</span>
             <span class="c1"># The face buffers are pure scratch (always writeable); no locking</span>
             <span class="c1"># needed. First viscous phase: tau/q on the boundary SHELL only</span>
             <span class="c1"># (Pr_turb fixed at 1.0 for the grid march; mixing-length vorticity</span>
@@ -1934,6 +1873,7 @@
                     <span class="n">kappa</span><span class="o">=</span><span class="n">kappa</span><span class="p">,</span>
                     <span class="n">pr_turb</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
                     <span class="n">wdist</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">wdist_nd</span><span class="p">,</span>
+                    <span class="n">fac_lam</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">fac_lam</span><span class="p">,</span>
                     <span class="n">vol</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">vol_nd</span><span class="p">,</span>
                     <span class="n">dai</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">dAi_nd</span><span class="p">,</span>
                     <span class="n">daj</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">dAj_nd</span><span class="p">,</span>
@@ -1956,10 +1896,9 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">periodic</span><span class="o">.</span><span class="n">exchange_faces</span><span class="p">()</span>
 
             <span class="c1"># Second viscous phase: interior tau/q and the face fluxes in one</span>
-            <span class="c1"># walk, accumulated into F_body_nd, with the polar (radial-momentum)</span>
-            <span class="c1"># source fused into the same kernel&#39;s final pass over fvisc -- see</span>
-            <span class="c1"># set_visc_force&#39;s header comment. The cusp seam is handled inside</span>
-            <span class="c1"># the kernel, from the two k face buffers.</span>
+            <span class="c1"># walk, accumulated into F_body_nd -- see set_visc_force&#39;s header</span>
+            <span class="c1"># comment. The cusp seam is handled inside the kernel, from the</span>
+            <span class="c1"># two k face buffers.</span>
             <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
                 <span class="n">i_cusp_start</span><span class="p">,</span> <span class="n">i_cusp_end</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">i_cusp</span>
                 <span class="n">j_cusp_start</span><span class="p">,</span> <span class="n">j_cusp_end</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">j_cusp</span>
@@ -1990,14 +1929,13 @@
                     <span class="n">omega_block</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">Omega_nd</span><span class="p">,</span>
                     <span class="n">r</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">r_nd</span><span class="p">,</span>
                     <span class="n">mu</span><span class="o">=</span><span class="n">mu</span><span class="p">,</span>
-                    <span class="n">p</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">P_nd</span><span class="p">,</span>
-                    <span class="n">p_offset</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">P_offset_nd</span><span class="p">,</span>
                     <span class="n">fvisc</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">F_body_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:],</span>
                     <span class="n">t</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">T_nd</span><span class="p">,</span>
                     <span class="n">cp</span><span class="o">=</span><span class="n">cp</span><span class="p">,</span>
                     <span class="n">kappa</span><span class="o">=</span><span class="n">kappa</span><span class="p">,</span>
                     <span class="n">pr_turb</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
                     <span class="n">wdist</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">wdist_nd</span><span class="p">,</span>
+                    <span class="n">fac_lam</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">fac_lam</span><span class="p">,</span>
                     <span class="n">mu_turb</span><span class="o">=</span><span class="n">mu_turb</span><span class="p">,</span>
                     <span class="n">f_i1</span><span class="o">=</span><span class="n">faces</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
                     <span class="n">f_ini</span><span class="o">=</span><span class="n">faces</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
@@ -2014,6 +1952,7 @@
                     <span class="n">i_cusp_end</span><span class="o">=</span><span class="n">i_cusp_end</span><span class="p">,</span>
                     <span class="n">j_cusp_start</span><span class="o">=</span><span class="n">j_cusp_start</span><span class="p">,</span>
                     <span class="n">j_cusp_end</span><span class="o">=</span><span class="n">j_cusp_end</span><span class="p">,</span>
+                    <span class="n">wall_law</span><span class="o">=</span><span class="n">law</span><span class="p">,</span>
                     <span class="c1"># 0: panel width from the kernel&#39;s own VISC_JAREA. Nothing</span>
                     <span class="c1"># marches with anything else; the argument exists so the</span>
                     <span class="c1"># tests can sweep it (see test_viscous_phases_golden).</span>
@@ -2023,41 +1962,6 @@
                 <span class="c1"># later reads through the public property succeed.</span>
                 <span class="n">block</span><span class="o">.</span><span class="n">_versions</span><span class="p">[</span><span class="s2">&quot;mu_turb&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
 
-        <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># Inviscid: set_visc_force never runs, so the polar source (not</span>
-            <span class="c1"># otherwise fused anywhere) needs its own pass here.</span>
-            <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
-                <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">set_polar_source</span><span class="p">(</span>
-                    <span class="n">cons</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span>
-                    <span class="n">r</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">r_nd</span><span class="p">,</span>
-                    <span class="n">p</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">P_nd</span><span class="p">,</span>
-                    <span class="n">p_offset</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">P_offset_nd</span><span class="p">,</span>
-                    <span class="n">vol</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">vol_nd</span><span class="p">,</span>
-                    <span class="n">net_flow</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">F_body_nd</span><span class="p">,</span>
-                <span class="p">)</span>
-
-        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">gain_filt</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">:</span>
-                <span class="c1"># SFD body force runs pre-step so it drives the RK integration,</span>
-                <span class="c1"># not just the post-step residual.</span>
-                <span class="c1">#</span>
-                <span class="c1"># The cell-centred conserved state this wants is not kept</span>
-                <span class="c1"># anywhere: the kernels that need it every step average the</span>
-                <span class="c1"># nodal state as they walk, and SFD is off by default. So</span>
-                <span class="c1"># materialise it here, into the arena. This is its own</span>
-                <span class="c1"># sub-phase -- the viscous loop above has finished with the</span>
-                <span class="c1"># arena by now -- and the buffer is exactly the size of the</span>
-                <span class="c1"># multigrid-off march&#39;s, so it never binds (see _scratch_len).</span>
-                <span class="n">cons_cell</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">shape_cell</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span><span class="p">,))</span>
-                <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">node_to_cell</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span> <span class="n">cons_cell</span><span class="p">)</span>
-                <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">apply_sfd_force</span><span class="p">(</span>
-                    <span class="n">f_body</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">F_body_nd</span><span class="p">,</span>
-                    <span class="n">cons_filt</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_filt_nd</span><span class="p">,</span>
-                    <span class="n">cons_cell</span><span class="o">=</span><span class="n">cons_cell</span><span class="p">,</span>
-                    <span class="n">vol</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">vol_nd</span><span class="p">,</span>
-                    <span class="n">gain_filt</span><span class="o">=</span><span class="n">gain_filt</span><span class="p">,</span>
-                <span class="p">)</span>
-
         <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
             <span class="n">block</span><span class="o">.</span><span class="n">F_body_nd</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">False</span></div>
 
@@ -2065,30 +1969,44 @@
 <div class="viewcode-block" id="Grid.update_timestep">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.Grid.update_timestep">[docs]</a>
     <span class="nd">@util</span><span class="o">.</span><span class="n">profile</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">update_timestep</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rf</span><span class="p">,</span> <span class="n">fac_visc</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Recompute the volumetric time step on every block.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_timestep</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">rf</span><span class="p">,</span>
+        <span class="n">fac_visc</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">add_sources</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">gain_filt</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">cfl</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">delta_filt</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Recompute the volumetric time step, and the cell sources, on every block.</span>
 
-<span class="sd">        Uses a max-of-directional-radii variant of the JST/Blazek definition</span>
-<span class="sd">        ``dt_vol = 1 / max(lam_conv, lam_diff)``, where ``lam_conv`` is the</span>
-<span class="sd">        largest of the convective spectral radii</span>
-<span class="sd">        ``Lambda_d = |V_rel . dA_d| + a*||dA_d||`` over the three directions and</span>
-<span class="sd">        ``lam_diff = fac_visc * (mu_turb/rho)*max_d||dA_d||^2/vol`` is the</span>
-<span class="sd">        turbulent-diffusion radius over the same faces</span>
-<span class="sd">        (:func:`set_timestep_spectral`). Taking the max of the directional radii</span>
-<span class="sd">        (rather than Blazek&#39;s sum) makes the CFL number the true 1D Courant limit</span>
-<span class="sd">        (~``2*sqrt(2)`` for the 4-stage RK march) while staying</span>
-<span class="sd">        aspect-ratio-independent for the viscous limit too.</span>
+<span class="sd">        ``dt_vol = 1 / max(lam_conv, lam_diff)``: the largest single-direction</span>
+<span class="sd">        convective radius ``|V_rel . dA_d| + a*||dA_d||`` or turbulent-diffusion</span>
+<span class="sd">        radius ``fac_visc * (mu_turb/rho)*max_d||dA_d||^2/vol`` (see</span>
+<span class="sd">        :func:`set_timestep_sources`). The max, not Blazek&#39;s sum, makes the CFL</span>
+<span class="sd">        number the true 1D Courant limit (~``2*sqrt(2)`` for the 4-stage RK</span>
+<span class="sd">        march). ``rf`` blends ``rf*new + (1-rf)*old`` (``1.0`` for a fresh</span>
+<span class="sd">        recompute); ``fac_visc`` (&gt;= 1) tightens the viscous limit.</span>
 
-<span class="sd">        ``rf`` is the relaxation factor blending the new ``dt_vol`` with the</span>
-<span class="sd">        existing buffer as ``rf*new + (1-rf)*old`` (pass ``rf=1.0`` for a fresh</span>
-<span class="sd">        recompute). This is the lone writer of each block&#39;s read-only</span>
-<span class="sd">        ``dt_vol_nd`` buffer, so it owns the ``flags.writeable`` toggle.</span>
+<span class="sd">        The same walk finishes the cell sources, from the cell averages it</span>
+<span class="sd">        already holds:</span>
 
-<span class="sd">        ``fac_visc`` (&gt;= 1) multiplies the diffusion radius so the viscous march</span>
-<span class="sd">        tolerates the same cfl as the inviscid one; ``1.0`` leaves the bare</span>
-<span class="sd">        directional radius untouched.</span>
+<span class="sd">        * ``add_sources=True`` adds the polar source and, at nonzero</span>
+<span class="sd">          ``gain_filt``, the SFD force ``gain_filt * (cons_filt - cons_cell) *</span>
+<span class="sd">          vol`` onto ``F_body_nd``. Pass it exactly when :meth:`update_sources`</span>
+<span class="sd">          has just rebuilt the viscous part; otherwise ``F_body_nd`` is held.</span>
+<span class="sd">        * ``gain_filt != 0`` advances the SFD filter ``conserved_filt_nd`` by</span>
+<span class="sd">          ``dt * (cons_cell - cons_filt) / delta_filt``, ``dt = cfl * dt_vol *</span>
+<span class="sd">          vol`` on the ``dt_vol`` just computed. Once per step, whatever the</span>
+<span class="sd">          source cadence; the force reads the filter before the update.</span>
+
+<span class="sd">        This is the lone writer of ``dt_vol_nd``, of ``F_body_nd``&#39;s cell</span>
+<span class="sd">        sources and of ``conserved_filt_nd``, so it owns their</span>
+<span class="sd">        ``flags.writeable`` toggles. At zero gain the filter is never touched,</span>
+<span class="sd">        and so never allocated.</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">sfd</span> <span class="o">=</span> <span class="n">gain_filt</span> <span class="o">!=</span> <span class="mf">0.0</span>
         <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
             <span class="c1"># Fill the primitive cache before the carve below, not lazily</span>
             <span class="c1"># through `u_nd` after it. Two reasons, and the ordering is load</span>
@@ -2108,8 +2026,13 @@
             <span class="c1"># takes anyway.</span>
             <span class="n">a</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
             <span class="n">block</span><span class="o">.</span><span class="n">fluid</span><span class="o">.</span><span class="n">get_a</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">_rho_nd_uninit</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">u_nd</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">a</span><span class="p">)</span>
+            <span class="n">P</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">P_nd</span>
+            <span class="n">f_body</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">F_body_nd</span>
+            <span class="n">cons_filt</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">conserved_filt_nd</span> <span class="k">if</span> <span class="n">sfd</span> <span class="k">else</span> <span class="n">_NO_FILT</span>
             <span class="n">block</span><span class="o">.</span><span class="n">dt_vol_nd</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">True</span>
-            <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">set_timestep_spectral</span><span class="p">(</span>
+            <span class="n">f_body</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">cons_filt</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">set_timestep_sources</span><span class="p">(</span>
                 <span class="n">dt_vol</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">dt_vol_nd</span><span class="p">,</span>
                 <span class="n">a</span><span class="o">=</span><span class="n">a</span><span class="p">,</span>
                 <span class="n">cons</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span>
@@ -2126,8 +2049,18 @@
                 <span class="n">vol</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">vol_nd</span><span class="p">,</span>
                 <span class="n">rf</span><span class="o">=</span><span class="n">rf</span><span class="p">,</span>
                 <span class="n">fac_visc</span><span class="o">=</span><span class="n">fac_visc</span><span class="p">,</span>
+                <span class="n">p</span><span class="o">=</span><span class="n">P</span><span class="p">,</span>
+                <span class="n">p_offset</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">P_offset_nd</span><span class="p">,</span>
+                <span class="n">f_body</span><span class="o">=</span><span class="n">f_body</span><span class="p">,</span>
+                <span class="n">cons_filt</span><span class="o">=</span><span class="n">cons_filt</span><span class="p">,</span>
+                <span class="n">add_sources</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">add_sources</span><span class="p">),</span>
+                <span class="n">gain_filt</span><span class="o">=</span><span class="n">gain_filt</span><span class="p">,</span>
+                <span class="n">cfl</span><span class="o">=</span><span class="n">cfl</span><span class="p">,</span>
+                <span class="n">delta_filt</span><span class="o">=</span><span class="n">delta_filt</span><span class="p">,</span>
             <span class="p">)</span>
-            <span class="n">block</span><span class="o">.</span><span class="n">dt_vol_nd</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">False</span></div>
+            <span class="n">block</span><span class="o">.</span><span class="n">dt_vol_nd</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">f_body</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">cons_filt</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">False</span></div>
 
 
 <div class="viewcode-block" id="Grid.write_emb">

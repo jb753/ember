@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Averaging &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
+    <title>Averaging &#8212; ember 0.4.4.dev21+g6a3e5594c documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=83ef07b4"></script>
+    <script src="../_static/documentation_options.js?v=f9b58397"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
+<p class="blurb">Version 0.4.4.dev21+g6a3e5594c</p>
 
 
 
@@ -76,6 +76,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#ember.average.flow_conserved"><code class="docutils literal notranslate"><span class="pre">flow_conserved()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.average.flow_conserved_nd"><code class="docutils literal notranslate"><span class="pre">flow_conserved_nd()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.average.mass_average"><code class="docutils literal notranslate"><span class="pre">mass_average()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.average.mass_band"><code class="docutils literal notranslate"><span class="pre">mass_band()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.average.area_average"><code class="docutils literal notranslate"><span class="pre">area_average()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.average.total_area"><code class="docutils literal notranslate"><span class="pre">total_area()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.average.total_area_nd"><code class="docutils literal notranslate"><span class="pre">total_area_nd()</span></code></a></li>
@@ -276,6 +277,54 @@ for triangulated grids, should be None to average over all faces</p></li>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If the net mass flux through the block is zero</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.average.mass_band">
+<span class="sig-prename descclassname"><span class="pre">average.</span></span><span class="sig-name descname"><span class="pre">mass_band</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/average.html#mass_band"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.average.mass_band" title="Link to this definition">¶</a></dt>
+<dd><p>Extract the part of a structured 2D cut carrying a band of mass flow.</p>
+<p>Integrates the mass flow strip by strip along <cite>axis</cite>, summing across the
+other axis, to give a cumulative mass fraction <span class="math notranslate nohighlight">\(\psi\)</span> running from
+zero at the first node to one at the last. The band is the region
+<span class="math notranslate nohighlight">\(\mathrm{lo} \le \psi \le \mathrm{hi}\)</span>, so <code class="docutils literal notranslate"><span class="pre">lo=0.45,</span> <span class="pre">hi=0.55</span></code> on a
+hub-to-casing axis is the stream surface carrying the central tenth of the
+flow.</p>
+<p>The two ends of the band sit at fractional node positions inside the
+strips where <span class="math notranslate nohighlight">\(\psi\)</span> first reaches <cite>lo</cite> and <cite>hi</cite>. The data are
+interpolated linearly to those two positions and the original nodes
+between them are copied through, so the band keeps the resolution of the
+cut it came from. Each end is placed by bisection on the mass flow of the
+partial strip it bounds, integrated just as <a class="reference internal" href="#ember.average.flow_mass" title="ember.average.flow_mass"><code class="xref py py-func docutils literal notranslate"><span class="pre">flow_mass()</span></code></a> integrates
+the band, so the band carries <span class="math notranslate nohighlight">\(\mathrm{hi} - \mathrm{lo}\)</span> of the flow
+to round-off — not merely to within the variation of flux and face area
+across a strip, which a linear interpolation of <span class="math notranslate nohighlight">\(\psi\)</span> would leave.</p>
+<p>The first crossing is taken rather than an inverse interpolation of
+<span class="math notranslate nohighlight">\(\psi\)</span>, which need not be monotonic: a strip of backflow in a corner
+elsewhere on the cut does not stop the band being found.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni"><em>ni</em></a><em>, </em><a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj"><em>nj</em></a><em>)</em>) – Structured 2D block.</p></li>
+<li><p><strong>lo</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Mass fractions bounding the band, <span class="math notranslate nohighlight">\(0 \le \mathrm{lo} &lt;
+\mathrm{hi} \le 1\)</span>.</p></li>
+<li><p><strong>hi</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><em>float</em></a>) – Mass fractions bounding the band, <span class="math notranslate nohighlight">\(0 \le \mathrm{lo} &lt;
+\mathrm{hi} \le 1\)</span>.</p></li>
+<li><p><strong>axis</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><em>int</em></a><em>, </em><em>default 0</em>) – Axis along which the mass fraction runs. The band spans the whole of
+the other axis.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>band</strong> – New block holding the band, with the metadata of <cite>block</cite>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block">Block</a>, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (nband, <a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj">nj</a>) or (<a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni">ni</a>, nband)</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If <cite>block</cite> is triangulated or not 2D, if <cite>axis</cite> is not 0 or 1, if the
+    fractions are out of order or out of range, or if the net mass flux
+    through the block is zero.</p>
 </dd>
 </dl>
 </dd></dl>

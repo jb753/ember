@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Block utilities &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
+    <title>Block utilities &#8212; ember 0.4.4.dev21+g6a3e5594c documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=83ef07b4"></script>
+    <script src="../_static/documentation_options.js?v=f9b58397"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
+<p class="blurb">Version 0.4.4.dev21+g6a3e5594c</p>
 
 
 
@@ -232,7 +232,7 @@ inverse of its partner.</p>
 <h2>Post-processing and I/O<a class="headerlink" href="#post-processing-and-i-o" title="Link to this heading">¶</a></h2>
 <table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block_util.wall_yplus" title="ember.block_util.wall_yplus"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wall_yplus</span></code></a>(block)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block_util.wall_yplus" title="ember.block_util.wall_yplus"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wall_yplus</span></code></a>(block[, wall_law])</p></td>
 <td><p>y+ on all six wall-adjacent boundary faces of <code class="docutils literal notranslate"><span class="pre">block</span></code>.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#ember.block_util.to_tm3" title="ember.block_util.to_tm3"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_tm3</span></code></a>(block, filename[, clip_quantile])</p></td>
@@ -457,7 +457,7 @@ blade, a pitch of a whole revolution, and copies that coincide.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="ember.block_util.wall_yplus">
-<span class="sig-prename descclassname"><span class="pre">block_util.</span></span><span class="sig-name descname"><span class="pre">wall_yplus</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/block_util.html#wall_yplus"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.block_util.wall_yplus" title="Link to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">block_util.</span></span><span class="sig-name descname"><span class="pre">wall_yplus</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wall_law</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fit'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/block_util.html#wall_yplus"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.block_util.wall_yplus" title="Link to this definition">¶</a></dt>
 <dd><p>y+ on all six wall-adjacent boundary faces of <code class="docutils literal notranslate"><span class="pre">block</span></code>.</p>
 <p>Post-processing only – NOT part of the per-step viscous kernel.
 <code class="docutils literal notranslate"><span class="pre">wall_yplus_field</span></code> (<code class="docutils literal notranslate"><span class="pre">_fortran/viscous.f90</span></code>) reuses the exact Re/cf/d
@@ -478,7 +478,12 @@ cell-centred solver samples its velocity at the half height too, so it
 infers its own friction velocity and does not simply see half of this.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a>)</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a>)</p></li>
+<li><p><strong>wall_law</strong> (<em>{&quot;fit&quot;</em><em>, </em><em>&quot;reichardt&quot;}</em>) – Wall law to evaluate y+ under, as <a class="reference internal" href="solver.html#ember.solver.Solver.wall_law" title="ember.solver.Solver.wall_law"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ember.solver.Solver.wall_law</span></code></a>.
+The y+ at a face depends on the law’s skin friction, so pass the law
+the solution was marched with.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Keys <code class="docutils literal notranslate"><span class="pre">yplus_i1</span></code>, <code class="docutils literal notranslate"><span class="pre">yplus_j1</span></code>, <code class="docutils literal notranslate"><span class="pre">yplus_k1</span></code>, <code class="docutils literal notranslate"><span class="pre">yplus_ni</span></code>,

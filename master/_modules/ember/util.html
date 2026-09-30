@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.util &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
+    <title>ember.util &#8212; ember 0.4.4.dev21+g6a3e5594c documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=83ef07b4"></script>
+    <script src="../../_static/documentation_options.js?v=f9b58397"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
+<p class="blurb">Version 0.4.4.dev21+g6a3e5594c</p>
 
 
 
@@ -1432,18 +1432,13 @@
     <span class="c1"># Calculate spans between consecutive critical indices</span>
     <span class="n">spans</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">i_crit</span><span class="p">)</span>
 
-    <span class="c1"># Allocate per-segment cell counts so they sum exactly to the target</span>
-    <span class="c1"># total, instead of rounding each segment independently. Independent</span>
-    <span class="c1"># rounding lets multiple segments each accrue a half-cell overshoot,</span>
-    <span class="c1"># producing an output one node larger than the global target -- which</span>
-    <span class="c1"># then violates the multigrid coarsening invariant</span>
-    <span class="c1"># n_coarse == (n_fine - 1) // 2 + 1.</span>
-    <span class="c1">#</span>
-    <span class="c1"># Largest-remainder (Hare quota): floor each segment&#39;s ideal cell count,</span>
-    <span class="c1"># then distribute the leftover cells to the segments with the largest</span>
-    <span class="c1"># fractional remainder. Segments are clamped to &gt;= 1 cell to keep the</span>
-    <span class="c1"># critical-index mapping strictly increasing (two adjacent criticals</span>
-    <span class="c1"># cannot collapse to the same output node).</span>
+    <span class="c1"># Allocate per-segment cell counts by largest remainder (Hare quota):</span>
+    <span class="c1"># floor each segment&#39;s ideal count, then give the leftover cells to the</span>
+    <span class="c1"># largest fractional remainders. This makes the segments sum exactly to the</span>
+    <span class="c1"># target total; rounding each independently can overshoot by a node and</span>
+    <span class="c1"># break the multigrid invariant n_coarse == (n_fine - 1) // 2 + 1.</span>
+    <span class="c1"># Segments are clamped to &gt;= 1 cell so the critical-index mapping stays</span>
+    <span class="c1"># strictly increasing.</span>
     <span class="n">total_cells</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">((</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">factor</span><span class="p">))</span>
     <span class="n">seg_float</span> <span class="o">=</span> <span class="n">spans</span> <span class="o">*</span> <span class="n">factor</span>
     <span class="n">seg_cells</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">seg_float</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>

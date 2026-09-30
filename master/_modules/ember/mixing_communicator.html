@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.mixing_communicator &#8212; ember 0.4.3.dev8+g276c3c285 documentation</title>
+    <title>ember.mixing_communicator &#8212; ember 0.4.4.dev21+g6a3e5594c documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=83ef07b4"></script>
+    <script src="../../_static/documentation_options.js?v=f9b58397"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.3.dev8+g276c3c285</p>
+<p class="blurb">Version 0.4.4.dev21+g6a3e5594c</p>
 
 
 
@@ -598,31 +598,13 @@
         <span class="n">J</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_jac_buf</span><span class="p">[:</span><span class="n">nspan</span><span class="p">]</span>
 
         <span class="c1"># Split into upstream/downstream contributions in chic space. Which</span>
-        <span class="c1"># acoustic is incoming to the pressure-reading side depends on the</span>
-        <span class="c1"># direction of the mean throughflow, exactly as each patch&#39;s own</span>
-        <span class="c1"># incoming-characteristic table does (see ember.nonreflecting): row 0</span>
-        <span class="c1"># (Vx - a) feeds the P target where the mean runs forward, row 1</span>
-        <span class="c1"># (Vx + a) where it has reversed. The three convective characteristics</span>
-        <span class="c1"># (rows 2-4) always feed the four inflow quantities. Splitting by fixed</span>
-        <span class="c1"># row index instead -- as if every station ran forward -- feeds a</span>
-        <span class="c1"># reversed station&#39;s inflow rows from the wrong acoustic, so the</span>
-        <span class="c1"># exchange and the boundary condition disagree on which characteristic</span>
-        <span class="c1"># is incoming and a standing pitch-mean flux mismatch is left across the</span>
-        <span class="c1"># plane.</span>
-        <span class="c1">#</span>
-        <span class="c1"># The direction is read from patch1&#39;s shared entering flag</span>
-        <span class="c1"># (_calc_shared_entering, computed above in _prepare_pair), not</span>
-        <span class="c1"># independently from the raw sign of b_avg.Max: that flag is exactly</span>
-        <span class="c1"># what each patch&#39;s own _calc_entering now returns (Change 2), so this</span>
-        <span class="c1"># is the same hysteresis-damped decision the patches split their own</span>
-        <span class="c1"># incoming/outgoing characteristics on. Reading the raw instantaneous</span>
-        <span class="c1"># sign here instead, with no hysteresis, could disagree with the</span>
-        <span class="c1"># patches&#39; own lagged decision for an exchange or two near a</span>
-        <span class="c1"># crossing -- fine for the old proportional relaxation, which</span>
-        <span class="c1"># re-derives its correction from scratch every step and forgets a bad</span>
-        <span class="c1"># one immediately, but not for the integrating form below, which</span>
-        <span class="c1"># accumulates whatever it is given and has no way to tell a</span>
-        <span class="c1"># wrong-direction contribution from a right one afterwards.</span>
+        <span class="c1"># acoustic is incoming to the pressure-reading side depends on the mean</span>
+        <span class="c1"># throughflow direction -- row 0 (Vx - a) forward, row 1 (Vx + a)</span>
+        <span class="c1"># reversed -- as each patch&#39;s own incoming-characteristic table does</span>
+        <span class="c1"># (see ember.nonreflecting); the convective rows always feed the inflow</span>
+        <span class="c1"># quantities. That direction comes from patch1&#39;s shared,</span>
+        <span class="c1"># hysteresis-damped entering flag, not the raw sign of b_avg.Max, so</span>
+        <span class="c1"># exchange and boundary condition agree on which is incoming.</span>
         <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nspan</span><span class="p">)</span>
         <span class="n">p_row</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">patch1</span><span class="o">.</span><span class="n">_sign_interior</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="n">patch1</span><span class="o">.</span><span class="n">_entering_shared</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="n">v2</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">v1</span>  <span class="c1"># copy dchic into v2</span>
@@ -657,15 +639,14 @@
             <span class="n">v1</span> <span class="o">*=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">_endwall_weight</span><span class="p">()[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">v1</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
         <span class="n">state</span><span class="p">[</span><span class="s2">&quot;du&quot;</span><span class="p">][:]</span> <span class="o">=</span> <span class="n">v1</span>
 
-        <span class="c1"># Integrate the target-space mismatch onto the previous target, not the</span>
-        <span class="c1"># live interface baseline -- Holmes Eq. 15, applied to the auxiliary</span>
-        <span class="c1"># cells rather than re-derived each step. At the fixed point</span>
-        <span class="c1"># target_n = target_{n-1} forces rf_exchange*e_n = 0, i.e. exact flux</span>
-        <span class="c1"># balance; re-anchoring to the baseline every step (the proportional</span>
-        <span class="c1"># form this replaces) instead leaves a standing offset of size e_n</span>
-        <span class="c1"># itself. The previous target is symmetrised across the two sides,</span>
-        <span class="c1"># since before the first exchange each side has only seeded itself</span>
-        <span class="c1"># from its own interior.</span>
+        <span class="c1"># Integrate the target-space mismatch onto the previous target, not</span>
+        <span class="c1"># the live interface baseline -- Holmes Eq. 15, applied to the</span>
+        <span class="c1"># auxiliary cells. At the fixed point target_n = target_{n-1} forces</span>
+        <span class="c1"># rf_exchange*e_n = 0, i.e. exact flux balance; re-anchoring to the</span>
+        <span class="c1"># baseline every step instead leaves a standing offset of size e_n.</span>
+        <span class="c1"># The previous target is symmetrised across the two sides, since</span>
+        <span class="c1"># before the first exchange each side has only seeded itself from its</span>
+        <span class="c1"># own interior.</span>
         <span class="n">target1</span> <span class="o">=</span> <span class="n">patch1</span><span class="o">.</span><span class="n">get_target</span><span class="p">()</span>
         <span class="n">target2</span> <span class="o">=</span> <span class="n">patch2</span><span class="o">.</span><span class="n">get_target</span><span class="p">()</span>
         <span class="k">if</span> <span class="n">flip</span><span class="p">:</span>
@@ -736,17 +717,14 @@
             <span class="n">Vx_sq</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">ho</span> <span class="o">-</span> <span class="n">h</span><span class="p">)</span> <span class="o">-</span> <span class="n">Vr</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">Vt</span><span class="o">**</span><span class="mi">2</span>
             <span class="n">Max_sq</span> <span class="o">=</span> <span class="n">Vx_sq</span> <span class="o">/</span> <span class="n">a</span><span class="o">**</span><span class="mi">2</span>
 
-        <span class="c1"># A negative Vx_sq (no real axial velocity solves the energy balance),</span>
-        <span class="c1"># of any magnitude, is not rejected on its own: right at a stalled or</span>
-        <span class="c1"># lightly reversed station this is an ordinary excursion of a</span>
-        <span class="c1"># converging integration -- the same territory the patches&#39; own</span>
-        <span class="c1"># Ma_clip exists to ride through -- and rejecting it as harshly as a</span>
-        <span class="c1"># genuine runaway snaps a recovering trajectory back to the baseline</span>
-        <span class="c1"># hard enough to leave it oscillating rather than settling, which was</span>
-        <span class="c1"># tried and made things worse. Only the upper Mach bound, which a</span>
-        <span class="c1"># negative Max_sq automatically satisfies, gates this check; a</span>
-        <span class="c1"># negative Vx_sq large enough to matter shows up as non-physical</span>
-        <span class="c1"># elsewhere first (rho or P failing the checks above).</span>
+        <span class="c1"># A negative Vx_sq (no real axial velocity solves the energy balance)</span>
+        <span class="c1"># is not rejected on its own: at a stalled or lightly reversed station</span>
+        <span class="c1"># it is an ordinary excursion of a converging integration, the same</span>
+        <span class="c1"># territory the patches&#39; own Ma_clip rides through, and rejecting it</span>
+        <span class="c1"># snaps a recovering trajectory back to the baseline hard enough to</span>
+        <span class="c1"># leave it oscillating. Only the upper Mach bound, which a negative</span>
+        <span class="c1"># Max_sq satisfies automatically, gates this check; a negative Vx_sq</span>
+        <span class="c1"># large enough to matter fails the rho or P checks above first.</span>
         <span class="n">bad</span> <span class="o">=</span> <span class="p">(</span>
             <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">rho</span><span class="p">)</span>
             <span class="o">|</span> <span class="p">(</span><span class="n">rho</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">)</span>
