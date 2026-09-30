@@ -1,0 +1,163 @@
+:orphan:
+
+Examples
+========
+
+A gallery of worked examples demonstrating the ember API.
+
+``plot_*.py`` examples run on every ``make docs`` build.
+
+``run_*.py`` examples are expensive (multigrid solves taking many seconds
+to minutes) and are only executed by ``make docs-full``; a normal build
+shows their source unexecuted, reusing whatever output was last generated.
+
+
+.. raw:: html
+
+  <div id='sg-tag-list' class='sphx-glr-tag-list'></div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbnails">
+
+.. thumbnail-parent-div-open
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="The ember.block.Block class holds a flow field over a structured grid and evaluates thermodynamic and kinematic properties through an attached ember.fluid equation of state. This example tours the basics: choosing a shape, setting coordinates and velocities, fixing the thermodynamic state, working in a rotating frame, and the numpy-like indexing and array operations a block supports. It closes by plotting a radial profile straight from a block&#x27;s property arrays.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_block_basics_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/plot_block_basics`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Basic Block usage</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="A spatially-resolved CFD solution must be reduced to mean quantities before it can be compared with a mean-line design point or an experimental traverse. This example takes a non-uniform flow field on a 3-D ember.block.Block, extracts a cross-sectional cut, and reduces it with the ember.average module.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_cut_average_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/plot_cut_average`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Cutting and averaging a flow field</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="This example solves the subsonic, isentropic flow through a nozzle of prescribed area variation using a simple fixed-point (Picard) iteration on a ember.block.Block flow field.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_isentropic_nozzle_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/plot_isentropic_nozzle`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Isentropic nozzle analysis</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="This example uses the ember.block.Block API to perform a thermodynamic analysis of a gas turbine operating on the Joule (Brayton) cycle with non-isentropic turbomachinery, then draws the corresponding temperature--entropy diagram.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_joule_cycle_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/plot_joule_cycle`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Gas turbine Joule cycle</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Boundary conditions in ember are applied through patches: labelled regions on the faces of a ember.block.Block that carry inlet, outlet, periodic or rotating-wall data. This example builds an annular duct block, attaches a patch to each face, configures the boundary data, and draws the block with its patches coloured by type.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_patches_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/plot_patches`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Boundary patches on a block</div>
+    </div>
+
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="This example is the inverse of the nozzle analysis &lt;plot_isentropic_nozzle&gt;: instead of prescribing the area variation and solving for the Mach number, we prescribe the Mach number distribution through a converging--diverging nozzle containing a normal shock and recover the area variation that produces it.">
+
+.. only:: html
+
+  .. image:: /auto_examples/images/thumb/sphx_glr_plot_shocked_nozzle_thumb.png
+    :alt:
+
+  :doc:`/auto_examples/plot_shocked_nozzle`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Shocked nozzle design</div>
+    </div>
+
+
+.. thumbnail-parent-div-close
+
+.. raw:: html
+
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   /auto_examples/plot_block_basics
+   /auto_examples/plot_cut_average
+   /auto_examples/plot_isentropic_nozzle
+   /auto_examples/plot_joule_cycle
+   /auto_examples/plot_patches
+   /auto_examples/plot_shocked_nozzle
+
+
+.. only:: html
+
+  .. container:: sphx-glr-footer sphx-glr-footer-gallery
+
+    .. container:: sphx-glr-download sphx-glr-download-python
+
+      :download:`Download all examples in Python source code: auto_examples_python.zip </auto_examples/auto_examples_python.zip>`
+
+    .. container:: sphx-glr-download sphx-glr-download-jupyter
+
+      :download:`Download all examples in Jupyter notebooks: auto_examples_jupyter.zip </auto_examples/auto_examples_jupyter.zip>`
+
+
+.. only:: html
+
+ .. rst-class:: sphx-glr-signature
+
+    `Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_
