@@ -1401,6 +1401,28 @@ def test_block_flat_removes_patches():
     assert len(block_flat.patches) == 0
 
 
+def test_extend_attaches_each_patch_once(monkeypatch):
+    """Adding patches together attaches each to its block once, not again on
+    the way into the collection: attaching can be costly, as a non-reflecting
+    patch builds its pitchwise transform there."""
+    import ember.patch
+
+    block = _create_test_block_3d()
+    attached = []
+    original = ember.patch.PeriodicPatch.attach_to_block
+
+    def counting(self, blk):
+        attached.append(self)
+        return original(self, blk)
+
+    monkeypatch.setattr(ember.patch.PeriodicPatch, "attach_to_block", counting)
+    patches = [ember.patch.PeriodicPatch(i=0), ember.patch.PeriodicPatch(i=-1)]
+    block.patches.extend(patches)
+
+    assert len(block.patches) == 2
+    assert [id(p) for p in attached] == [id(p) for p in patches]
+
+
 class TestPatchOverlapDetection:
     """Test overlap detection between patches of the same type."""
 

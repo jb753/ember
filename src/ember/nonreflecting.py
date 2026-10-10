@@ -687,10 +687,20 @@ class NonReflectingPatch(RevolutionPatch):
                 f"pitchwise nodes to resolve one harmonic, got {n_dist}."
             )
 
+        # The sum over modes of sin(m phi) in closed form, a conjugate Dirichlet
+        # kernel, so each entry costs the same whatever the number of modes;
+        # zero where phi is a whole number of turns, as every term is.
         phi = 2.0 * np.pi * (t0[:, None, :] - t0[:, :, None]) / pitch
-        hilbert = np.zeros_like(phi)
-        for m in range(1, m_max + 1):
-            hilbert -= 2.0 * w[:, None, :] * np.sin(m * phi)
+        half = np.sin(0.5 * phi)
+        whole = np.abs(half) < 1e-12
+        kernel = np.where(
+            whole,
+            0.0,
+            np.sin(0.5 * m_max * phi)
+            * np.sin(0.5 * (m_max + 1) * phi)
+            / np.where(whole, 1.0, half),
+        )
+        hilbert = -2.0 * w[:, None, :] * kernel
 
         # On a uniform mesh the sums above already annihilate a constant and
         # return a mean-free field, because the trapezoidal rule is exact for
