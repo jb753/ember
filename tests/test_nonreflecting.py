@@ -13,7 +13,8 @@ Test cases:
 - Attachment: axis detection, constant-x plane, interior side, whole pitch
 - Hilbert transform: annihilation of the mean, modal response, structural
   properties, agreement with an independent DFT, non-uniform pitch spacing,
-  bounded norm
+  bounded norm, one matrix per span station when the pitchwise distribution
+  changes along the span and one shared matrix when it does not
 - Shared behaviour: characteristic round trip, relaxation linearity, copy
   semantics, unset targets, collection membership, class member order
 - Cadence: the condition advances once a timestep and apply only imposes, so a
@@ -49,6 +50,7 @@ from nonreflecting_util import (
     pitch_coords,
     reference_state,
     seed_chic,
+    span_stretch,
 )
 
 # Target that mismatches the flow the block is built with, per kind, for the
@@ -220,6 +222,65 @@ def test_hilbert_norm_is_bounded(stretch, npitch):
     """
     _, patch = attached(npitch=npitch, stretch=stretch)
     assert np.abs(patch._hilbert).sum(axis=1).max() < 4.0
+
+
+@pytest.mark.parametrize("span_dim", [1, 2])
+def test_span_varying_pitch_builds_one_matrix_per_station(kind, span_dim):
+    """A distribution that changes along the span gets a matrix per station."""
+    nspan, npitch = 7, 17
+    _, patch = attached(
+        kind, span_dim=span_dim, nspan=nspan, npitch=npitch, stretch=span_stretch(nspan)
+    )
+    assert not patch._same_pitch
+    assert patch._hilbert.shape == (nspan, npitch, npitch)
+    assert patch.weight_pitch.shape[patch.span_dim] == nspan
+
+
+@pytest.mark.parametrize("span_dim", [1, 2])
+def test_span_varying_hilbert_matches_each_station(span_dim):
+    """Each station's matrix is the one a face with its distribution would share."""
+    nspan, npitch = 5, 17
+    stretch = span_stretch(nspan)
+    _, patch = attached(span_dim=span_dim, nspan=nspan, npitch=npitch, stretch=stretch)
+    for i_span, stretch_span in enumerate(stretch):
+        _, ref = attached(
+            span_dim=span_dim, nspan=nspan, npitch=npitch, stretch=stretch_span
+        )
+        assert ref._same_pitch
+        assert np.abs(patch._hilbert[i_span] - ref._hilbert).max() < 1e-6
+
+
+@pytest.mark.parametrize("span_dim", [1, 2])
+def test_span_varying_transform_matches_each_station(span_dim):
+    """The batched transform applies each station's matrix to that station alone."""
+    nspan, npitch = 5, 17
+    _, patch = attached(
+        span_dim=span_dim, nspan=nspan, npitch=npitch, stretch=span_stretch(nspan)
+    )
+    rng = np.random.default_rng(1)
+    # With and without a trailing component axis, as apply() passes both.
+    for shape in (patch.shape, patch.shape + (2,)):
+        field = rng.standard_normal(shape).astype(np.float32)
+        got = patch._transform_pitch(field)
+        assert got.shape == field.shape
+        f_sp = np.moveaxis(field, (patch.span_dim, patch.pitch_dim), (0, 1))
+        g_sp = np.moveaxis(got, (patch.span_dim, patch.pitch_dim), (0, 1))
+        for i_span in range(nspan):
+            expect = np.tensordot(patch._hilbert[i_span], f_sp[i_span], axes=(1, 0))
+            assert np.abs(g_sp[i_span] - expect).max() < 1e-5
+
+
+def test_a_leaned_face_keeps_one_matrix(kind):
+    """A uniform theta offset along the span is still the same distribution."""
+    block, patch_type, i_face = _bare(kind, stretch=0.4)
+    lean = 0.3 * PITCH * np.linspace(0.0, 1.0, block.shape[1])
+    block.set_t(block.t + lean[None, :, None])
+    block.patches.append(patch_type(i=i_face))
+    patch = block.patches[-1]
+    _, ref = attached(kind, stretch=0.4)
+    assert patch._same_pitch
+    assert patch._hilbert.shape == ref._hilbert.shape
+    assert np.abs(patch._hilbert - ref._hilbert).max() < 1e-6
 
 
 # ---------------------------------------------------------------------------

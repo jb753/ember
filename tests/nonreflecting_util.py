@@ -41,11 +41,21 @@ PATCH_KINDS = {
 
 
 def pitch_coords(npitch, stretch):
-    """Pitchwise node angles, optionally stretched away from uniform spacing."""
+    """Pitchwise node angles, optionally stretched away from uniform spacing.
+
+    A scalar ``stretch`` gives shape ``(npitch,)``; one value per span station
+    gives ``(nspan, npitch)``, a distribution that changes along the span.
+    """
     u = np.linspace(0.0, 1.0, npitch)
+    stretch = np.asarray(stretch, dtype=float)[..., None]
     # Monotonic for |stretch| < 1 and fixes both end points, so the patch still
     # spans exactly one pitch with the periodic node repeated.
     return PITCH * (u + stretch * np.sin(2.0 * np.pi * u) / (2.0 * np.pi))
+
+
+def span_stretch(nspan=7, top=0.4):
+    """Per-station stretch rising from uniform at the hub to ``top`` at the tip."""
+    return np.linspace(0.0, top, nspan)
 
 
 # Meridional origin the duct is built about, and its extent along and across
@@ -86,8 +96,9 @@ def make_block(
         Velocity along the duct, across it, and in the pitch direction [m/s].
         The first two are turned with the geometry, so ``Vx`` is the
         through-flow at any ``chi`` and ``Vr`` the cross-flow.
-    stretch : float
-        Pitchwise node stretching; see :func:`pitch_coords`.
+    stretch : float or array of shape (nspan,)
+        Pitchwise node stretching, one value for the whole face or one per span
+        station; see :func:`pitch_coords`.
     chi : float
         Angle of the duct axis from :math:`+x` [deg]. ``0`` gives the straight
         axial duct with constant-x end faces, ``90`` and ``270`` radial ducts
@@ -116,15 +127,16 @@ def make_block(
     x_mn = X0 + m * c - n * s
     r_mn = R0 + m * s + n * c
 
-    t_vec = pitch_coords(npitch, stretch)
+    # (nspan, npitch) whether or not the distribution changes along the span.
+    t_sp = np.broadcast_to(pitch_coords(npitch, stretch), (nspan, npitch))
     if span_dim == 1:
         x = x_mn[:, :, None] * np.ones(shape)
         r = r_mn[:, :, None] * np.ones(shape)
-        t = t_vec[None, None, :] * np.ones(shape)
+        t = t_sp[None, :, :] * np.ones(shape)
     else:
         x = x_mn[:, None, :] * np.ones(shape)
         r = r_mn[:, None, :] * np.ones(shape)
-        t = t_vec[None, :, None] * np.ones(shape)
+        t = t_sp.T[None, :, :] * np.ones(shape)
 
     block = Block(shape=shape)
     block.set_fluid(FLUID)

@@ -401,7 +401,7 @@ class MixingPatch(NonReflectingPatch):
         with self._resolved():
             b = self.block_view
             cons = b.conserved_nd
-            w = self.weight_pitch.ravel()
+            w = self._weight_pitch_face
             ni, nj, nk = b.shape
             if self.pitch_dim == 0:
                 dest = self._flux_avg.reshape(nj, nk, 5)

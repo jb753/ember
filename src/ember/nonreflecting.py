@@ -635,51 +635,51 @@ class NonReflectingPatch(RevolutionPatch):
         a local term from a Hilbert transform along the pitch, and no Fourier
         transform is taken at run time.
 
-        The sign of the Hilbert term follows the discrete mode index, which in
-        Giles' transform pair is opposite to the continuous wavenumber; taken
-        backwards, the condition amplifies rather than absorbs. Steady
-        potential flow upstream of a blade row fixes it. Evaluating the
-        analysis and synthesis sums directly with the node weights
-        :attr:`~ember.patch.RevolutionPatch.weight_pitch` gives
+        The sign of the Hilbert term follows the discrete mode index, opposite
+        in Giles' transform pair to the continuous wavenumber; taken backwards
+        the condition amplifies rather than absorbs, as steady potential flow
+        upstream of a blade row shows. Summing analysis and synthesis directly
+        with the node weights :attr:`~ember.patch.RevolutionPatch.weight_pitch`
 
         .. math::
             \mathcal{H}_{ab} = -2\sum_{m=1}^{M} w_b
                 \sin\left(\frac{2\pi m(\theta_b - \theta_a)}{P}\right),
 
-        which assumes no uniform pitchwise spacing, the weights being a
-        quadrature rule that already sums to one. Modes are truncated as Giles
-        does, at :math:`M = (N-1)//2` over the :math:`N` distinct nodes,
-        excluding the ambiguous Nyquist mode. The quadrature is exact on a
-        uniform mesh and degrades above the harmonics resolved by the
-        *coarsest* local spacing, so a stretched pitch reflects a little at the
-        shortest wavelengths; the operator norm stays O(1), never amplifying.
+        assumes no uniform spacing, the weights a quadrature rule summing to
+        one. Modes stop as Giles' do, at :math:`M = (N-1)//2` of :math:`N`
+        distinct nodes, short of the ambiguous Nyquist mode. Exact on a uniform
+        mesh, the quadrature degrades above the harmonics the *coarsest*
+        spacing resolves, a stretched pitch reflecting a little at the shortest
+        wavelengths but never amplifying.
+
+        Each span station is its own cascade, with one matrix shared by all if
+        they share a node distribution, else one each, ``(nspan, npitch, npitch)``.
         """
         block = self.block
         pitch = float(block.pitch)
 
-        # Pitchwise node angles, taken at the first span station as
-        # weight_pitch does; check the distribution is the same at every span
-        # station, since one matrix is shared by all of them.
+        # Pitchwise node angles relative to the first node of each span station,
+        # and the weights, both as (station, pitch). When every station has the
+        # same distribution the weights carry one row and one matrix is shared
+        # by all of them; otherwise each station gets its own.
         t_sp = self.block_view.t.transpose(self._std_perm).squeeze(axis=0)
-        t_rel = t_sp - t_sp[:, :1]
-        if np.abs(t_rel - t_rel[0]).max() > self._rtol_geom * pitch:
-            raise ValueError(
-                f"{self._desc.capitalize()} {self.label!r} requires the same "
-                "pitchwise node distribution at every span station."
-            )
+        npitch = t_sp.shape[-1]
+        w = self.weight_pitch.transpose(self._std_perm).reshape(-1, npitch)
+        w = w.astype(np.float64)
+        t0 = (t_sp - t_sp[:, :1])[: len(w)].astype(np.float64)
 
-        w = self.weight_pitch.ravel().astype(np.float64)
-        if abs(w.sum() - 1.0) > self._rtol_geom:
+        w_sum = w.sum(axis=1)
+        if np.abs(w_sum - 1.0).max() > self._rtol_geom:
+            bad = w_sum[np.argmax(np.abs(w_sum - 1.0))]
             raise ValueError(
                 f"{self._desc.capitalize()} {self.label!r} must span a whole "
-                f"pitch: node weights sum to {w.sum():.6g}, expected 1."
+                f"pitch: node weights sum to {bad:.6g}, expected 1."
             )
 
-        t0 = (t_rel[0] - t_rel[0, 0]).astype(np.float64)
         # A patch spanning the whole pitch repeats the periodic node at both
         # ends; it must not be counted twice when truncating the mode range.
-        wraps = abs(t0[-1] - pitch) < self._rtol_geom * pitch
-        n_dist = len(t0) - 1 if wraps else len(t0)
+        wraps = np.all(np.abs(t0[:, -1] - pitch) < self._rtol_geom * pitch)
+        n_dist = npitch - 1 if wraps else npitch
         m_max = (n_dist - 1) // 2
         if m_max < 1:
             raise ValueError(
@@ -687,10 +687,10 @@ class NonReflectingPatch(RevolutionPatch):
                 f"pitchwise nodes to resolve one harmonic, got {n_dist}."
             )
 
-        phi = 2.0 * np.pi * (t0[None, :] - t0[:, None]) / pitch
+        phi = 2.0 * np.pi * (t0[:, None, :] - t0[:, :, None]) / pitch
         hilbert = np.zeros_like(phi)
         for m in range(1, m_max + 1):
-            hilbert -= 2.0 * w[None, :] * np.sin(m * phi)
+            hilbert -= 2.0 * w[:, None, :] * np.sin(m * phi)
 
         # On a uniform mesh the sums above already annihilate a constant and
         # return a mean-free field, because the trapezoidal rule is exact for
@@ -700,8 +700,11 @@ class NonReflectingPatch(RevolutionPatch):
         # the first correction is rank one in the weighted mean of the input,
         # so it does not disturb the mean-free fields apply() actually passes,
         # and the second removes the weighted mean of the output.
-        hilbert -= hilbert.sum(axis=1, keepdims=True) * w[None, :]
-        hilbert -= (w[:, None] * hilbert).sum(axis=0, keepdims=True)
+        hilbert -= hilbert.sum(axis=2, keepdims=True) * w[:, None, :]
+        hilbert -= (w[:, :, None] * hilbert).sum(axis=1, keepdims=True)
+        # One (npitch, npitch) matrix on the fast path, else one per station.
+        if len(hilbert) == 1:
+            hilbert = hilbert[0]
         self._hilbert = hilbert.astype(np.float32)
 
     def _calc_inv_jac(self, c2t, split, where):
@@ -1382,11 +1385,17 @@ class NonReflectingPatch(RevolutionPatch):
 
     def _transform_pitch(self, field):
         """Apply the Hilbert matrix along the pitch axis of a patch-shaped field."""
-        return np.moveaxis(
-            np.tensordot(field, self._hilbert, axes=([self.pitch_dim], [1])),
-            -1,
-            self.pitch_dim,
-        )
+        if self._hilbert.ndim == 2:
+            return np.moveaxis(
+                np.tensordot(field, self._hilbert, axes=([self.pitch_dim], [1])),
+                -1,
+                self.pitch_dim,
+            )
+        # One matrix per span station: batch over span, contract over pitch.
+        dims = (self.span_dim, self.pitch_dim)
+        f = np.moveaxis(field, dims, (-2, -1))
+        out = np.einsum("sab,...sb->...sa", self._hilbert, f)
+        return np.moveaxis(out, (-2, -1), dims)
 
     def _warn_unsupported(self, clause):
         """Report a mean state outside the implemented envelope, once per excursion.

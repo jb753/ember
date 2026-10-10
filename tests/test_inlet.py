@@ -36,6 +36,7 @@ from nonreflecting_util import (
     make_block,
     reference_state,
     seed_chic,
+    span_stretch,
     turn,
 )
 
@@ -584,9 +585,14 @@ def test_converges_to_prescribed_state():
     assert errs[10] < errs[0] * (1.0 - sigma) ** 8
 
 
-def test_nonuniform_pitch_end_to_end():
-    """A stretched pitchwise mesh still absorbs and keeps ho and s uniform."""
-    _, patch = _attached(npitch=33, stretch=0.4)
+@pytest.mark.parametrize("stretch", [0.4, span_stretch()], ids=["face", "span"])
+def test_nonuniform_pitch_end_to_end(stretch):
+    """A stretched pitchwise mesh still absorbs and keeps ho and s uniform.
+
+    Also with the stretch changing along the span, which gives each span station
+    its own Hilbert matrix.
+    """
+    _, patch = _attached(npitch=33, stretch=stretch)
     patch.update_soln()
     b = patch.block_view
     wave = np.zeros(patch.shape + (5,), dtype=np.float32)
