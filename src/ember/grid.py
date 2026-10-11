@@ -936,7 +936,7 @@ class Grid(_LabelledList):
         # Close the point-matched periodic seams last.
         self.connectivity.periodic.apply()
 
-    def apply_guess_meridional(self, block_guess, refine_factor=1):
+    def apply_guess_meridional(self, block_guess, refine_factor=1, snap=True):
         """Apply a circumferentially uniform flow field guess.
 
         Uses a 1D meridional block as initial guess, interpolating flow
@@ -953,6 +953,12 @@ class Grid(_LabelledList):
             Refinement factor for the guess block (default=1, no refinement).
             If > 1, the guess is interpolated along curvilinear arc length,
             providing a denser point cloud and smoother results.
+        snap : bool, optional
+            Align the velocity with the ``i`` grid lines wherever a block's two
+            ``k`` faces differ in guessed pressure (default True). Right for a
+            passage whose ``i`` runs downstream; wrong for blocks whose ``i``
+            runs across the pitch or round a blade, where it sets the sign of
+            ``Vt`` from the grid direction.
 
         Raises
         ------
@@ -1028,6 +1034,7 @@ class Grid(_LabelledList):
             P_k0 = block.P[:, :, 0]
             P_km1 = block.P[:, :, -1]
             loaded = np.abs(P_k0 - P_km1) / P_guess_mean > 1e-4  # (ni, nj) bool
+            loaded &= snap
 
             if np.any(loaded):
                 # i-direction unit vector in (x, r) space — centred diffs,
