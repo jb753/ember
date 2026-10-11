@@ -187,3 +187,57 @@ def winslow_sweeps(
         n_w,
     )
     return Xf, seg0[:n_w], seg1[:n_w]
+
+
+def polish_cost(X, ids, dy, la, lb, eps, power=1.0, w_size=1.0):
+    r"""Target-matrix cost of the corners of a set of cells, and its gradient.
+
+    At a corner with edges :math:`a` along `i` and :math:`b` along `k`, scaled
+    by the cell's target lengths into :math:`T = [a / l_a, b / l_b]`, the cost
+    is the shape term :math:`\mu = |T|^2 / (2 \det T)` raised to `power`, plus
+    `w_size` times the size term :math:`(\det T + 1 / \det T) / 2`, with
+    :math:`\det T` regularised by `eps` so that a folded corner costs a finite,
+    steep amount -- the target-matrix optimisation of Knupp, as a mesher's
+    polish minimises it.
+
+    Parameters
+    ----------
+    X : array, shape (n_node, 2)
+        Node coordinates :math:`(x, y)`.
+    ids : int array, shape (n_cell, 4)
+        Node numbers of each cell, counted from zero, in the order
+        :math:`(i, k)`, :math:`(i + 1, k)`, :math:`(i + 1, k + 1)`,
+        :math:`(i, k + 1)`.
+    dy : array, shape (n_cell, 4)
+        Shift in `y` of each of a cell's nodes, where it straddles a periodic
+        boundary.
+    la, lb : array, shape (n_cell,)
+        Target lengths of each cell's edges along `i` and `k`.
+    eps : float
+        Regularisation of the corner Jacobian.
+    power : float
+        Power each corner's shape term is raised to.
+    w_size : float
+        Weight of the size term against the shape term.
+
+    Returns
+    -------
+    f : float
+        The cost summed over every corner of every cell.
+    g : array, shape (n_node, 2)
+        Its gradient with respect to `X`.
+
+    """
+    ids = np.asfortranarray(ids, dtype=np.int32)
+    if ids.size and (ids.min() < 0 or ids.max() >= len(X)):
+        raise ValueError(f"Cell node numbers must lie in [0, {len(X)}).")
+    return ember.fortran.polish_cost(
+        np.asfortranarray(X, dtype=np.float64),
+        ids,
+        np.asfortranarray(dy, dtype=np.float64),
+        np.asfortranarray(la, dtype=np.float64),
+        np.asfortranarray(lb, dtype=np.float64),
+        float(eps),
+        float(power),
+        float(w_size),
+    )

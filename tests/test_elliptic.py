@@ -13,12 +13,15 @@ Test cases:
   cells round a circle, its wall nodes sliding round it, with singular,
   sliding and corner-patch rows besides; and on random stencils with pitch
   shifts
+- The polish cost and its gradient match the same terms written out in
+  numpy, on a perturbed grid with a folded cell and pitch shifts, and the
+  gradient matches finite differences of the cost
 """
 
 import numpy as np
 import pytest
 
-from ember.elliptic import ttm_stencil, winslow_sweeps
+from ember.elliptic import polish_cost, ttm_stencil, winslow_sweeps
 
 
 def reference(X, g, s, PQ, pitch):
@@ -315,3 +318,97 @@ def test_sweeps_refuse_node_numbers_out_of_range():
     g[0, 1] = len(X)
     with pytest.raises(ValueError):
         winslow_sweeps(X, g, s, 0.0, irregular, slide, corner, wall, 1)
+
+
+def reference_polish_cost(X, ids, dy, la, lb, eps, power, w_size):
+    """The polish cost and its gradient written out in numpy."""
+    P = X[ids].copy()
+    P[..., 1] += dy
+    edges = [((1, 0), (3, 0)), ((1, 0), (2, 1)), ((2, 3), (2, 1)), ((2, 3), (3, 0))]
+    f = 0.0
+    G = np.zeros((len(ids), 4, 2))
+    for (pa, ma), (pb, mb) in edges:
+        ta = (P[:, pa] - P[:, ma]) / la[:, None]
+        tb = (P[:, pb] - P[:, mb]) / lb[:, None]
+        det = ta[:, 0] * tb[:, 1] - ta[:, 1] * tb[:, 0]
+        root = np.sqrt(det**2 + eps**2)
+        dreg = 0.5 * (det + root)
+        dd = 0.5 * (1.0 + det / root)
+        mu = (np.sum(ta**2, 1) + np.sum(tb**2, 1)) / (2.0 * dreg)
+        dmu = power * mu ** (power - 1.0)
+        f += np.sum(mu**power + w_size * 0.5 * (dreg + 1.0 / dreg))
+        dF = (-dmu * mu / dreg + w_size * 0.5 * (1.0 - 1.0 / dreg**2)) * dd
+        ga = (dmu / dreg)[:, None] * ta + dF[:, None] * np.stack(
+            (tb[:, 1], -tb[:, 0]), 1
+        )
+        gb = (dmu / dreg)[:, None] * tb + dF[:, None] * np.stack(
+            (-ta[:, 1], ta[:, 0]), 1
+        )
+        ga /= la[:, None]
+        gb /= lb[:, None]
+        G[:, pa] += ga
+        G[:, ma] -= ga
+        G[:, pb] += gb
+        G[:, mb] -= gb
+    g = np.zeros_like(X)
+    np.add.at(g, ids.ravel(), G.reshape(-1, 2))
+    return f, g
+
+
+def polish_case(seed=3, fold=True):
+    """A perturbed grid of 6 by 5 cells, with the cells round one node folded
+    if `fold`, its last row of nodes stored a pitch down in y and shifted
+    back up in every cell, as across a periodic boundary."""
+    rng = np.random.default_rng(seed)
+    ni, nk = 7, 6
+    x, y = np.meshgrid(
+        np.arange(ni, dtype=float), np.arange(nk, dtype=float), indexing="ij"
+    )
+    X = np.stack((x.ravel(), y.ravel()), 1) + 0.15 * rng.standard_normal((ni * nk, 2))
+    g = np.arange(ni * nk).reshape(ni, nk)
+    ids = np.stack((g[:-1, :-1], g[1:, :-1], g[1:, 1:], g[:-1, 1:]), -1).reshape(-1, 4)
+    if fold:
+        X[g[3, 3]] = X[g[4, 4]] + 0.3
+    pitch = 2.5
+    top = g[:, -1].ravel()
+    X[top, 1] -= pitch
+    dy = np.where(np.isin(ids, top), pitch, 0.0)
+    la = 1.0 + 0.2 * rng.random(len(ids))
+    lb = 1.0 + 0.2 * rng.random(len(ids))
+    return X, ids, dy, la, lb
+
+
+@pytest.mark.parametrize("power", [1.0, 4.0])
+def test_polish_cost_matches_reference(power):
+    X, ids, dy, la, lb = polish_case()
+    f, g = polish_cost(X, ids, dy, la, lb, 1e-3, power, 0.7)
+    f_ref, g_ref = reference_polish_cost(X, ids, dy, la, lb, 1e-3, power, 0.7)
+    # The folded corners' regularised Jacobians are tiny, so their terms run
+    # to 1e30 and rounding differs in the tenth figure.
+    assert np.isclose(f, f_ref, rtol=1e-8)
+    np.testing.assert_allclose(g, g_ref, rtol=1e-7, atol=1e-8 * np.abs(g_ref).max())
+
+
+def test_polish_cost_gradient_is_the_cost_s():
+    X, ids, dy, la, lb = polish_case(fold=False)
+    f, g = polish_cost(X, ids, dy, la, lb, 1e-3, 4.0, 0.7)
+    h = 1e-6
+    rng = np.random.default_rng(0)
+    for n in rng.choice(len(X), 6, replace=False):
+        for c in range(2):
+            Xp, Xm = X.copy(), X.copy()
+            Xp[n, c] += h
+            Xm[n, c] -= h
+            fd = (
+                polish_cost(Xp, ids, dy, la, lb, 1e-3, 4.0, 0.7)[0]
+                - polish_cost(Xm, ids, dy, la, lb, 1e-3, 4.0, 0.7)[0]
+            ) / (2 * h)
+            assert np.isclose(g[n, c], fd, rtol=1e-5, atol=1e-6 * abs(f))
+
+
+def test_polish_cost_refuses_node_numbers_out_of_range():
+    X, ids, dy, la, lb = polish_case()
+    ids = ids.copy()
+    ids[0, 0] = len(X)
+    with pytest.raises(ValueError):
+        polish_cost(X, ids, dy, la, lb, 1e-3)

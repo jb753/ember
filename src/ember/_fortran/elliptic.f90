@@ -369,3 +369,76 @@ contains
     end subroutine point_at
 
 end subroutine winslow_sweeps
+
+subroutine polish_cost(X, ids, dy, la, lb, eps, power, w_size, f, g, &
+        n_node, n_cell)
+    ! Target-matrix cost of every corner of the cells `ids`, and its gradient
+    ! on the nodes, for the polish of a mesher.
+    !
+    ! At a corner with edges a along i and b along k, scaled by the cell's
+    ! target lengths la and lb into T = [a / la, b / lb], the cost is the
+    ! shape term mu = |T|^2 / (2 det T) raised to `power`, plus `w_size`
+    ! times the size term (det T + 1 / det T) / 2, with det T regularised by
+    ! `eps` so that a folded corner costs a finite, steep amount. Each cell's
+    ! four nodes are counted from zero in the order (i, k), (i + 1, k),
+    ! (i + 1, k + 1), (i, k + 1), and `dy` is the shift added to each in y
+    ! where the cell straddles a periodic boundary. `f` is the sum over every
+    ! corner of every cell and `g` its gradient on the nodes.
+
+    implicit none
+
+    integer, intent(in) :: n_node, n_cell
+    double precision, intent(in) :: X(n_node, 2)
+    integer, intent(in) :: ids(n_cell, 4)
+    double precision, intent(in) :: dy(n_cell, 4), la(n_cell), lb(n_cell)
+    double precision, intent(in) :: eps, power, w_size
+    double precision, intent(out) :: f, g(n_node, 2)
+
+    ! The two edges of each corner, as the cell's nodes each runs from and to,
+    ! counted from one: a from am to ap, b from bm to bp.
+    integer, parameter :: ap(4) = (/ 2, 2, 3, 3 /), am(4) = (/ 1, 1, 4, 4 /)
+    integer, parameter :: bp(4) = (/ 4, 3, 3, 4 /), bm(4) = (/ 1, 2, 2, 1 /)
+
+    integer :: c, q, k, n(4)
+    double precision :: Px(4), Py(4), tax, tay, tbx, tby, det, root, dreg, dd
+    double precision :: nrm2, mu, dmu, dF, gax, gay, gbx, gby
+
+    f = 0.0d0
+    g = 0.0d0
+    do c = 1, n_cell
+        do k = 1, 4
+            n(k) = ids(c, k) + 1
+            Px(k) = X(n(k), 1)
+            Py(k) = X(n(k), 2) + dy(c, k)
+        end do
+        do q = 1, 4
+            tax = (Px(ap(q)) - Px(am(q))) / la(c)
+            tay = (Py(ap(q)) - Py(am(q))) / la(c)
+            tbx = (Px(bp(q)) - Px(bm(q))) / lb(c)
+            tby = (Py(bp(q)) - Py(bm(q))) / lb(c)
+            det = tax * tby - tay * tbx
+            root = sqrt(det**2 + eps**2)
+            dreg = 0.5d0 * (det + root)
+            dd = 0.5d0 * (1.0d0 + det / root)
+            nrm2 = tax**2 + tay**2 + tbx**2 + tby**2
+            mu = nrm2 / (2.0d0 * dreg)
+            dmu = power * mu**(power - 1.0d0)
+            f = f + mu**power + w_size * 0.5d0 * (dreg + 1.0d0 / dreg)
+            dF = (-dmu * mu / dreg &
+                + w_size * 0.5d0 * (1.0d0 - 1.0d0 / dreg**2)) * dd
+            gax = ((dmu / dreg) * tax + dF * tby) / la(c)
+            gay = ((dmu / dreg) * tay - dF * tbx) / la(c)
+            gbx = ((dmu / dreg) * tbx - dF * tay) / lb(c)
+            gby = ((dmu / dreg) * tby + dF * tax) / lb(c)
+            g(n(ap(q)), 1) = g(n(ap(q)), 1) + gax
+            g(n(ap(q)), 2) = g(n(ap(q)), 2) + gay
+            g(n(am(q)), 1) = g(n(am(q)), 1) - gax
+            g(n(am(q)), 2) = g(n(am(q)), 2) - gay
+            g(n(bp(q)), 1) = g(n(bp(q)), 1) + gbx
+            g(n(bp(q)), 2) = g(n(bp(q)), 2) + gby
+            g(n(bm(q)), 1) = g(n(bm(q)), 1) - gbx
+            g(n(bm(q)), 2) = g(n(bm(q)), 2) - gby
+        end do
+    end do
+
+end subroutine polish_cost
