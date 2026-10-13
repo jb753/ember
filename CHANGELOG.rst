@@ -8,7 +8,7 @@ public API without a deprecation period.
 .. _v0.4.5:
 
 0.4.5 (2026-10-13)
-----------
+------------------
 
 * Allow the pitchwise node distribution of a surface-of-revolution patch to
   change along the span; a fast path remains for same distribution up span
