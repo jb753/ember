@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.grid &#8212; ember 0.4.4.dev21+g6a3e5594c documentation</title>
+    <title>ember.grid &#8212; ember 0.4.5 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=f9b58397"></script>
+    <script src="../../_static/documentation_options.js?v=340bb9e5"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.4.dev21+g6a3e5594c</p>
+<p class="blurb">Version 0.4.5</p>
 
 
 
@@ -69,6 +69,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/elliptic.html">Elliptic grid generation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
@@ -409,28 +410,32 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">_find_periodic_connected_components</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Find connected components of blocks linked by periodic patches.</span>
 
-<span class="sd">        Blocks connected by periodic patches are in the same blade row.</span>
-<span class="sd">        Uses BFS to find connected components in the periodic connectivity graph.</span>
+<span class="sd">        Blocks connected by periodic or non-matching patches are in the same</span>
+<span class="sd">        blade row: both join faces in one frame of reference, unlike a mixing</span>
+<span class="sd">        plane. Uses BFS to find connected components in that connectivity graph.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        List[List[int]]</span>
 <span class="sd">            List of row groups, where each group is a list of block indices.</span>
-<span class="sd">            Blocks within a group are connected by periodic patches.</span>
+<span class="sd">            Blocks within a group are connected by periodic or non-matching</span>
+<span class="sd">            patches.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">[]</span>
 
-        <span class="c1"># Get periodic connectivity</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">periodic_conn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">periodic</span><span class="o">.</span><span class="n">pair</span><span class="p">()</span>
-        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-            <span class="c1"># If periodic pairing fails (unmatched patches), treat each block as separate</span>
-            <span class="n">periodic_conn</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># Get periodic and non-matching connectivity</span>
+        <span class="n">row_conn</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">conn</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">periodic</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">nonmatch</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">row_conn</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">conn</span><span class="o">.</span><span class="n">pair</span><span class="p">())</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="c1"># If pairing fails (unmatched patches), treat each block as separate</span>
+                <span class="k">pass</span>
 
-        <span class="c1"># Build adjacency list for block-to-block connections via periodic patches</span>
+        <span class="c1"># Build adjacency list for block-to-block connections within a row</span>
         <span class="n">adjacency</span> <span class="o">=</span> <span class="p">{</span><span class="n">bid</span><span class="p">:</span> <span class="nb">set</span><span class="p">()</span> <span class="k">for</span> <span class="n">bid</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">))}</span>
-        <span class="k">for</span> <span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">),</span> <span class="p">((</span><span class="n">match_bid</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="n">transform</span><span class="p">)</span> <span class="ow">in</span> <span class="n">periodic_conn</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">bid</span><span class="p">,</span> <span class="n">pid</span><span class="p">),</span> <span class="p">((</span><span class="n">match_bid</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="n">transform</span><span class="p">)</span> <span class="ow">in</span> <span class="n">row_conn</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">adjacency</span><span class="p">[</span><span class="n">bid</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">match_bid</span><span class="p">)</span>
             <span class="n">adjacency</span><span class="p">[</span><span class="n">match_bid</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">bid</span><span class="p">)</span>
 
@@ -1098,7 +1103,8 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply all boundary conditions across the grid once.</span>
 
 <span class="sd">        Imposes the physical inlet, outlet, and mixing patch conditions on</span>
-<span class="sd">        every block, then averages the flow field across periodic boundaries.</span>
+<span class="sd">        every block, interpolates the flow field across non-matching</span>
+<span class="sd">        interfaces, then averages it across periodic boundaries.</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># No mixing-plane exchange here: it is a target update, not a boundary</span>
@@ -1116,13 +1122,17 @@
             <span class="k">for</span> <span class="n">patch</span> <span class="ow">in</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">mixing</span><span class="p">:</span>
                 <span class="n">patch</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
 
+        <span class="c1"># Non-matching interfaces before the periodic seams, so a node shared</span>
+        <span class="c1"># by both ends up periodic-consistent.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">nonmatch</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
+
         <span class="c1"># Close the point-matched periodic seams last.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">periodic</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span></div>
 
 
 <div class="viewcode-block" id="Grid.apply_guess_meridional">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.Grid.apply_guess_meridional">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">apply_guess_meridional</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block_guess</span><span class="p">,</span> <span class="n">refine_factor</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply_guess_meridional</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block_guess</span><span class="p">,</span> <span class="n">refine_factor</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">snap</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply a circumferentially uniform flow field guess.</span>
 
 <span class="sd">        Uses a 1D meridional block as initial guess, interpolating flow</span>
@@ -1139,6 +1149,12 @@
 <span class="sd">            Refinement factor for the guess block (default=1, no refinement).</span>
 <span class="sd">            If &gt; 1, the guess is interpolated along curvilinear arc length,</span>
 <span class="sd">            providing a denser point cloud and smoother results.</span>
+<span class="sd">        snap : bool, optional</span>
+<span class="sd">            Align the velocity with the ``i`` grid lines wherever a block&#39;s two</span>
+<span class="sd">            ``k`` faces differ in guessed pressure (default True). Right for a</span>
+<span class="sd">            passage whose ``i`` runs downstream; wrong for blocks whose ``i``</span>
+<span class="sd">            runs across the pitch or round a blade, where it sets the sign of</span>
+<span class="sd">            ``Vt`` from the grid direction.</span>
 
 <span class="sd">        Raises</span>
 <span class="sd">        ------</span>
@@ -1214,6 +1230,7 @@
             <span class="n">P_k0</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">P</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]</span>
             <span class="n">P_km1</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">P</span><span class="p">[:,</span> <span class="p">:,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span>
             <span class="n">loaded</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">P_k0</span> <span class="o">-</span> <span class="n">P_km1</span><span class="p">)</span> <span class="o">/</span> <span class="n">P_guess_mean</span> <span class="o">&gt;</span> <span class="mf">1e-4</span>  <span class="c1"># (ni, nj) bool</span>
+            <span class="n">loaded</span> <span class="o">&amp;=</span> <span class="n">snap</span>
 
             <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">loaded</span><span class="p">):</span>
                 <span class="c1"># i-direction unit vector in (x, r) space — centred diffs,</span>

@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Index &#8212; ember 0.4.4.dev21+g6a3e5594c documentation</title>
+    <title>Index &#8212; ember 0.4.5 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="_static/documentation_options.js?v=f9b58397"></script>
+    <script src="_static/documentation_options.js?v=340bb9e5"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.4.dev21+g6a3e5594c</p>
+<p class="blurb">Version 0.4.5</p>
 
 
 
@@ -69,6 +69,7 @@
 <li class="toctree-l1"><a class="reference internal" href="api/patch.html">Patch</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/average.html">Averaging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/elliptic.html">Elliptic grid generation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/solver.html">Solver</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/convergence_history.html">Convergence history</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/perturbation.html">Jacobians</a></li>
@@ -570,6 +571,13 @@
 </li>
       </ul></li>
       <li>
+    ember.elliptic
+
+      <ul>
+        <li><a href="api/elliptic.html#module-ember.elliptic">module</a>
+</li>
+      </ul></li>
+      <li>
     ember.fluid
 
       <ul>
@@ -611,6 +619,8 @@
         <li><a href="api/communicators.html#module-ember.periodic_communicator">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     ember.perturbation
 
@@ -618,8 +628,6 @@
         <li><a href="api/perturbation.html#module-ember.perturbation">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     ember.realgas_fit
 
@@ -1193,6 +1201,8 @@
 </li>
         <li><a href="api/cut.html#module-ember.cut">ember.cut</a>
 </li>
+        <li><a href="api/elliptic.html#module-ember.elliptic">ember.elliptic</a>
+</li>
         <li><a href="api/fluid.html#module-ember.fluid">ember.fluid</a>
 </li>
         <li><a href="api/grid.html#module-ember.grid">ember.grid</a>
@@ -1360,10 +1370,10 @@
       </ul></li>
       <li><a href="api/communicators.html#ember.periodic_communicator.PeriodicCommunicator">PeriodicCommunicator (class in ember.periodic_communicator)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/patch.html#ember.patch.PeriodicPatch">PeriodicPatch (class in ember.patch)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/patch.html#ember.patch.BlockPatchCollection.permeable">permeable (ember.patch.BlockPatchCollection property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.pitch">pitch (ember.block.Block property)</a>
@@ -1381,6 +1391,8 @@
       <li><a href="api/util.html#ember.util.pol_to_cart">pol_to_cart() (in module ember.util)</a>
 </li>
       <li><a href="api/util.html#ember.util.pol_to_pseudocart">pol_to_pseudocart() (in module ember.util)</a>
+</li>
+      <li><a href="api/elliptic.html#ember.elliptic.polish_cost">polish_cost() (in module ember.elliptic)</a>
 </li>
       <li><a href="api/grid.html#ember.grid.Grid.pop">pop() (ember.grid.Grid method)</a>
 
@@ -1882,14 +1894,14 @@
 </li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.time">time (ember.convergence_history.ConvergenceHistory property)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.To">To (ember.block.Block property)</a>
 
       <ul>
         <li><a href="api/patch.html#ember.patch.InletPatch.To">(ember.patch.InletPatch property)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/fluid.html#ember.fluid.Fluid.to_dict">to_dict() (ember.fluid.Fluid method)</a>
 </li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.to_json">to_json() (ember.convergence_history.ConvergenceHistory method)</a>
@@ -1911,6 +1923,8 @@
       <li><a href="api/block.html#ember.block.Block.triangulated">triangulated (ember.block.Block property)</a>
 </li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.trim">trim() (ember.convergence_history.ConvergenceHistory method)</a>
+</li>
+      <li><a href="api/elliptic.html#ember.elliptic.ttm_stencil">ttm_stencil() (in module ember.elliptic)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -2049,6 +2063,8 @@
       <li><a href="api/block.html#ember.block.Block.wdist_nd">wdist_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/patch.html#ember.patch.RevolutionPatch.weight_pitch">weight_pitch (ember.patch.RevolutionPatch property)</a>
+</li>
+      <li><a href="api/elliptic.html#ember.elliptic.winslow_sweeps">winslow_sweeps() (in module ember.elliptic)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
