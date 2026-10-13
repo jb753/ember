@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Elliptic grid generation &#8212; ember 0.4.5 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=340bb9e5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Solver" href="solver.html" />
+    <link rel="prev" title="Cutting" href="cut.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.4.5</p>
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Elliptic grid generation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#ember.elliptic.ttm_stencil"><code class="docutils literal notranslate"><span class="pre">ttm_stencil()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.elliptic.winslow_sweeps"><code class="docutils literal notranslate"><span class="pre">winslow_sweeps()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.elliptic.polish_cost"><code class="docutils literal notranslate"><span class="pre">polish_cost()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
+
+
+<hr />
+<ul>
+    
+    <li class="toctree-l1"><a href="https://github.com/jb753/ember">Source code repository</a></li>
+    
+</ul>
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "0.4.5";
+    var page = "api/elliptic.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="cut.html" title="previous chapter">Cutting</a></li>
+      <li>Next: <a href="solver.html" title="next chapter">Solver</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-ember.elliptic">
+<span id="elliptic-grid-generation"></span><h1>Elliptic grid generation<a class="headerlink" href="#module-ember.elliptic" title="Link to this heading">¶</a></h1>
+<p>Kernels for elliptic grid generation.</p>
+<p>ember does not generate grids, but a mesher that smooths them by solving the
+Thompson-Thames-Mastin equations spends most of its time forming their stencils,
+and this is where the compiled code lives. The kernels take node numbers and
+coordinates only, so they serve any block structure a mesher assembles.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.elliptic.ttm_stencil">
+<span class="sig-prename descclassname"><span class="pre">elliptic.</span></span><span class="sig-name descname"><span class="pre">ttm_stencil</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stencil_g</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stencil_s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">PQ</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pitch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/elliptic.html#ttm_stencil"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.elliptic.ttm_stencil" title="Link to this definition">¶</a></dt>
+<dd><p>Nine-point stencils of the Thompson-Thames-Mastin equations.</p>
+<p>The equations in Thomas-Middlecoff form,</p>
+<div class="math notranslate nohighlight">
+\[\alpha (r_{\xi\xi} + P r_\xi) - 2 \beta r_{\xi\eta}
++ \gamma (r_{\eta\eta} + Q r_\eta) = 0,\]</div>
+<p>with <span class="math notranslate nohighlight">\(\alpha = |r_\eta|^2\)</span>, <span class="math notranslate nohighlight">\(\beta = r_\xi \cdot r_\eta\)</span> and
+<span class="math notranslate nohighlight">\(\gamma = |r_\xi|^2\)</span>, are frozen at the coordinates <cite>X</cite> and
+discretised by central differences, with the control function term lagged
+onto the right-hand side.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="convergence_history.html#ember.convergence_history.ConvergenceHistory.n_node" title="ember.convergence_history.ConvergenceHistory.n_node"><em>n_node</em></a><em>, </em><em>2</em><em>)</em>) – Node coordinates <span class="math notranslate nohighlight">\((x, y)\)</span>.</p></li>
+<li><p><strong>stencil_g</strong> (<em>int array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>n_reg</em><em>, </em><em>9</em><em>)</em>) – Node numbers of each stencil, counted from zero, in the order centre,
+E, NE, N, NW, W, SW, S, SE.</p></li>
+<li><p><strong>stencil_s</strong> (<em>int array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>n_reg</em><em>, </em><em>9</em><em>)</em>) – Pitch shift of each stencil node in whole periods of <cite>y</cite>, for a stencil
+that straddles a periodic boundary.</p></li>
+<li><p><strong>PQ</strong> (<em>array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>n_reg</em><em>, </em><em>2</em><em>)</em>) – Control functions <span class="math notranslate nohighlight">\(P, Q\)</span> at each stencil centre.</p></li>
+<li><p><strong>pitch</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – Period in <cite>y</cite>, or zero for none.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>w</strong> (<em>array, shape (n_reg, 9)</em>) – Stencil coefficients, normalised to one at the centre.</p></li>
+<li><p><strong>src</strong> (<em>array, shape (n_reg, 2)</em>) – Right-hand side of each row, so that
+<code class="docutils literal notranslate"><span class="pre">sum(w[n]</span> <span class="pre">*</span> <span class="pre">X[stencil_g[n]])</span> <span class="pre">==</span> <span class="pre">src[n]</span></code> is the discrete equation,
+with the neighbours’ pitch shifts already moved into the <cite>y</cite> component.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.elliptic.winslow_sweeps">
+<span class="sig-prename descclassname"><span class="pre">elliptic.</span></span><span class="sig-name descname"><span class="pre">winslow_sweeps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stencil_g</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stencil_s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pitch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">irregular</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">slide</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">corner</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wall</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_sweep</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/elliptic.html#winslow_sweeps"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.elliptic.winslow_sweeps" title="Link to this definition">¶</a></dt>
+<dd><p>Point-Jacobi sweeps of Winslow’s equations, in single precision.</p>
+<p>Each sweep moves every regular node to the solution of its nine-point
+stencil of</p>
+<div class="math notranslate nohighlight">
+\[\alpha r_{\xi\xi} - 2 \beta r_{\xi\eta} + \gamma r_{\eta\eta} = 0,\]</div>
+<p>frozen at the coordinates the sweep starts from, and every singular point
+to a weighted row of the same; then every sliding node in <cite>y</cite> to a
+weighted row of the coordinates after that; then draws every node near a
+corner towards it; then slides every wall node along a closed line to the
+foot of the perpendicular from the node outside it, no further than half
+way to either neighbour, its gaps to them kept above a floor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="convergence_history.html#ember.convergence_history.ConvergenceHistory.n_node" title="ember.convergence_history.ConvergenceHistory.n_node"><em>n_node</em></a><em>, </em><em>2</em><em>)</em>) – Node coordinates <span class="math notranslate nohighlight">\((x, y)\)</span>.</p></li>
+<li><p><strong>stencil_g</strong> (<em>int arrays</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>n_reg</em><em>, </em><em>9</em><em>)</em>) – Node numbers of each regular node’s stencil, counted from zero, centre
+first then E, NE, N, NW, W, SW, S, SE, and the pitch shift of each.</p></li>
+<li><p><strong>stencil_s</strong> (<em>int arrays</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>n_reg</em><em>, </em><em>9</em><em>)</em>) – Node numbers of each regular node’s stencil, counted from zero, centre
+first then E, NE, N, NW, W, SW, S, SE, and the pitch shift of each.</p></li>
+<li><p><strong>pitch</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – Period in <cite>y</cite>, or zero for none.</p></li>
+<li><p><strong>irregular</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a>) – Singular points <code class="docutils literal notranslate"><span class="pre">(nodes,</span> <span class="pre">indptr,</span> <span class="pre">indices,</span> <span class="pre">weights,</span> <span class="pre">const)</span></code>: each
+node to <code class="docutils literal notranslate"><span class="pre">weights</span> <span class="pre">&#64;</span> <span class="pre">X[indices]</span></code> over its row of the compressed sparse
+rows, plus <cite>const</cite> in <cite>y</cite>.</p></li>
+<li><p><strong>slide</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a>) – Sliding nodes <code class="docutils literal notranslate"><span class="pre">(nodes,</span> <span class="pre">indptr,</span> <span class="pre">indices,</span> <span class="pre">weights,</span> <span class="pre">const)</span></code>, the same
+in <cite>y</cite> only.</p></li>
+<li><p><strong>corner</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a>) – <code class="docutils literal notranslate"><span class="pre">(nodes,</span> <span class="pre">corners,</span> <span class="pre">dy,</span> <span class="pre">f)</span></code>: each node to <code class="docutils literal notranslate"><span class="pre">c</span> <span class="pre">+</span> <span class="pre">(X[node]</span> <span class="pre">-</span> <span class="pre">c)</span> <span class="pre">*</span> <span class="pre">f</span></code>,
+<cite>c</cite> its corner seen shifted <cite>dy</cite> in <cite>y</cite>.</p></li>
+<li><p><strong>wall</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a>) – <code class="docutils literal notranslate"><span class="pre">(nodes,</span> <span class="pre">outside,</span> <span class="pre">dy,</span> <span class="pre">dy_outside,</span> <span class="pre">line,</span> <span class="pre">s_line,</span> <span class="pre">floor,</span> <span class="pre">seg,</span> <span class="pre">seg_out)</span></code>:
+the wall nodes in order round a closed ring, the last the first a turn
+on, and the node outside each, both seen shifted in <cite>y</cite>; the closed
+line (n_line, 2) they lie on, its last point its first, and arc
+lengths along it; the least cumulative arc length of each node past
+the first; and the samples of the line each node and the node outside
+it were nearest the sweep before.</p></li>
+<li><p><strong>n_sweep</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – Number of sweeps.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>X</strong> (<em>array, shape (n_node, 2)</em>) – Swept coordinates, single precision.</p></li>
+<li><p><strong>seg, seg_out</strong> (<em>int arrays</em>) – Samples nearest each wall node and the node outside it, to start the
+next call from.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ember.elliptic.polish_cost">
+<span class="sig-prename descclassname"><span class="pre">elliptic.</span></span><span class="sig-name descname"><span class="pre">polish_cost</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">la</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lb</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">power</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">w_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/elliptic.html#polish_cost"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.elliptic.polish_cost" title="Link to this definition">¶</a></dt>
+<dd><p>Target-matrix cost of the corners of a set of cells, and its gradient.</p>
+<p>At a corner with edges <span class="math notranslate nohighlight">\(a\)</span> along <cite>i</cite> and <span class="math notranslate nohighlight">\(b\)</span> along <cite>k</cite>, scaled
+by the cell’s target lengths into <span class="math notranslate nohighlight">\(T = [a / l_a, b / l_b]\)</span>, the cost
+is the shape term <span class="math notranslate nohighlight">\(\mu = |T|^2 / (2 \det T)\)</span> raised to <cite>power</cite>, plus
+<cite>w_size</cite> times the size term <span class="math notranslate nohighlight">\((\det T + 1 / \det T) / 2\)</span>, with
+<span class="math notranslate nohighlight">\(\det T\)</span> regularised by <cite>eps</cite> so that a folded corner costs a finite,
+steep amount – the target-matrix optimisation of Knupp, as a mesher’s
+polish minimises it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="convergence_history.html#ember.convergence_history.ConvergenceHistory.n_node" title="ember.convergence_history.ConvergenceHistory.n_node"><em>n_node</em></a><em>, </em><em>2</em><em>)</em>) – Node coordinates <span class="math notranslate nohighlight">\((x, y)\)</span>.</p></li>
+<li><p><strong>ids</strong> (<em>int array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>n_cell</em><em>, </em><em>4</em><em>)</em>) – Node numbers of each cell, counted from zero, in the order
+<span class="math notranslate nohighlight">\((i, k)\)</span>, <span class="math notranslate nohighlight">\((i + 1, k)\)</span>, <span class="math notranslate nohighlight">\((i + 1, k + 1)\)</span>,
+<span class="math notranslate nohighlight">\((i, k + 1)\)</span>.</p></li>
+<li><p><strong>dy</strong> (<em>array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>n_cell</em><em>, </em><em>4</em><em>)</em>) – Shift in <cite>y</cite> of each of a cell’s nodes, where it straddles a periodic
+boundary.</p></li>
+<li><p><strong>la</strong> (<em>array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>n_cell</em><em>,</em><em>)</em>) – Target lengths of each cell’s edges along <cite>i</cite> and <cite>k</cite>.</p></li>
+<li><p><strong>lb</strong> (<em>array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>n_cell</em><em>,</em><em>)</em>) – Target lengths of each cell’s edges along <cite>i</cite> and <cite>k</cite>.</p></li>
+<li><p><strong>eps</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – Regularisation of the corner Jacobian.</p></li>
+<li><p><strong>power</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – Power each corner’s shape term is raised to.</p></li>
+<li><p><strong>w_size</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – Weight of the size term against the shape term.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>f</strong> (<em>float</em>) – The cost summed over every corner of every cell.</p></li>
+<li><p><strong>g</strong> (<em>array, shape (n_node, 2)</em>) – Its gradient with respect to <cite>X</cite>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/elliptic.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
