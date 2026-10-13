@@ -5,20 +5,17 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
-Unreleased
+.. _v0.4.5:
+
+0.4.5 (2026-10-13)
 ----------
 
 * Allow the pitchwise node distribution of a surface-of-revolution patch to
-  change along the span: pitch averages weight each span station by its own
-  nodes, and non-reflecting inlets, outlets and mixing planes build one Hilbert
-  matrix per station instead of raising. A face with the same distribution at
-  every station keeps the single shared matrix
-* Add ``ember.elliptic.ttm_stencil``, a compiled kernel forming the nine-point
-  stencils of the Thompson-Thames-Mastin grid generation equations
-* Add ``ember.elliptic.winslow_sweeps``, a compiled kernel running point-Jacobi
-  sweeps of Winslow's grid generation equations in single precision, with
-  sliding boundaries, corner treatment and wall nodes that slide along a closed
-  line to stay square to it
+  change along the span; a fast path remains for same distribution up span
+* Add some kernels for 2D mesh generation in ``ember.elliptic``
+* Exchange flow field across non-matching patches during a solve
+* Fix a bug where patches attached twice when extending the collection
+* Make grid line snapping of meridional guesses optional via a flag
 
 
 .. _v0.4.4:
