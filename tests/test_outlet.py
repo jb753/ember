@@ -52,6 +52,7 @@ from nonreflecting_util import (
     make_block,
     reference_state,
     seed_chic,
+    span_stretch,
 )
 
 
@@ -1033,18 +1034,21 @@ def test_converges_to_prescribed_pressure():
     assert errs[10] < errs[0] * (1.0 - sigma) ** 8
 
 
-def test_nonuniform_pitch_end_to_end():
+@pytest.mark.parametrize("stretch", [0.4, span_stretch()], ids=["face", "span"])
+def test_nonuniform_pitch_end_to_end(stretch):
     """A stretched pitchwise mesh still absorbs, if less exactly.
 
     The Hilbert transform is a quadrature on a non-uniform pitch, so the
     harmonic relation is only approximate there; the check is that the boundary
-    still lands close to the theory rather than reflecting.
+    still lands close to the theory rather than reflecting. Also with the
+    stretch changing along the span, which gives each span station its own
+    Hilbert matrix.
     """
     eps = 2.0e-2
     amp_t = eps * (1.0 + 0.0j)
     amp_down = eps * (0.5 - 0.7j)
 
-    _, patch = _attached(npitch=33, stretch=0.4)
+    _, patch = _attached(npitch=33, stretch=stretch)
     patch.update_soln()
     _seed_harmonic(patch, 1, amp_t=amp_t, amp_down=amp_down)
     patch.advance()

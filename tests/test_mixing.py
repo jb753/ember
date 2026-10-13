@@ -15,8 +15,9 @@ Test cases:
   plain non-reflecting inlet/outlet lists, and row stations find them
 - Target: shape, pitch-uniformity, lazy seeding, copy semantics, set_adjustment
 - Physics: matched flow is a fixed point, a cross-plane mismatch relaxes to
-  matched pitch-mean fluxes, a pitchwise harmonic is absorbed rather than
-  reflected, and a solver run stays finite
+  matched pitch-mean fluxes (also with a pitchwise distribution that changes
+  along the span), a pitchwise harmonic is absorbed rather than reflected, and
+  a solver run stays finite
 - Stalled and reversed stations: a station whose cross-plane mean axial velocity
   is zero survives the exchange, and the clip on that mean bounds it in
   magnitude without turning a reversed station round
@@ -36,7 +37,14 @@ from ember import average
 from ember.grid import Grid
 from ember.mixing_communicator import MixingCommunicator
 from ember.patch import InletPatch, MixingPatch, OutletPatch, PeriodicPatch
-from nonreflecting_util import LEN_M, harmonic, make_block, seed_chic, turn
+from nonreflecting_util import (
+    LEN_M,
+    harmonic,
+    make_block,
+    seed_chic,
+    span_stretch,
+    turn,
+)
 
 # The exchange and the boundary conditions are both heavily under-relaxed by
 # default, which is right for a solver run and far too slow for a test that
@@ -914,6 +922,63 @@ def test_mismatch_relaxes_to_matched_mean_fluxes():
     assert gap_after.max() < 1e-4, f"{gap_before} -> {gap_after}"
 
 
+def test_span_varying_pitch_flux_average():
+    """Each span station's flux is averaged with weights from its own nodes.
+
+    The reference weights are taken from the node angles directly rather than
+    from weight_pitch, and the face is rippled so the weights matter. A cosine,
+    since the stretch is odd about mid-pitch and would leave the pitch mean of
+    a sine at zero under any of the weightings.
+    """
+    _, patch_up, _ = make_pair(up={"stretch": span_stretch(top=0.5)})
+    assert not patch_up._same_pitch
+    ripple(patch_up, amp=0.2, phase=0.5 * np.pi)
+    patch_up.set_flux_avg()
+
+    b = patch_up.block_view
+    perm = patch_up._std_perm
+    t = np.moveaxis(np.asarray(b.t), perm, (0, 1, 2))[0]
+    edges = np.concatenate([t[:, :1], 0.5 * (t[:, 1:] + t[:, :-1]), t[:, -1:]], axis=1)
+    w = np.diff(edges, axis=1) / patch_up.block.pitch
+
+    cons = np.moveaxis(np.asarray(b.conserved_nd), perm, (0, 1, 2))[0]
+    P = np.moveaxis(np.asarray(b.P_nd), perm, (0, 1, 2))[0]
+    ho = np.moveaxis(np.asarray(b.ho_nd), perm, (0, 1, 2))[0]
+    rhoV = cons[..., 1]
+    flux = np.stack(
+        [
+            rhoV,
+            rhoV * cons[..., 1] / cons[..., 0] + P,
+            rhoV * cons[..., 2] / cons[..., 0],
+            rhoV * cons[..., 3] / cons[..., 0],
+            rhoV * ho,
+        ],
+        axis=-1,
+    )
+    expect = np.einsum("sp,spv->sv", w, flux)
+    np.testing.assert_allclose(patch_up.flux_avg_nd, expect, rtol=1e-5, atol=1e-6)
+
+
+def test_span_varying_pitch_relaxes_to_matched_mean_fluxes():
+    """The twin of the case above with each side's distribution varying in span.
+
+    The two sides stretch oppositely, so no station has the same nodes either
+    side and neither side shares one Hilbert matrix across its span.
+    """
+    grid, patch_up, patch_dn, comm = exchanged(
+        up={"P": 1.05e5, "Vx": 105.0, "stretch": span_stretch(top=0.4)},
+        dn={"P": 0.95e5, "Vx": 95.0, "stretch": span_stretch(top=-0.3)},
+    )
+    assert not patch_up._same_pitch and not patch_dn._same_pitch
+    gap_before = flux_gap(patch_up, patch_dn)
+    assert gap_before.max() > 1e-2
+
+    relax((patch_up, patch_dn), comm, 100)
+
+    gap_after = flux_gap(patch_up, patch_dn)
+    assert gap_after.max() < 1e-4, f"{gap_before} -> {gap_after}"
+
+
 def test_a_reversed_station_relaxes_like_any_other():
     """The plane converges with a span station reversed, as it does without one.
 
@@ -1192,7 +1257,7 @@ def reflective_pair(**kwargs):
     return grid, patch_up, patch_dn, comm
 
 
-def ripple(patch, amp=0.05):
+def ripple(patch, amp=0.05, phase=0.0):
     """Scale the face by a pitchwise sinusoid, so its mean is not the whole story.
 
     Every conserved variable is scaled together, which is a pure density
@@ -1201,7 +1266,7 @@ def ripple(patch, amp=0.05):
     """
     b = patch.block_view
     t = np.asarray(b.t)
-    fac = 1.0 + amp * np.sin(2.0 * np.pi * (t - t.min()) / patch.block.pitch)
+    fac = 1.0 + amp * np.sin(2.0 * np.pi * (t - t.min()) / patch.block.pitch + phase)
     b.conserved_nd[...] *= fac[..., None]
     b.update_cached_conserved()
 

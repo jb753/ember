@@ -5,6 +5,19 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
+.. _v0.4.5:
+
+0.4.5 (2026-10-13)
+------------------
+
+* Allow the pitchwise node distribution of a surface-of-revolution patch to
+  change along the span; a fast path remains for same distribution up span
+* Add some kernels for 2D mesh generation in ``ember.elliptic``
+* Exchange flow field across non-matching patches during a solve
+* Fix a bug where patches attached twice when extending the collection
+* Make grid line snapping of meridional guesses optional via a flag
+
+
 .. _v0.4.4:
 
 0.4.4 (2026-09-30)
