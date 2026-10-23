@@ -7,13 +7,14 @@ refused.
 These tests pin the cadence rather than the arithmetic.
 
 Test cases:
-- test_default_updates_every_step: n_step_dt=1 runs the pass on every step
+- test_default_updates_on_the_cadence: the default is 5
+- test_one_updates_every_step: n_step_dt=1 runs the pass on every step
 - test_scree_updates_on_the_cadence: on the scree march, n_step_dt=5 runs the
   pass on the source cadence only, and dt_vol_nd is bitwise held between
 - test_rk_adds_polar_source_off_the_cadence: the RK march refreshes the
   sources every step, so with n_step_dt=5 the full pass runs on the cadence and
   the polar source alone on the other steps, with dt_vol_nd held
-- test_rk_default_never_adds_polar_source_alone: n_step_dt=1 always takes the
+- test_rk_one_never_adds_polar_source_alone: n_step_dt=1 always takes the
   full pass
 - test_rejects_bad_values: n_step_dt < 1, and n_step_dt > 1 with SFD on
 """
@@ -66,9 +67,13 @@ def _record(monkeypatch):
     return n_timestep, snaps
 
 
-def test_default_updates_every_step(monkeypatch):
+def test_default_updates_on_the_cadence():
+    assert _conf().n_step_dt == 5
+
+
+def test_one_updates_every_step(monkeypatch):
     n_timestep, _ = _record(monkeypatch)
-    conf = _conf()
+    conf = _conf(n_step_dt=1)
     hist = conf.run(build_duct_grid(NCELL))
     assert not hist.diverged
     # One seeding call before the march, then one per step.
@@ -113,12 +118,12 @@ def test_rk_adds_polar_source_off_the_cadence(monkeypatch):
         np.testing.assert_array_equal(snaps[i_step], snaps[i_step - i_step % 5])
 
 
-def test_rk_default_never_adds_polar_source_alone(monkeypatch):
+def test_rk_one_never_adds_polar_source_alone(monkeypatch):
     def fail(self, *args, **kwargs):
         raise AssertionError("add_polar_source called at n_step_dt=1")
 
     monkeypatch.setattr(ember.grid.Grid, "add_polar_source", fail)
-    hist = _conf(n_stage=4, cfl=2.0).run(build_duct_grid(NCELL))
+    hist = _conf(n_stage=4, cfl=2.0, n_step_dt=1).run(build_duct_grid(NCELL))
     assert not hist.diverged
 
 

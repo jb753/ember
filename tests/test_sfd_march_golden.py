@@ -87,6 +87,7 @@ def _march(n_stage, inviscid):
         inviscid=inviscid,
         gain_filt=GAIN_FILT,
         delta_filt=DELTA_FILT,
+        n_step_dt=1,
     ).run(grid)
     assert not hist.diverged
     block = grid[0]

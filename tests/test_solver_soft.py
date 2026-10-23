@@ -70,6 +70,7 @@ def test_soft_leaves_the_model_choices_alone():
         n_step=100,
         inviscid=True,
         gain_filt=0.5,
+        n_step_dt=1,
         mix_reflective=True,
         n_levels=2,
     )

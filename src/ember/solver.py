@@ -467,7 +467,7 @@ class Solver(BaseSolver):
     n_stage: int = 0
     """Number of time integration stages per step. 0 for scree, >=1 for RK."""
 
-    n_step_dt: int = 1
+    n_step_dt: int = 5
     """Number of steps between time step updates.
 
     :meth:`~ember.grid.Grid.update_timestep` runs on every step where
@@ -479,7 +479,7 @@ class Solver(BaseSolver):
     RK march refreshes the sources every step, so with ``5`` it adds the polar
     source alone on four steps in five. Must be 1 at nonzero
     :attr:`gain_filt`, since the filter advances in the time step pass and
-    needs every step."""
+    needs every step: pass ``n_step_dt=1`` to use SFD."""
 
     n_levels: int = 3
     """Number of coarse multigrid levels; 0 disables multigrid. Honored by
@@ -605,7 +605,8 @@ class Solver(BaseSolver):
             raise ValueError(
                 f"n_step_dt={self.n_step_dt} with gain_filt={self.gain_filt}: the "
                 "SFD filter advances in the time step pass, once per step, so "
-                "skipping that pass would stretch its time constant."
+                "skipping that pass would stretch its time constant. Pass "
+                "n_step_dt=1 to use SFD."
             )
         if self.n_step_avg < 0:
             raise ValueError(f"n_step_avg must be >= 0, got {self.n_step_avg}.")
@@ -1105,10 +1106,8 @@ def _run(grid, conf):
         # Refresh source terms every step for the multi-stage RK march, which
         # re-evaluates the residual each substep and needs current sources; the
         # scree march reuses one residual per step, so lag the expensive viscous
-        # pass to every fifth step there. Recompute the timestep every step
-        # regardless so dt_vol tracks the flow through fast transients: a lagged
-        # dt_vol is sized for an already-stale state and overshoots the
-        # stability limit during a cold start, and the timestep refresh is cheap.
+        # pass to every fifth step there. The timestep is recomputed every
+        # n_step_dt steps, independently of the sources (see below).
         n_step_source = 5 if conf.n_stage == 0 else 1
         add_sources = i_step % n_step_source == 0
         if add_sources:
