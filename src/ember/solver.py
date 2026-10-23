@@ -471,13 +471,15 @@ class Solver(BaseSolver):
     """Number of steps between time step updates.
 
     :meth:`~ember.grid.Grid.update_timestep` runs on every step where
-    ``i_step % n_step_dt == 0``, and also on every step that refreshes the
-    sources, because the same pass adds the polar source. ``dt_vol_nd`` is
-    held in between. So on the RK march, which refreshes the sources every
-    step, a value above 1 changes nothing; on the scree march, ``5`` updates
-    the time step on the source cadence. Must
-    be 1 at nonzero :attr:`gain_filt`, since the filter advances in the same
-    pass and needs every step."""
+    ``i_step % n_step_dt == 0`` and ``dt_vol_nd`` is held in between. That
+    pass also adds the polar source on a source refresh step, so a refresh
+    step off the cadence adds it alone, with
+    :meth:`~ember.grid.Grid.add_polar_source`. On the scree march, which
+    refreshes the sources every fifth step, ``5`` puts both on one cadence; the
+    RK march refreshes the sources every step, so with ``5`` it adds the polar
+    source alone on four steps in five. Must be 1 at nonzero
+    :attr:`gain_filt`, since the filter advances in the time step pass and
+    needs every step."""
 
     n_levels: int = 3
     """Number of coarse multigrid levels; 0 disables multigrid. Honored by
@@ -1121,10 +1123,10 @@ def _run(grid, conf):
         # every-fifth refresh would stretch the time constant fivefold. The
         # force reads the filter before this step's update, the usual explicit
         # SFD coupling. At the default zero gain the filter is never touched.
-        # With n_step_dt > 1 the pass is skipped on steps that neither refresh
-        # the sources nor fall on the time step cadence, holding dt_vol_nd
-        # (see Solver.n_step_dt).
-        if add_sources or i_step % conf.n_step_dt == 0:
+        # With n_step_dt > 1 the pass runs only on the time step cadence,
+        # holding dt_vol_nd in between; a source refresh step off the cadence
+        # adds the polar source on its own (see Solver.n_step_dt).
+        if i_step % conf.n_step_dt == 0:
             grid.update_timestep(
                 rf=0.2,
                 fac_visc=conf.fac_visc,
@@ -1133,6 +1135,8 @@ def _run(grid, conf):
                 cfl=conf.cfl,
                 delta_filt=conf.delta_filt,
             )
+        elif add_sources:
+            grid.add_polar_source()
 
         # Prepare the residual
         grid.update_residual(sf=conf.sf_resid)

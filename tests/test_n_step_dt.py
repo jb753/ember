@@ -1,15 +1,20 @@
 """Tests that Solver.n_step_dt holds the time step between updates.
 
 The time step pass, :meth:`ember.grid.Grid.update_timestep`, also adds the
-polar source and advances the SFD filter, so skipping it must not skip those.
+polar source and advances the SFD filter, so skipping it must not skip those:
+a source refresh step off the cadence adds the polar source alone, and SFD is
+refused.
 These tests pin the cadence rather than the arithmetic.
 
 Test cases:
 - test_default_updates_every_step: n_step_dt=1 runs the pass on every step
 - test_scree_updates_on_the_cadence: on the scree march, n_step_dt=5 runs the
   pass on the source cadence only, and dt_vol_nd is bitwise held between
-- test_rk_ignores_the_cadence: the RK march refreshes the sources every step,
-  so the pass still runs every step
+- test_rk_adds_polar_source_off_the_cadence: the RK march refreshes the
+  sources every step, so with n_step_dt=5 the full pass runs on the cadence and
+  the polar source alone on the other steps, with dt_vol_nd held
+- test_rk_default_never_adds_polar_source_alone: n_step_dt=1 always takes the
+  full pass
 - test_rejects_bad_values: n_step_dt < 1, and n_step_dt > 1 with SFD on
 """
 
@@ -85,12 +90,36 @@ def test_scree_updates_on_the_cadence(monkeypatch):
     assert not np.array_equal(snaps[5], snaps[0])
 
 
-def test_rk_ignores_the_cadence(monkeypatch):
-    n_timestep, _ = _record(monkeypatch)
+def test_rk_adds_polar_source_off_the_cadence(monkeypatch):
+    n_timestep, snaps = _record(monkeypatch)
+    n_polar = []
+    orig_polar = ember.grid.Grid.add_polar_source
+
+    def polar_spy(self, *args, **kwargs):
+        n_polar.append(None)
+        return orig_polar(self, *args, **kwargs)
+
+    monkeypatch.setattr(ember.grid.Grid, "add_polar_source", polar_spy)
+
     conf = _conf(n_stage=4, cfl=2.0, n_step_dt=5)
     hist = conf.run(build_duct_grid(NCELL))
     assert not hist.diverged
-    assert len(n_timestep) == 1 + conf.n_step
+
+    # The RK march refreshes the sources every step: the full pass on steps 0,
+    # 5 and 10, and the polar source alone on the other eight.
+    assert len(n_timestep) == 1 + 3
+    assert len(n_polar) == conf.n_step - 3
+    for i_step in range(conf.n_step):
+        np.testing.assert_array_equal(snaps[i_step], snaps[i_step - i_step % 5])
+
+
+def test_rk_default_never_adds_polar_source_alone(monkeypatch):
+    def fail(self, *args, **kwargs):
+        raise AssertionError("add_polar_source called at n_step_dt=1")
+
+    monkeypatch.setattr(ember.grid.Grid, "add_polar_source", fail)
+    hist = _conf(n_stage=4, cfl=2.0).run(build_duct_grid(NCELL))
+    assert not hist.diverged
 
 
 @pytest.mark.parametrize("kwargs", [dict(n_step_dt=0), dict(n_step_dt=5, gain_filt=0.5)])
