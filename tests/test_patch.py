@@ -1401,6 +1401,28 @@ def test_block_flat_removes_patches():
     assert len(block_flat.patches) == 0
 
 
+def test_extend_attaches_each_patch_once(monkeypatch):
+    """Adding patches together attaches each to its block once, not again on
+    the way into the collection: attaching can be costly, as a non-reflecting
+    patch builds its pitchwise transform there."""
+    import ember.patch
+
+    block = _create_test_block_3d()
+    attached = []
+    original = ember.patch.PeriodicPatch.attach_to_block
+
+    def counting(self, blk):
+        attached.append(self)
+        return original(self, blk)
+
+    monkeypatch.setattr(ember.patch.PeriodicPatch, "attach_to_block", counting)
+    patches = [ember.patch.PeriodicPatch(i=0), ember.patch.PeriodicPatch(i=-1)]
+    block.patches.extend(patches)
+
+    assert len(block.patches) == 2
+    assert [id(p) for p in attached] == [id(p) for p in patches]
+
+
 class TestPatchOverlapDetection:
     """Test overlap detection between patches of the same type."""
 
@@ -3528,6 +3550,95 @@ class TestPatchSurfaceOfRevolution:
             patch.block_avg.conserved[:, 1], expected_rhoVx, rtol=1e-5
         )
         np.testing.assert_allclose(patch.block_avg.conserved[:, 0], 1.0, rtol=1e-5)
+
+    # (const_dim, span_dim, pitch_dim) for every assignment of the block axes,
+    # so each of the three averaging kernels runs with span either side of
+    # pitch.
+    AXIS_PERMS = [(0, 1, 2), (0, 2, 1), (1, 0, 2), (1, 2, 0), (2, 0, 1), (2, 1, 0)]
+
+    @staticmethod
+    def _span_varying_t_frac(nspan, npitch):
+        """Pitch fractions stretched by an amount that grows with span."""
+        u = np.linspace(0.0, 1.0, npitch)
+        stretch = np.linspace(0.0, 0.6, nspan)[:, None]
+        return u + stretch * np.sin(2.0 * np.pi * u) / (2.0 * np.pi)
+
+    def _make_permuted_sor_block(self, perm, t_frac, nconst=4, Nb=36):
+        """SOR block with x along const, r along span, theta along pitch.
+
+        ``t_frac`` is ``(nspan, npitch)`` fractions of a pitch, one row per span
+        station. Returns the block and an attached patch on the const = 0 face.
+        """
+        nspan, npitch = t_frac.shape
+        pitch = 2.0 * np.pi / Nb
+        csp = (nconst, nspan, npitch)
+        x = np.linspace(0.0, 1.0, nconst)[:, None, None] * np.ones(csp)
+        r = 0.5 + 0.2 * np.linspace(0.0, 1.0, nspan)[None, :, None] * np.ones(csp)
+        t = pitch * t_frac[None, :, :] * np.ones(csp)
+        shape = [0, 0, 0]
+        for n, dim in zip(csp, perm):
+            shape[dim] = n
+        block = ember.block.Block(shape=tuple(shape))
+        block.set_fluid(PerfectFluid(gamma=1.4, cp=1004.5, mu=1.8e-5, Pr=0.7))
+        block.set_Nb(Nb)
+        block.set_x(np.moveaxis(x, (0, 1, 2), perm))
+        block.set_r(np.moveaxis(r, (0, 1, 2), perm))
+        block.set_t(np.moveaxis(t, (0, 1, 2), perm))
+        block.set_P_T(1e5, 300.0)
+        patch = _RevolutionVehicle(**{"ijk"[perm[0]]: 0})
+        patch.attach_to_block(block)
+        assert (patch.const_dim, patch.span_dim, patch.pitch_dim) == perm
+        return block, patch
+
+    @staticmethod
+    def _midpoint_weights(t_frac):
+        """Per-station node weights written out independently, ``(nspan, npitch)``."""
+        edges = np.concatenate(
+            [t_frac[:, :1], 0.5 * (t_frac[:, 1:] + t_frac[:, :-1]), t_frac[:, -1:]],
+            axis=1,
+        )
+        return np.diff(edges, axis=1)
+
+    @pytest.mark.parametrize("perm", AXIS_PERMS)
+    def test_weight_pitch_varies_with_span(self, perm):
+        """A pitchwise distribution that changes along the span gets its own weights."""
+        nspan, npitch = 5, 9
+        t_frac = self._span_varying_t_frac(nspan, npitch)
+        _, patch = self._make_permuted_sor_block(perm, t_frac)
+        assert not patch._same_pitch
+
+        w = patch.weight_pitch
+        assert w.shape[patch.const_dim] == 1
+        assert w.shape[patch.span_dim] == nspan
+        assert w.shape[patch.pitch_dim] == npitch
+        w_sp = np.moveaxis(w, perm, (0, 1, 2))[0]
+        np.testing.assert_allclose(w_sp, self._midpoint_weights(t_frac), atol=1e-6)
+        np.testing.assert_allclose(w_sp.sum(axis=1), 1.0, rtol=1e-6)
+
+    @pytest.mark.parametrize("perm", AXIS_PERMS)
+    def test_set_block_avg_span_varying_spacing(self, perm):
+        """Each span station is averaged with its own weights by the kernel."""
+        nspan, npitch = 5, 9
+        t_frac = self._span_varying_t_frac(nspan, npitch)
+        block, patch = self._make_permuted_sor_block(perm, t_frac)
+        rng = np.random.default_rng(0)
+        cons = rng.uniform(0.5, 1.5, block.shape + (5,)).astype(np.float32)
+        block.set_conserved(cons)
+        patch.set_block_avg()
+
+        face = np.moveaxis(np.asarray(patch.block_view.conserved), perm, (0, 1, 2))[0]
+        w = self._midpoint_weights(t_frac)
+        expected = np.einsum("sp,spv->sv", w, face)
+        np.testing.assert_allclose(patch.block_avg.conserved, expected, rtol=1e-5)
+
+    def test_weight_pitch_lean_keeps_fast_path(self):
+        """A uniform theta offset along the span still shares one row of weights."""
+        nspan, npitch = 5, 9
+        u = np.linspace(0.0, 1.0, npitch)
+        t_frac = u[None, :] + 0.3 * np.linspace(0.0, 1.0, nspan)[:, None]
+        _, patch = self._make_permuted_sor_block((0, 1, 2), t_frac)
+        assert patch._same_pitch
+        assert patch.weight_pitch.shape == (1, 1, npitch)
 
     def _make_conical_sor_block(self, shape, Nb=36, slope=0.0, dRi=0.0, R0=0.5):
         """Helper: SOR block whose meridional line (j) has radius R0 + slope*x,

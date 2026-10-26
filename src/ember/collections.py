@@ -292,9 +292,10 @@ class _LabelledList(ABC):
                     )
                 new_labels.append(item_label)
 
-        # Add all items
-        for item in items:
-            self.append(item)
+        # Added together, the batch being validated: not through append, which
+        # a subclass may override to do per item what its own extend has
+        # already done for the batch, such as attaching a patch to its block.
+        self._items.extend(items)
 
     def index(self, item, start=0, stop=None):
         """Return index of first occurrence of item.

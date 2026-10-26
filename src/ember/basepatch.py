@@ -746,6 +746,8 @@ class RevolutionPatch(Patch):
         self._rot_depth = 0
         self._block_avg = None
         self._weight_pitch = None
+        self._weight_pitch_face = None
+        self._same_pitch = None
         self._dA_node = None
 
     def _check_attached(self):
@@ -974,7 +976,7 @@ class RevolutionPatch(Patch):
         directly into ``self.block_avg.conserved_nd``.
         """
         cons = self.block_view.conserved_nd
-        w = self.weight_pitch.ravel()
+        w = self._weight_pitch_face
         dest = self.block_avg.conserved_nd
         ni, nj, nk = self.block_view.shape
         if self.pitch_dim == 0:
@@ -1032,18 +1034,32 @@ class RevolutionPatch(Patch):
         t_sp = self._block_view.t.transpose(self._std_perm).squeeze(
             axis=0
         )  # (nspan, npitch)
-        t1d = t_sp[0]  # theta values along pitch, shape (npitch,)
         # Midpoint intervals: dt[k] = t_mid[k] - t_mid[k-1]
-        t_mid = 0.5 * (t1d[:-1] + t1d[1:])
-        dt = np.empty_like(t1d)
-        dt[0] = t_mid[0] - t1d[0]
-        dt[1:-1] = t_mid[1:] - t_mid[:-1]
-        dt[-1] = t1d[-1] - t_mid[-1]
-        # Shape to broadcast against block_view: place weights at pitch_dim
+        t_mid = 0.5 * (t_sp[:, :-1] + t_sp[:, 1:])
+        dt = np.empty_like(t_sp)
+        dt[:, 0] = t_mid[:, 0] - t_sp[:, 0]
+        dt[:, 1:-1] = t_mid[:, 1:] - t_mid[:, :-1]
+        dt[:, -1] = t_sp[:, -1] - t_mid[:, -1]
         w = dt / block.pitch
+        # Fast path when every span station has the same relative pitchwise
+        # distribution, a uniform offset in theta (lean) allowed: one row of
+        # weights is shared by all, and weight_pitch keeps a unit span axis.
+        t_rel = t_sp - t_sp[:, :1]
+        self._same_pitch = bool(np.abs(t_rel - t_rel[0]).max() <= rtol * block.pitch)
         shape = [1, 1, 1]
         shape[self._dim_pitch] = -1
-        self._weight_pitch = w.reshape(shape)
+        if self._same_pitch:
+            self._weight_pitch = w[0].reshape(shape)
+        else:
+            # Place (span, pitch) at their dimensions, const as the unit axis.
+            w_sp = w if self._dim_span < self._dim_pitch else w.T
+            self._weight_pitch = np.expand_dims(w_sp, self.const_dim)
+        # Full face shape in Fortran order for the averaging kernels, built
+        # once here so that no call has to broadcast or copy it.
+        self._weight_pitch_face = np.asfortranarray(
+            np.broadcast_to(self._weight_pitch, self._block_view.shape),
+            dtype=np.float32,
+        )
 
         # If we found a span direction, set span fraction vector
         xm = x.mean(axis=self.pitch_dim).squeeze()
@@ -1284,6 +1300,8 @@ class RevolutionPatch(Patch):
 
         Weights sum to 1 along :attr:`pitch_dim`, so a pitch-averaged scalar
         field is ``(field * patch.weight_pitch).sum(axis=patch.pitch_dim)``.
+        The span axis has unit length when every span station has the same
+        relative pitchwise node distribution, and full length otherwise.
         """
         self._check_attached()
         return self._weight_pitch

@@ -33,8 +33,8 @@ repos:
         name: check no type annotations
         entry: tools/check_no_typing.sh
         language: script
-        files: ^src/ember/.*\.py$
         pass_filenames: false
+        always_run: true
 
       - id: check-dead-code
         name: check dead code
@@ -52,15 +52,17 @@ repos:
         name: check class member order
         entry: uv run python tools/check_member_order.py
         language: system
-        files: ^src/ember/.*\.py$
-        pass_filenames: true
+        # With no files given it checks all of src/ember.
+        pass_filenames: false
+        always_run: true
 
       - id: check-comments
         name: check comment and docstring length
         entry: uv run python tools/check_comments.py
         language: system
-        files: ^src/ember/.*\.py$
-        pass_filenames: true
+        # With no files given it checks all of src/ember.
+        pass_filenames: false
+        always_run: true
 
       - id: run-tests
         name: run tests
@@ -92,3 +94,6 @@ repos:
         pass_filenames: false
         always_run: true
       - id: ruff-format
+        args: [--config, "extend-exclude = ['_version.py']", src, tests]
+        pass_filenames: false
+        always_run: true

@@ -250,28 +250,32 @@ class Grid(_LabelledList):
     def _find_periodic_connected_components(self):
         """Find connected components of blocks linked by periodic patches.
 
-        Blocks connected by periodic patches are in the same blade row.
-        Uses BFS to find connected components in the periodic connectivity graph.
+        Blocks connected by periodic or non-matching patches are in the same
+        blade row: both join faces in one frame of reference, unlike a mixing
+        plane. Uses BFS to find connected components in that connectivity graph.
 
         Returns
         -------
         List[List[int]]
             List of row groups, where each group is a list of block indices.
-            Blocks within a group are connected by periodic patches.
+            Blocks within a group are connected by periodic or non-matching
+            patches.
         """
         if len(self) == 0:
             return []
 
-        # Get periodic connectivity
-        try:
-            periodic_conn = self.connectivity.periodic.pair()
-        except ValueError:
-            # If periodic pairing fails (unmatched patches), treat each block as separate
-            periodic_conn = {}
+        # Get periodic and non-matching connectivity
+        row_conn = {}
+        for conn in (self.connectivity.periodic, self.connectivity.nonmatch):
+            try:
+                row_conn.update(conn.pair())
+            except ValueError:
+                # If pairing fails (unmatched patches), treat each block as separate
+                pass
 
-        # Build adjacency list for block-to-block connections via periodic patches
+        # Build adjacency list for block-to-block connections within a row
         adjacency = {bid: set() for bid in range(len(self))}
-        for (bid, pid), ((match_bid, _), transform) in periodic_conn.items():
+        for (bid, pid), ((match_bid, _), transform) in row_conn.items():
             adjacency[bid].add(match_bid)
             adjacency[match_bid].add(bid)
 
@@ -932,7 +936,8 @@ class Grid(_LabelledList):
         """Apply all boundary conditions across the grid once.
 
         Imposes the physical inlet, outlet, and mixing patch conditions on
-        every block, then averages the flow field across periodic boundaries.
+        every block, interpolates the flow field across non-matching
+        interfaces, then averages it across periodic boundaries.
 
         """
         # No mixing-plane exchange here: it is a target update, not a boundary
@@ -950,10 +955,14 @@ class Grid(_LabelledList):
             for patch in block.patches.mixing:
                 patch.apply()
 
+        # Non-matching interfaces before the periodic seams, so a node shared
+        # by both ends up periodic-consistent.
+        self.connectivity.nonmatch.apply()
+
         # Close the point-matched periodic seams last.
         self.connectivity.periodic.apply()
 
-    def apply_guess_meridional(self, block_guess, refine_factor=1):
+    def apply_guess_meridional(self, block_guess, refine_factor=1, snap=True):
         """Apply a circumferentially uniform flow field guess.
 
         Uses a 1D meridional block as initial guess, interpolating flow
@@ -970,6 +979,12 @@ class Grid(_LabelledList):
             Refinement factor for the guess block (default=1, no refinement).
             If > 1, the guess is interpolated along curvilinear arc length,
             providing a denser point cloud and smoother results.
+        snap : bool, optional
+            Align the velocity with the ``i`` grid lines wherever a block's two
+            ``k`` faces differ in guessed pressure (default True). Right for a
+            passage whose ``i`` runs downstream; wrong for blocks whose ``i``
+            runs across the pitch or round a blade, where it sets the sign of
+            ``Vt`` from the grid direction.
 
         Raises
         ------
@@ -1045,6 +1060,7 @@ class Grid(_LabelledList):
             P_k0 = block.P[:, :, 0]
             P_km1 = block.P[:, :, -1]
             loaded = np.abs(P_k0 - P_km1) / P_guess_mean > 1e-4  # (ni, nj) bool
+            loaded &= snap
 
             if np.any(loaded):
                 # i-direction unit vector in (x, r) space — centred diffs,

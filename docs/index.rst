@@ -33,6 +33,7 @@ interface, while the heavy computations run through compiled Fortran for speed.
    api/patch
    api/average
    api/cut
+   api/elliptic
    api/solver
    api/convergence_history
    api/perturbation
