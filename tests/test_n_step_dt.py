@@ -127,7 +127,9 @@ def test_rk_one_never_adds_polar_source_alone(monkeypatch):
     assert not hist.diverged
 
 
-@pytest.mark.parametrize("kwargs", [dict(n_step_dt=0), dict(n_step_dt=5, gain_filt=0.5)])
+@pytest.mark.parametrize(
+    "kwargs", [dict(n_step_dt=0), dict(n_step_dt=5, gain_filt=0.5)]
+)
 def test_rejects_bad_values(kwargs):
     with pytest.raises(ValueError):
         _conf(**kwargs)

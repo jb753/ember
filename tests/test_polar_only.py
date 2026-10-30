@@ -66,7 +66,9 @@ def _fused(cons, r, P, vol, f_body, P_offset):
 
 
 def _alone(cons, r, P, vol, f_body, P_offset):
-    fortran.set_polar_source(cons=cons, r=r, p=P, p_offset=P_offset, vol=vol, f_body=f_body)
+    fortran.set_polar_source(
+        cons=cons, r=r, p=P, p_offset=P_offset, vol=vol, f_body=f_body
+    )
 
 
 def test_matches_fused_kernel():

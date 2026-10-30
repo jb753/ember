@@ -1116,15 +1116,12 @@ def _run(grid, conf):
 
         # The timestep pass also finishes the body force on a refresh step (the
         # polar source and the SFD force, onto the viscous part just built) and
-        # advances the SFD low-pass filter on the dt_vol it has just computed.
-        # The filter advances every step regardless of the source cadence: its
-        # dt is a per-step increment, so advancing it on the scree march's
-        # every-fifth refresh would stretch the time constant fivefold. The
-        # force reads the filter before this step's update, the usual explicit
-        # SFD coupling. At the default zero gain the filter is never touched.
-        # With n_step_dt > 1 the pass runs only on the time step cadence,
-        # holding dt_vol_nd in between; a source refresh step off the cadence
-        # adds the polar source on its own (see Solver.n_step_dt).
+        # advances the SFD filter, whose dt is a per-step increment: on the
+        # scree march's every-fifth refresh its time constant would stretch
+        # fivefold. The force reads the filter before this step's update, the
+        # usual explicit coupling; at the default zero gain it is never touched.
+        # With n_step_dt > 1 the pass runs only on that cadence, and a source
+        # refresh step off it adds the polar source alone (Solver.n_step_dt).
         if i_step % conf.n_step_dt == 0:
             grid.update_timestep(
                 rf=0.2,
