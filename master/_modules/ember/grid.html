@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.grid &#8212; ember 0.4.6.dev8+g6c93dd767 documentation</title>
+    <title>ember.grid &#8212; ember 0.4.6.dev11+g5fd4365db documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=0b94e509"></script>
+    <script src="../../_static/documentation_options.js?v=1670f476"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.6.dev8+g6c93dd767</p>
+<p class="blurb">Version 0.4.6.dev11+g5fd4365db</p>
 
 
 
@@ -1418,7 +1418,7 @@
 
 <div class="viewcode-block" id="Grid.calculate_wdist">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.Grid.calculate_wdist">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">calculate_wdist</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">limit_pitch</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calculate_wdist</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">limit_pitch</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">ignore_inviscid</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        This method creates a pitchwise-repeated grid to include neighboring passages,</span>
 <span class="sd">        extracts all wall nodes from the repeated blocks, builds a KDTree for efficient</span>
@@ -1432,6 +1432,11 @@
 <span class="sd">            blade pitch (``2*pi*r_ref/Nb``). This bakes the mixing-length limit</span>
 <span class="sd">            directly into the stored wall distance, so downstream turbulence</span>
 <span class="sd">            models need no separate cap. Defaults to ``np.inf`` (no limit).</span>
+<span class="sd">        ignore_inviscid : bool, optional</span>
+<span class="sd">            Leave :py:class:`~ember.patch.InviscidPatch` faces out of the walls</span>
+<span class="sd">            distance is measured to. A slip wall grows no boundary layer, so a</span>
+<span class="sd">            turbulence model should not be damped near one. Defaults to</span>
+<span class="sd">            ``False``, which counts them as walls like any other solid face.</span>
 
 <span class="sd">        Examples</span>
 <span class="sd">        --------</span>
@@ -1442,7 +1447,7 @@
             <span class="k">return</span>  <span class="c1"># No blocks to process</span>
 
         <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">:</span>
-            <span class="n">_calculate_wdist_row</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">limit_pitch</span><span class="p">)</span></div>
+            <span class="n">_calculate_wdist_row</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">limit_pitch</span><span class="p">,</span> <span class="n">ignore_inviscid</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="Grid.check_nan">
@@ -2581,11 +2586,12 @@
 
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_calculate_wdist_row</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">limit_pitch</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_calculate_wdist_row</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">limit_pitch</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">ignore_inviscid</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Perform wall distance calc for a single blade row grid.</span>
 
 <span class="sd">    If ``limit_pitch`` is finite, the (nondimensional) wall distance is capped</span>
-<span class="sd">    at ``limit_pitch`` times the row&#39;s reference blade pitch.</span>
+<span class="sd">    at ``limit_pitch`` times the row&#39;s reference blade pitch. With</span>
+<span class="sd">    ``ignore_inviscid``, slip walls are not walls to measure distance to.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># Reference pitch for this row, nondimensionalised by L_ref (shared per row)</span>
@@ -2598,7 +2604,8 @@
     <span class="c1"># Collect nondim polar coordinates</span>
     <span class="n">xrt_wall</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">grid</span><span class="p">:</span>
-        <span class="n">xrt_wall</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">xrt_nd</span><span class="p">[</span><span class="n">block</span><span class="o">.</span><span class="n">_wall_nodes</span><span class="p">,</span> <span class="p">:])</span>
+        <span class="n">non_wall</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">patches</span><span class="o">.</span><span class="n">slip</span> <span class="k">if</span> <span class="n">ignore_inviscid</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">xrt_wall</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">xrt_nd</span><span class="p">[</span><span class="n">block</span><span class="o">.</span><span class="n">_get_wall_nodes</span><span class="p">(</span><span class="n">non_wall</span><span class="p">),</span> <span class="p">:])</span>
 
     <span class="n">n_wall</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">xrt_wall</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">n_wall</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>

@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.convergence_history &#8212; ember 0.4.6.dev8+g6c93dd767 documentation</title>
+    <title>ember.convergence_history &#8212; ember 0.4.6.dev11+g5fd4365db documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=0b94e509"></script>
+    <script src="../../_static/documentation_options.js?v=1670f476"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.6.dev8+g6c93dd767</p>
+<p class="blurb">Version 0.4.6.dev11+g5fd4365db</p>
 
 
 
@@ -515,6 +515,21 @@
         <span class="k">return</span> <span class="kc">True</span></div>
 
 
+<div class="viewcode-block" id="ConvergenceHistory.check_steady">
+<a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory.check_steady">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">check_steady</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fluc_mdot</span><span class="p">,</span> <span class="n">n_step_window</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;True when the march has not diverged and its mass flow is steady:</span>
+<span class="sd">        :meth:`fluc_mdot` over `n_step_window` at most `fluc_mdot`.</span>
+
+<span class="sd">        Unlike :meth:`check_convergence`, which a march fluctuating about a</span>
+<span class="sd">        stationary mean, or drifting slowly, can pass, this asks for one steady</span>
+<span class="sd">        state, as a steady solution near a stability limit stops reaching.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">diverged</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">fluc_mdot</span><span class="p">(</span><span class="n">n_step_window</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">fluc_mdot</span></div>
+
+
 <div class="viewcode-block" id="ConvergenceHistory.find_settling_record">
 <a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory.find_settling_record">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">find_settling_record</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">0.01</span><span class="p">):</span>
@@ -570,6 +585,40 @@
             <span class="c1"># itself never settles (then report the last record).</span>
             <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">outside</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
         <span class="k">return</span> <span class="mi">0</span></div>
+
+
+<div class="viewcode-block" id="ConvergenceHistory.fluc_mdot">
+<a class="viewcode-back" href="../../api/convergence_history.html#ember.convergence_history.ConvergenceHistory.fluc_mdot">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">fluc_mdot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_step_window</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Relative rms of the mass flow about its mean over the final steps.</span>
+
+<span class="sd">        Over the records in the last `n_step_window` steps of the march --- the</span>
+<span class="sd">        averaging window, so it judges the stretch the averaged field is taken</span>
+<span class="sd">        over --- the rms of the mass flow at the first and at the last station</span>
+<span class="sd">        about its own mean, as a fraction of that mean; the larger of the two.</span>
+<span class="sd">        Persistent oscillation and drift both raise it, a linear drift by its</span>
+<span class="sd">        range over :math:`\sqrt{12}`, so a march that has not settled to one</span>
+<span class="sd">        steady state reads high either way. The whole march when it has fewer</span>
+<span class="sd">        than two records in the window.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        n_step_window : int</span>
+<span class="sd">            Steps at the end of the march to take the rms over.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">i_log</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">i_step</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">i_step</span><span class="p">[:</span><span class="n">n</span><span class="p">]</span>
+        <span class="n">tail</span> <span class="o">=</span> <span class="n">i_step</span> <span class="o">&gt;</span> <span class="n">i_step</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">n_step_window</span>
+        <span class="k">if</span> <span class="n">tail</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">tail</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+        <span class="n">mdot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mdot_nd</span><span class="p">[:</span><span class="n">n</span><span class="p">][</span><span class="n">tail</span><span class="p">][:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+        <span class="n">mean</span> <span class="o">=</span> <span class="n">mdot</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">rms</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="n">mdot</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">rms</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">mean</span><span class="p">)))</span></div>
 
 
 <div class="viewcode-block" id="ConvergenceHistory.format_message">

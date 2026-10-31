@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.cut &#8212; ember 0.4.6.dev8+g6c93dd767 documentation</title>
+    <title>ember.cut &#8212; ember 0.4.6.dev11+g5fd4365db documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=0b94e509"></script>
+    <script src="../../_static/documentation_options.js?v=1670f476"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.6.dev8+g6c93dd767</p>
+<p class="blurb">Version 0.4.6.dev11+g5fd4365db</p>
 
 
 
@@ -699,6 +699,22 @@
     <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">t_in</span> <span class="o">&lt;=</span> <span class="n">t_out</span><span class="p">))</span>
 
 
+<span class="n">CUT_EXTEND</span> <span class="o">=</span> <span class="mf">0.1</span>
+<span class="sd">&quot;&quot;&quot;How far :func:`unstructured` carries a cut curve on past each end, as a</span>
+<span class="sd">fraction of the end segment&#39;s length. Enough to cover the wall cells straddling</span>
+<span class="sd">a hub-to-casing line; short enough not to reach back into the fluid.&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_extend_ends</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">frac</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return `xr_cut` with its first and last segments lengthened by `frac`.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">xr_cut</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">xr_cut</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">xr_cut</span>
+    <span class="n">xr_cut</span> <span class="o">=</span> <span class="n">xr_cut</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">xr_cut</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">frac</span> <span class="o">*</span> <span class="p">(</span><span class="n">xr_cut</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">xr_cut</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">xr_cut</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">frac</span> <span class="o">*</span> <span class="p">(</span><span class="n">xr_cut</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">xr_cut</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">xr_cut</span>
+
+
 <div class="viewcode-block" id="unstructured">
 <a class="viewcode-back" href="../../api/cut.html#ember.cut.unstructured">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">unstructured</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">xr_cut</span><span class="p">):</span>
@@ -707,7 +723,9 @@
 <span class="sd">    Extracts a triangulated isosurface where the meridional cut curve</span>
 <span class="sd">    intersects the grid, by running the marching cubes algorithm on the</span>
 <span class="sd">    signed distance field of each block. Triangles from all intersected</span>
-<span class="sd">    blocks are concatenated into a single unstructured block.</span>
+<span class="sd">    blocks are concatenated into a single unstructured block. The curve&#39;s end</span>
+<span class="sd">    segments are carried on by :data:`CUT_EXTEND` of their length, so a curve</span>
+<span class="sd">    ending on an endwall cuts the wall cells cleanly.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -725,6 +743,14 @@
     <span class="c1"># Convert single Block to list for consistent handling</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">Block</span><span class="p">):</span>
         <span class="n">grid</span> <span class="o">=</span> <span class="p">[</span><span class="n">grid</span><span class="p">]</span>
+
+    <span class="c1"># A cut curve usually ends on an endwall, but where that wall is sloped the</span>
+    <span class="c1"># wall cells straddling the cut have nodes past the end of the curve. Their</span>
+    <span class="c1"># distance is then to the end point rather than across the line, which is</span>
+    <span class="c1"># larger, so marching cubes puts the vertices on those edges off the line,</span>
+    <span class="c1"># tens of microns on a spinner, differently at every theta. Carry the end</span>
+    <span class="c1"># segments on straight so the zero level stays the line through the walls.</span>
+    <span class="n">xr_cut</span> <span class="o">=</span> <span class="n">_extend_ends</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span> <span class="n">CUT_EXTEND</span><span class="p">)</span>
 
     <span class="c1"># Loop over blocks</span>
     <span class="n">triangles</span> <span class="o">=</span> <span class="p">[]</span>
@@ -977,7 +1003,8 @@
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;cut has no meridional extent&quot;</span><span class="p">)</span>
     <span class="n">mean</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
     <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">Vt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">svd</span><span class="p">(</span><span class="n">xr</span> <span class="o">-</span> <span class="n">mean</span><span class="p">,</span> <span class="n">full_matrices</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-    <span class="n">s</span> <span class="o">=</span> <span class="p">(</span><span class="n">xr</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">@</span> <span class="n">Vt</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">Vt</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="p">(</span><span class="n">xr</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">@</span> <span class="n">e</span>
 
     <span class="c1"># Orient so arc length 0 lies at the end with the smallest projection onto</span>
     <span class="c1"># the Beta reference direction d. The SVD sign is arbitrary, so flip s if the</span>
@@ -985,7 +1012,7 @@
     <span class="n">beta_rad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">Beta</span><span class="p">)</span>
     <span class="n">d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">beta_rad</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">beta_rad</span><span class="p">)])</span>
     <span class="k">if</span> <span class="n">xr</span><span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">argmin</span><span class="p">()]</span> <span class="o">@</span> <span class="n">d</span> <span class="o">&gt;</span> <span class="n">xr</span><span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">argmax</span><span class="p">()]</span> <span class="o">@</span> <span class="n">d</span><span class="p">:</span>
-        <span class="n">s</span> <span class="o">=</span> <span class="o">-</span><span class="n">s</span>
+        <span class="n">s</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="o">-</span><span class="n">s</span><span class="p">,</span> <span class="o">-</span><span class="n">e</span>
 
     <span class="c1"># Reference line: de-duplicate by meridional footprint (snap (x, r) to a grid</span>
     <span class="c1"># of size atol), order the nodes by the oriented projection, and accumulate</span>
@@ -994,10 +1021,17 @@
     <span class="n">key</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">xr</span> <span class="o">/</span> <span class="n">atol</span><span class="p">)</span>
     <span class="n">_</span><span class="p">,</span> <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">order</span> <span class="o">=</span> <span class="n">idx</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="n">idx</span><span class="p">])]</span>
-    <span class="n">xr_ref</span> <span class="o">=</span> <span class="n">xr</span><span class="p">[</span><span class="n">order</span><span class="p">]</span>
-    <span class="n">s_ref</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="n">order</span><span class="p">]</span>
-    <span class="k">if</span> <span class="n">xr_ref</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">size</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;cut has fewer than 2 distinct meridional stations&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Chord length through every vertex in turn is not arc length. Vertices</span>
+    <span class="c1"># scatter across the line by round-off, more where cells are long and</span>
+    <span class="c1"># thin, and near a wall, where thousands of them crowd into a few microns</span>
+    <span class="c1"># of it, the zigzag between neighbours adds far more length than the line</span>
+    <span class="c1"># advances: a hundredth of zeta could be a ten-thousandth of the span.</span>
+    <span class="c1"># Average the vertices in bins of the projection first, so the scatter</span>
+    <span class="c1"># cancels rather than accumulates.</span>
+    <span class="n">xr_ref</span><span class="p">,</span> <span class="n">s_ref</span> <span class="o">=</span> <span class="n">_mean_line</span><span class="p">(</span><span class="n">xr</span><span class="p">[</span><span class="n">order</span><span class="p">],</span> <span class="n">s</span><span class="p">[</span><span class="n">order</span><span class="p">],</span> <span class="n">e</span><span class="p">,</span> <span class="n">N_REF_BIN</span><span class="p">)</span>
     <span class="n">seg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">xr_ref</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
     <span class="n">arc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">seg</span><span class="p">)])</span>
     <span class="n">zeta_ref</span> <span class="o">=</span> <span class="n">arc</span> <span class="o">/</span> <span class="n">arc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
@@ -1029,6 +1063,15 @@
         <span class="c1"># seam continuity instead.</span>
         <span class="n">t0</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">t_src</span><span class="o">.</span><span class="n">min</span><span class="p">())</span>
         <span class="n">tn_src</span> <span class="o">=</span> <span class="p">(</span><span class="n">t_src</span> <span class="o">-</span> <span class="n">t0</span><span class="p">)</span> <span class="o">/</span> <span class="n">pitch</span>
+        <span class="c1"># Wrap whole triangles instead, by the whole pitches that bring each</span>
+        <span class="c1"># centroid into [0, 1): its vertices move together, so none straddles</span>
+        <span class="c1"># the seam, and with the tiling below the window is covered however</span>
+        <span class="c1"># far the cut&#39;s theta band skews along the line. A fan&#39;s outlet cut can</span>
+        <span class="c1"># skew by more than two pitches hub to tip, and one period of tiling</span>
+        <span class="c1"># either side then left a third of the window at the tip with no</span>
+        <span class="c1"># triangle over it, filled by the nearest-neighbour fallback.</span>
+        <span class="n">tri_tn</span> <span class="o">=</span> <span class="n">tn_src</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="n">tn_src</span> <span class="o">=</span> <span class="p">(</span><span class="n">tri_tn</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">tri_tn</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))[:,</span> <span class="kc">None</span><span class="p">])</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
         <span class="c1"># Each pitchwise line spans the fluid the triangles cover at its span:</span>
         <span class="c1"># one whole pitch where the cut is clear of any blade, and one pitch</span>
         <span class="c1"># less the solid where it passes through one, such as an H-mesh</span>
@@ -1098,7 +1141,48 @@
 
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_pitchwise_fluid</span><span class="p">(</span><span class="n">zeta_t</span><span class="p">,</span> <span class="n">tri_zeta</span><span class="p">,</span> <span class="n">tri_tn</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">):</span>
+<span class="n">N_REF_BIN</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="sd">&quot;&quot;&quot;Bins of the projection :func:`interpolate_to_structured` averages the cut&#39;s</span>
+<span class="sd">vertices over to find the line it measures arc length along.&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_mean_line</span><span class="p">(</span><span class="n">xr</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">n_bin</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the mean line through points `xr`, sorted by projection `s`.</span>
+
+<span class="sd">    The points are averaged in `n_bin` equal bins of `s`, and empty bins drop</span>
+<span class="sd">    out. The end bins&#39; means are then slid along the direction `e` that `s`</span>
+<span class="sd">    projects onto, to the extremes of `s`, so the line spans every point</span>
+<span class="sd">    without ending on any one point&#39;s scatter.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    xr_ref : ndarray, shape (n, 2)</span>
+<span class="sd">    s_ref : ndarray, shape (n,)</span>
+<span class="sd">        Strictly increasing.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">s</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">hi</span> <span class="o">&gt;</span> <span class="n">lo</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;cut has fewer than 2 distinct meridional stations&quot;</span><span class="p">)</span>
+    <span class="n">ib</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(((</span><span class="n">s</span> <span class="o">-</span> <span class="n">lo</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">hi</span> <span class="o">-</span> <span class="n">lo</span><span class="p">)</span> <span class="o">*</span> <span class="n">n_bin</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">n_bin</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">bincount</span><span class="p">(</span><span class="n">ib</span><span class="p">,</span> <span class="n">minlength</span><span class="o">=</span><span class="n">n_bin</span><span class="p">)</span>
+    <span class="n">full</span> <span class="o">=</span> <span class="n">count</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="n">s_bin</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">bincount</span><span class="p">(</span><span class="n">ib</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">s</span><span class="p">,</span> <span class="n">minlength</span><span class="o">=</span><span class="n">n_bin</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">))[</span><span class="n">full</span><span class="p">]</span>
+    <span class="n">xr_bin</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">bincount</span><span class="p">(</span><span class="n">ib</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">xr</span><span class="p">[:,</span> <span class="n">c</span><span class="p">],</span> <span class="n">minlength</span><span class="o">=</span><span class="n">n_bin</span><span class="p">)[</span><span class="n">full</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+        <span class="p">)</span>
+        <span class="o">/</span> <span class="n">count</span><span class="p">[</span><span class="n">full</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">first</span> <span class="o">=</span> <span class="n">xr_bin</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">lo</span> <span class="o">-</span> <span class="n">s_bin</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">*</span> <span class="n">e</span>
+    <span class="n">last</span> <span class="o">=</span> <span class="n">xr_bin</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">hi</span> <span class="o">-</span> <span class="n">s_bin</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">*</span> <span class="n">e</span>
+    <span class="n">inner</span> <span class="o">=</span> <span class="p">(</span><span class="n">s_bin</span> <span class="o">&gt;</span> <span class="n">lo</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">s_bin</span> <span class="o">&lt;</span> <span class="n">hi</span><span class="p">)</span>
+    <span class="n">xr_ref</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([[</span><span class="n">first</span><span class="p">],</span> <span class="n">xr_bin</span><span class="p">[</span><span class="n">inner</span><span class="p">],</span> <span class="p">[</span><span class="n">last</span><span class="p">]])</span>
+    <span class="n">s_ref</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([[</span><span class="n">lo</span><span class="p">],</span> <span class="n">s_bin</span><span class="p">[</span><span class="n">inner</span><span class="p">],</span> <span class="p">[</span><span class="n">hi</span><span class="p">]])</span>
+    <span class="k">return</span> <span class="n">xr_ref</span><span class="p">,</span> <span class="n">s_ref</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_pitchwise_fluid</span><span class="p">(</span><span class="n">zeta_t</span><span class="p">,</span> <span class="n">tri_zeta</span><span class="p">,</span> <span class="n">tri_tn</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Return where the fluid lies on each pitchwise line, in pitches.</span>
 
 <span class="sd">    Slices every triangle with each line ``zeta = zeta_t[i]``: a triangle the</span>
@@ -1121,7 +1205,12 @@
 <span class="sd">        float32 copy of a shared vertex, which a vectorised cut kernel can</span>
 <span class="sd">        round differently, and a triangle thin in arc length magnifies the</span>
 <span class="sd">        difference where a line crosses it: well past float32 epsilon, well</span>
-<span class="sd">        short of any solid a regrid could resolve.</span>
+<span class="sd">        short of any solid a regrid could resolve. A tenth of a percent is</span>
+<span class="sd">        both. It holds only while arc length is a true distance along the</span>
+<span class="sd">        line, and the cut&#39;s endwall edges lie on it: a percent once failed to</span>
+<span class="sd">        clear a fan&#39;s spinner, when arc length was chained through scattered</span>
+<span class="sd">        vertices and the cut curve stopped at the wall, and the actual</span>
+<span class="sd">        mismatch was a ten-thousandth of the span.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>

@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Grid &#8212; ember 0.4.6.dev8+g6c93dd767 documentation</title>
+    <title>Grid &#8212; ember 0.4.6.dev11+g5fd4365db documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=0b94e509"></script>
+    <script src="../_static/documentation_options.js?v=1670f476"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.6.dev8+g6c93dd767</p>
+<p class="blurb">Version 0.4.6.dev11+g5fd4365db</p>
 
 
 
@@ -427,7 +427,7 @@ has blown up.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.apply_bconds" title="ember.grid.Grid.apply_bconds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.apply_bconds</span></code></a>()</p></td>
 <td><p>Apply all boundary conditions across the grid once.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.calculate_wdist" title="ember.grid.Grid.calculate_wdist"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.calculate_wdist</span></code></a>([limit_pitch])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.calculate_wdist" title="ember.grid.Grid.calculate_wdist"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.calculate_wdist</span></code></a>([limit_pitch, ...])</p></td>
 <td><p>This method creates a pitchwise-repeated grid to include neighboring passages, extracts all wall nodes from the repeated blocks, builds a KDTree for efficient nearest neighbor search, and calculates the distance from each node to the nearest wall surface.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.check_nan" title="ember.grid.Grid.check_nan"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.check_nan</span></code></a>()</p></td>
@@ -778,17 +778,23 @@ radial.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="ember.grid.Grid.calculate_wdist">
-<span class="sig-name descname"><span class="pre">calculate_wdist</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">limit_pitch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">inf</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.calculate_wdist"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.calculate_wdist" title="Link to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">calculate_wdist</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">limit_pitch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">inf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ignore_inviscid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.calculate_wdist"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.calculate_wdist" title="Link to this definition">¶</a></dt>
 <dd><p>This method creates a pitchwise-repeated grid to include neighboring passages,
 extracts all wall nodes from the repeated blocks, builds a KDTree for efficient
 nearest neighbor search, and calculates the distance from each node to the
 nearest wall surface.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>limit_pitch</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a><em>, </em><em>optional</em>) – Cap the wall distance at <code class="docutils literal notranslate"><span class="pre">limit_pitch</span></code> times each row’s reference
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>limit_pitch</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a><em>, </em><em>optional</em>) – Cap the wall distance at <code class="docutils literal notranslate"><span class="pre">limit_pitch</span></code> times each row’s reference
 blade pitch (<code class="docutils literal notranslate"><span class="pre">2*pi*r_ref/Nb</span></code>). This bakes the mixing-length limit
 directly into the stored wall distance, so downstream turbulence
-models need no separate cap. Defaults to <code class="docutils literal notranslate"><span class="pre">np.inf</span></code> (no limit).</p>
+models need no separate cap. Defaults to <code class="docutils literal notranslate"><span class="pre">np.inf</span></code> (no limit).</p></li>
+<li><p><strong>ignore_inviscid</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>optional</em>) – Leave <a class="reference internal" href="patch.html#ember.patch.InviscidPatch" title="ember.patch.InviscidPatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">InviscidPatch</span></code></a> faces out of the walls
+distance is measured to. A slip wall grows no boundary layer, so a
+turbulence model should not be damped near one. Defaults to
+<code class="docutils literal notranslate"><span class="pre">False</span></code>, which counts them as walls like any other solid face.</p></li>
+</ul>
 </dd>
 </dl>
 <p class="rubric">Examples</p>

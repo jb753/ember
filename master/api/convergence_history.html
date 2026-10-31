@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Convergence history &#8212; ember 0.4.6.dev8+g6c93dd767 documentation</title>
+    <title>Convergence history &#8212; ember 0.4.6.dev11+g5fd4365db documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=0b94e509"></script>
+    <script src="../_static/documentation_options.js?v=1670f476"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.6.dev8+g6c93dd767</p>
+<p class="blurb">Version 0.4.6.dev11+g5fd4365db</p>
 
 
 
@@ -84,7 +84,9 @@
 <li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.from_grid"><code class="docutils literal notranslate"><span class="pre">from_grid()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.read_cnv"><code class="docutils literal notranslate"><span class="pre">read_cnv()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.check_convergence"><code class="docutils literal notranslate"><span class="pre">check_convergence()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.check_steady"><code class="docutils literal notranslate"><span class="pre">check_steady()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.find_settling_record"><code class="docutils literal notranslate"><span class="pre">find_settling_record()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.fluc_mdot"><code class="docutils literal notranslate"><span class="pre">fluc_mdot()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.format_message"><code class="docutils literal notranslate"><span class="pre">format_message()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.format_timing"><code class="docutils literal notranslate"><span class="pre">format_timing()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.record_convergence"><code class="docutils literal notranslate"><span class="pre">record_convergence()</span></code></a></li>
@@ -386,6 +388,16 @@ the <code class="docutils literal notranslate"><span class="pre">slope</span></c
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.check_steady">
+<span class="sig-name descname"><span class="pre">check_steady</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fluc_mdot</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_step_window</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory.check_steady"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.check_steady" title="Link to this definition">¶</a></dt>
+<dd><p>True when the march has not diverged and its mass flow is steady:
+<a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.fluc_mdot" title="ember.convergence_history.ConvergenceHistory.fluc_mdot"><code class="xref py py-meth docutils literal notranslate"><span class="pre">fluc_mdot()</span></code></a> over <cite>n_step_window</cite> at most <cite>fluc_mdot</cite>.</p>
+<p>Unlike <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.check_convergence" title="ember.convergence_history.ConvergenceHistory.check_convergence"><code class="xref py py-meth docutils literal notranslate"><span class="pre">check_convergence()</span></code></a>, which a march fluctuating about a
+stationary mean, or drifting slowly, can pass, this asks for one steady
+state, as a steady solution near a stability limit stops reaching.</p>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.find_settling_record">
 <span class="sig-name descname"><span class="pre">find_settling_record</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory.find_settling_record"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.find_settling_record" title="Link to this definition">¶</a></dt>
 <dd><p>Record index at which the entropy rise <a class="reference internal" href="#ember.convergence_history.ConvergenceHistory.zeta" title="ember.convergence_history.ConvergenceHistory.zeta"><code class="xref py py-attr docutils literal notranslate"><span class="pre">zeta</span></code></a> has settled.</p>
@@ -424,6 +436,28 @@ Default <code class="docutils literal notranslate"><span class="pre">0.01</span>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.convergence_history.ConvergenceHistory.fluc_mdot">
+<span class="sig-name descname"><span class="pre">fluc_mdot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_step_window</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/convergence_history.html#ConvergenceHistory.fluc_mdot"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.convergence_history.ConvergenceHistory.fluc_mdot" title="Link to this definition">¶</a></dt>
+<dd><p>Relative rms of the mass flow about its mean over the final steps.</p>
+<p>Over the records in the last <cite>n_step_window</cite> steps of the march — the
+averaging window, so it judges the stretch the averaged field is taken
+over — the rms of the mass flow at the first and at the last station
+about its own mean, as a fraction of that mean; the larger of the two.
+Persistent oscillation and drift both raise it, a linear drift by its
+range over <span class="math notranslate nohighlight">\(\sqrt{12}\)</span>, so a march that has not settled to one
+steady state reads high either way. The whole march when it has fewer
+than two records in the window.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>n_step_window</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – Steps at the end of the march to take the rms over.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)">float</a></p>
 </dd>
 </dl>
 </dd></dl>

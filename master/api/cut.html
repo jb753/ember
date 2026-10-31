@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Cutting &#8212; ember 0.4.6.dev8+g6c93dd767 documentation</title>
+    <title>Cutting &#8212; ember 0.4.6.dev11+g5fd4365db documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=0b94e509"></script>
+    <script src="../_static/documentation_options.js?v=1670f476"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.6.dev8+g6c93dd767</p>
+<p class="blurb">Version 0.4.6.dev11+g5fd4365db</p>
 
 
 
@@ -75,9 +75,11 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Cutting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#cuts-along-grid-surfaces-by-index">Cuts along grid surfaces by index</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.cut.signed_distance"><code class="docutils literal notranslate"><span class="pre">signed_distance()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.cut.CUT_EXTEND"><code class="docutils literal notranslate"><span class="pre">CUT_EXTEND</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.cut.unstructured"><code class="docutils literal notranslate"><span class="pre">unstructured()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.cut.structured_meridional"><code class="docutils literal notranslate"><span class="pre">structured_meridional()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.cut.interpolate_to_structured"><code class="docutils literal notranslate"><span class="pre">interpolate_to_structured()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ember.cut.N_REF_BIN"><code class="docutils literal notranslate"><span class="pre">N_REF_BIN</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.cut.triangulate_to_unstructured"><code class="docutils literal notranslate"><span class="pre">triangulate_to_unstructured()</span></code></a></li>
 </ul>
 </li>
@@ -212,6 +214,14 @@ with components in last axis.</p></li>
 </dl>
 </dd></dl>
 
+<dl class="py data">
+<dt class="sig sig-object py" id="ember.cut.CUT_EXTEND">
+<span class="sig-prename descclassname"><span class="pre">cut.</span></span><span class="sig-name descname"><span class="pre">CUT_EXTEND</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.1</span></span><a class="headerlink" href="#ember.cut.CUT_EXTEND" title="Link to this definition">¶</a></dt>
+<dd><p>How far <a class="reference internal" href="#ember.cut.unstructured" title="ember.cut.unstructured"><code class="xref py py-func docutils literal notranslate"><span class="pre">unstructured()</span></code></a> carries a cut curve on past each end, as a
+fraction of the end segment’s length. Enough to cover the wall cells straddling
+a hub-to-casing line; short enough not to reach back into the fluid.</p>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="ember.cut.unstructured">
 <span class="sig-prename descclassname"><span class="pre">cut.</span></span><span class="sig-name descname"><span class="pre">unstructured</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xr_cut</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/cut.html#unstructured"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.cut.unstructured" title="Link to this definition">¶</a></dt>
@@ -219,7 +229,9 @@ with components in last axis.</p></li>
 <p>Extracts a triangulated isosurface where the meridional cut curve
 intersects the grid, by running the marching cubes algorithm on the
 signed distance field of each block. Triangles from all intersected
-blocks are concatenated into a single unstructured block.</p>
+blocks are concatenated into a single unstructured block. The curve’s end
+segments are carried on by <a class="reference internal" href="#ember.cut.CUT_EXTEND" title="ember.cut.CUT_EXTEND"><code class="xref py py-data docutils literal notranslate"><span class="pre">CUT_EXTEND</span></code></a> of their length, so a curve
+ending on an endwall cuts the wall cells cleanly.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -314,6 +326,13 @@ rely on the nearest-neighbour fallback outside the data hull.</p></li>
 <dd class="field-odd"><p><a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block">Block</a>, <a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape">shape</a> (<a class="reference internal" href="block.html#ember.block.Block.ni" title="ember.block.Block.ni">ni</a>, <a class="reference internal" href="block.html#ember.block.Block.nj" title="ember.block.Block.nj">nj</a>)</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="ember.cut.N_REF_BIN">
+<span class="sig-prename descclassname"><span class="pre">cut.</span></span><span class="sig-name descname"><span class="pre">N_REF_BIN</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1000</span></span><a class="headerlink" href="#ember.cut.N_REF_BIN" title="Link to this definition">¶</a></dt>
+<dd><p>Bins of the projection <a class="reference internal" href="#ember.cut.interpolate_to_structured" title="ember.cut.interpolate_to_structured"><code class="xref py py-func docutils literal notranslate"><span class="pre">interpolate_to_structured()</span></code></a> averages the cut’s
+vertices over to find the line it measures arc length along.</p>
 </dd></dl>
 
 <dl class="py function">

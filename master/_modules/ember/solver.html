@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.solver &#8212; ember 0.4.6.dev8+g6c93dd767 documentation</title>
+    <title>ember.solver &#8212; ember 0.4.6.dev11+g5fd4365db documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=0b94e509"></script>
+    <script src="../../_static/documentation_options.js?v=1670f476"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.6.dev8+g6c93dd767</p>
+<p class="blurb">Version 0.4.6.dev11+g5fd4365db</p>
 
 
 
@@ -503,17 +503,46 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Common interface for in-place flow solvers.</span>
 
 <span class="sd">    A solver is constructed from its configuration and run with</span>
-<span class="sd">    ``solver.run(grid)``, which advances ``grid`` in place and returns the</span>
-<span class="sd">    convergence history. Both the built-in :class:`Solver` and external-solver</span>
-<span class="sd">    plugins (e.g. ``ember.plugins.ts.TS3Solver``) implement this contract so</span>
-<span class="sd">    they are drop-in interchangeable.</span>
+<span class="sd">    ``solver.run(grid, workdir)``, which advances ``grid`` in place and returns</span>
+<span class="sd">    the convergence history. ``workdir`` is where that one run keeps its files,</span>
+<span class="sd">    for solvers that run outside the process; it belongs to the run rather than</span>
+<span class="sd">    to the configuration, which one solver may use for many runs. Both the</span>
+<span class="sd">    built-in :class:`Solver` and external-solver plugins (e.g.</span>
+<span class="sd">    ``ember.plugins.ts.TS3Solver``) implement this contract so they are drop-in</span>
+<span class="sd">    interchangeable.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="BaseSolver.restart">
+<a class="viewcode-back" href="../../api/solver.html#ember.solver.BaseSolver.restart">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">restart</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy of this solver configured to continue a solution.</span>
+
+<span class="sd">        A start-up ramp exists for an initial guess; on a field that is</span>
+<span class="sd">        already a solution it is a kick, which the march then spends many</span>
+<span class="sd">        times its length recovering from. The copy drops any such ramp and</span>
+<span class="sd">        changes nothing else, so it marches the same problem with the same</span>
+<span class="sd">        settings from the first step:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            hist = solver.restart().run(grid)   # grid carries a solution</span>
+
+<span class="sd">        Not abstract, unlike :meth:`soft`: a solver without a start-up ramp,</span>
+<span class="sd">        such as the built-in :class:`Solver`, has nothing to drop and returns</span>
+<span class="sd">        itself.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
 
 <div class="viewcode-block" id="BaseSolver.run">
 <a class="viewcode-back" href="../../api/solver.html#ember.solver.BaseSolver.run">[docs]</a>
     <span class="nd">@abstractmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Solve on ``grid`` in place; return a ``ConvergenceHistory``.&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">workdir</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Solve on ``grid`` in place; return a ``ConvergenceHistory``.</span>
+
+<span class="sd">        ``workdir`` is the directory this run keeps its files in, for a solver</span>
+<span class="sd">        that needs one; a solver that runs in memory ignores it.&quot;&quot;&quot;</span>
+        <span class="k">del</span> <span class="n">workdir</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
 
 
@@ -789,11 +818,13 @@
 
 <div class="viewcode-block" id="Solver.run">
 <a class="viewcode-back" href="../../api/solver.html#ember.solver.Solver.run">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">workdir</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Drive ``grid`` through ``n_step`` steps in place; return the history.</span>
 
-<span class="sd">        The public :class:`BaseSolver` entry point for the stage-by-stage march.</span>
+<span class="sd">        The public :class:`BaseSolver` entry point for the stage-by-stage march,</span>
+<span class="sd">        in memory, so ``workdir`` is ignored.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">del</span> <span class="n">workdir</span>
         <span class="k">return</span> <span class="n">_run</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span></div>
 
 

@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Version history &#8212; ember 0.4.6.dev8+g6c93dd767 documentation</title>
+    <title>Version history &#8212; ember 0.4.6.dev11+g5fd4365db documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="_static/documentation_options.js?v=0b94e509"></script>
+    <script src="_static/documentation_options.js?v=1670f476"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/sg-tags.js?v=d80f6fa4"></script>
@@ -36,7 +36,7 @@
 
 
 
-<p class="blurb">Version 0.4.6.dev8+g6c93dd767</p>
+<p class="blurb">Version 0.4.6.dev11+g5fd4365db</p>
 
 
 
@@ -182,6 +182,18 @@ defaulting to 5</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">Grid.add_polar_source</span></code>, the polar source without the time step pass</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">orth</span></code> and <code class="docutils literal notranslate"><span class="pre">slide_wall</span></code> to <code class="docutils literal notranslate"><span class="pre">elliptic.winslow_sweeps</span></code>, to square the
 grid at a wall and to slide wall nodes only part of the way</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">BaseSolver.restart</span></code>, a copy of a solver without its start-up ramp to
+continue a solution; the built-in solver has none and returns itself</p></li>
+<li><p>Add a <code class="docutils literal notranslate"><span class="pre">workdir</span></code> argument to <code class="docutils literal notranslate"><span class="pre">BaseSolver.run</span></code>, where that run keeps its
+files, for a solver that runs outside the process; the built-in one ignores it</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">ignore_inviscid</span></code> to <code class="docutils literal notranslate"><span class="pre">Grid.calculate_wdist</span></code>, to leave slip walls out
+of the walls distance is measured to</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">ConvergenceHistory.check_steady</span></code> and <code class="docutils literal notranslate"><span class="pre">fluc_mdot</span></code>, the relative rms
+of mass flow over the end of the march</p></li>
+<li><p>Never match patch coordinates tighter than sixteen steps of their storage
+precision, so a face small against its radius pairs in float32</p></li>
+<li><p>Fix cuts ending on a sloped endwall, arc length along a cut through
+scattered vertices, and gaps in a cut skewed by more than a pitch</p></li>
 </ul>
 </section>
 <section id="v0-4-5">
