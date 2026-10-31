@@ -348,6 +348,25 @@ class BaseSolver(ABC):
     they are drop-in interchangeable.
     """
 
+    def restart(self):
+        """Return a copy of this solver configured to continue a solution.
+
+        A start-up ramp exists for an initial guess; on a field that is
+        already a solution it is a kick, which the march then spends many
+        times its length recovering from. The copy drops any such ramp and
+        changes nothing else, so it marches the same problem with the same
+        settings from the first step:
+
+        .. code-block:: python
+
+            hist = solver.restart().run(grid)   # grid carries a solution
+
+        Not abstract, unlike :meth:`soft`: a solver without a start-up ramp,
+        such as the built-in :class:`Solver`, has nothing to drop and returns
+        itself.
+        """
+        return self
+
     @abstractmethod
     def run(self, grid):
         """Solve on ``grid`` in place; return a ``ConvergenceHistory``."""

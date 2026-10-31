@@ -151,3 +151,9 @@ def test_soft_then_run_marches_in_place():
     assert soft_hist.i_step.size > 0
     assert hist.i_step.size > 0
     assert not hist.diverged
+
+
+def test_restart_of_a_solver_without_a_ramp_is_itself():
+    """The built-in solver has no start-up ramp, so restart() has nothing to drop."""
+    solver = ember.solver.Solver(n_step=100)
+    assert solver.restart() is solver
