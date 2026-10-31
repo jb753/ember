@@ -7,7 +7,7 @@ public API without a deprecation period.
 
 .. _v0.4.6:
 
-0.4.6 (2026-10-30)
+0.4.6 (2026-10-31)
 ------------------
 
 * Add ``Solver.n_step_dt``, the number of steps between time step updates,
