@@ -202,10 +202,13 @@ def _concatenate_two_blocks(block1, block2, axis=0):
 
     # Handle patches with proper index adjustment
     result._metadata["patches"] = ember.collections.BlockPatchCollection(result)
-    Omega = np.array(
-        [block1._metadata.get("Omega", 0), block2._metadata.get("Omega", 0)]
-    )
-    result._metadata["Omega"] = Omega[np.argmax(np.abs(Omega))]
+
+    # The faster frame of the two, and only when they have one: inventing a
+    # zero for blocks that never set it would leave the result with a key its
+    # inputs lack, and joining it to a third such block would then be refused.
+    Omega = [b._metadata["Omega"] for b in (block1, block2) if "Omega" in b._metadata]
+    if Omega:
+        result._metadata["Omega"] = max(Omega, key=abs)
 
     axis_offset = block1.shape[axis]
 

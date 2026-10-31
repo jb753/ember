@@ -17,6 +17,8 @@ public API without a deprecation period.
   grid at a wall and to slide wall nodes only part of the way
 * Add ``BaseSolver.restart``, a copy of a solver without its start-up ramp to
   continue a solution; the built-in solver has none and returns itself
+* Fix ``block_util.concatenate`` refusing three or more blocks that have no
+  ``Omega``, by no longer setting one on the result when neither input has it
 * Add a ``workdir`` argument to ``BaseSolver.run``, where that run keeps its
   files, for a solver that runs outside the process; the built-in one ignores it
 * Add ``ignore_inviscid`` to ``Grid.calculate_wdist``, to leave slip walls out
