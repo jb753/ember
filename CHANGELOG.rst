@@ -17,6 +17,16 @@ public API without a deprecation period.
   grid at a wall and to slide wall nodes only part of the way
 * Add ``BaseSolver.restart``, a copy of a solver without its start-up ramp to
   continue a solution; the built-in solver has none and returns itself
+* Add a ``workdir`` argument to ``BaseSolver.run``, where that run keeps its
+  files, for a solver that runs outside the process; the built-in one ignores it
+* Add ``ignore_inviscid`` to ``Grid.calculate_wdist``, to leave slip walls out
+  of the walls distance is measured to
+* Add ``ConvergenceHistory.check_steady`` and ``fluc_mdot``, the relative rms
+  of mass flow over the end of the march
+* Never match patch coordinates tighter than sixteen steps of their storage
+  precision, so a face small against its radius pairs in float32
+* Fix cuts ending on a sloped endwall, arc length along a cut through
+  scattered vertices, and gaps in a cut skewed by more than a pitch
 
 
 .. _v0.4.5:

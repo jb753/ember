@@ -42,6 +42,8 @@ calculate_wdist integration:
 - test_mixing_removes_wall
 - test_nonmatch_removes_wall
 - test_inviscid_keeps_wall
+- test_inviscid_removes_wall_when_ignored
+- test_ignore_inviscid_leaves_other_walls_alone
 - test_rotating_keeps_wall
 - test_cooling_keeps_wall
 - test_cusp_removes_wall
@@ -269,6 +271,23 @@ def test_inviscid_keeps_wall(block):
     """InviscidPatch is in SLIP_TYPES but not PERMEABLE_TYPES: face stays a wall."""
     block.patches.append(InviscidPatch(i=0))
     Grid([block]).calculate_wdist()
+    assert np.all(block.wdist[0, :, :] < _WALL_THRESHOLD)
+
+
+def test_inviscid_removes_wall_when_ignored(block):
+    """With ignore_inviscid, an InviscidPatch is a slip wall and no wall to
+    measure to: interior nodes of the face get a real distance, as for a
+    permeable face, and the opposite face stays a wall."""
+    block.patches.append(InviscidPatch(i=0))
+    Grid([block]).calculate_wdist(ignore_inviscid=True)
+    assert np.all(block.wdist[0, 1:-1, 1:-1] > _WALL_THRESHOLD)
+    assert np.all(block.wdist[-1, :, :] < _WALL_THRESHOLD)
+
+
+def test_ignore_inviscid_leaves_other_walls_alone(block):
+    """Only inviscid faces leave the wall set: a rotating wall stays."""
+    block.patches.append(RotatingPatch(i=0))
+    Grid([block]).calculate_wdist(ignore_inviscid=True)
     assert np.all(block.wdist[0, :, :] < _WALL_THRESHOLD)
 
 

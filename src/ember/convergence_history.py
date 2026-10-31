@@ -345,6 +345,18 @@ class ConvergenceHistory(StructuredData):
 
         return True
 
+    def check_steady(self, fluc_mdot, n_step_window):
+        """True when the march has not diverged and its mass flow is steady:
+        :meth:`fluc_mdot` over `n_step_window` at most `fluc_mdot`.
+
+        Unlike :meth:`check_convergence`, which a march fluctuating about a
+        stationary mean, or drifting slowly, can pass, this asks for one steady
+        state, as a steady solution near a stability limit stops reaching.
+        """
+        if self.diverged:
+            return False
+        return self.fluc_mdot(n_step_window) <= fluc_mdot
+
     def find_settling_record(self, tol=0.01):
         r"""Record index at which the entropy rise :attr:`zeta` has settled.
 
@@ -398,6 +410,37 @@ class ConvergenceHistory(StructuredData):
             # itself never settles (then report the last record).
             return int(min(np.nonzero(outside)[0][-1] + 1, n - 1))
         return 0
+
+    def fluc_mdot(self, n_step_window):
+        r"""Relative rms of the mass flow about its mean over the final steps.
+
+        Over the records in the last `n_step_window` steps of the march --- the
+        averaging window, so it judges the stretch the averaged field is taken
+        over --- the rms of the mass flow at the first and at the last station
+        about its own mean, as a fraction of that mean; the larger of the two.
+        Persistent oscillation and drift both raise it, a linear drift by its
+        range over :math:`\sqrt{12}`, so a march that has not settled to one
+        steady state reads high either way. The whole march when it has fewer
+        than two records in the window.
+
+        Parameters
+        ----------
+        n_step_window : int
+            Steps at the end of the march to take the rms over.
+
+        Returns
+        -------
+        float
+        """
+        n = self.i_log + 1
+        i_step = self.i_step[:n]
+        tail = i_step > i_step[-1] - n_step_window
+        if tail.sum() < 2:
+            tail = np.ones(n, dtype=bool)
+        mdot = self.mdot_nd[:n][tail][:, [0, -1]]
+        mean = mdot.mean(axis=0)
+        rms = np.sqrt(np.mean((mdot - mean) ** 2, axis=0))
+        return float(np.max(rms / np.abs(mean)))
 
     def format_message(self, n_step=None):
         """Format convergence message for current log step.

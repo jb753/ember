@@ -1407,7 +1407,13 @@ class Block(ember._struct.StructuredData):
 
         Not cached: safe to call after modifying patches.
         """
-        iwall, jwall, kwall = self._face_wall_arrays
+        return self._get_wall_nodes()
+
+    def _get_wall_nodes(self, non_wall_patches=None):
+        """Boolean node array of :attr:`_wall_nodes`, with the non-wall patches
+        chosen as for :meth:`_get_face_wall_arrays`: pass
+        ``self.patches.slip`` to leave inviscid walls out as well."""
+        iwall, jwall, kwall = self._get_face_wall_arrays(non_wall_patches)
 
         wall_node = np.zeros(self.shape, dtype=np.uint8)
 

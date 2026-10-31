@@ -41,6 +41,12 @@ import ember.fortran as ft
 
 logger = logging.getLogger(__name__)
 
+ULP_TOL = 16.0
+"""Least tolerance on matching coordinates, in units of their storage
+precision at their own magnitude. Not one: a mesher builds the two faces of a
+pair separately, and its own float32 arithmetic leaves them a few steps apart
+in each of three coordinates, measured missing by four on a rotor slab."""
+
 
 def _corners(x, axis_exclude=None):
     """Extract corner elements from an ND numpy array.
@@ -241,6 +247,13 @@ class Patch(ABC):
         xrt_other = other.block[other.slice].xrt.copy()
 
         atol = rtol * max(np.ptp(xrt_self[..., 0]), np.ptp(xrt_self[..., 1]))
+
+        # Never tighter than the coordinates can be stored. A face small
+        # against its radius --- a thin slab far out, a few cm high at 2 m ---
+        # asks for less than one float32 step at that radius, so a pair that
+        # agrees to the last digit can still miss by a step either way.
+        resolution = np.finfo(xrt_self.dtype).eps * np.max(np.abs(xrt_self[..., :2]))
+        atol = max(atol, ULP_TOL * resolution)
 
         xrt_other_t = util.apply_perm_flip(xrt_other, perm, flip)
 
