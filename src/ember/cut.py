@@ -537,13 +537,31 @@ def _cut_reaches_block(xr_cut, block):
     return bool(np.any(t_in <= t_out))
 
 
+CUT_EXTEND = 0.1
+"""How far :func:`unstructured` carries a cut curve on past each end, as a
+fraction of the end segment's length. Enough to cover the wall cells straddling
+a hub-to-casing line; short enough not to reach back into the fluid."""
+
+
+def _extend_ends(xr_cut, frac):
+    """Return `xr_cut` with its first and last segments lengthened by `frac`."""
+    if xr_cut.ndim != 2 or xr_cut.shape[0] < 2:
+        return xr_cut
+    xr_cut = xr_cut.copy()
+    xr_cut[0] += frac * (xr_cut[0] - xr_cut[1])
+    xr_cut[-1] += frac * (xr_cut[-1] - xr_cut[-2])
+    return xr_cut
+
+
 def unstructured(grid, xr_cut):
     r"""Take an unstructured cut through a grid using marching cubes.
 
     Extracts a triangulated isosurface where the meridional cut curve
     intersects the grid, by running the marching cubes algorithm on the
     signed distance field of each block. Triangles from all intersected
-    blocks are concatenated into a single unstructured block.
+    blocks are concatenated into a single unstructured block. The curve's end
+    segments are carried on by :data:`CUT_EXTEND` of their length, so a curve
+    ending on an endwall cuts the wall cells cleanly.
 
     Parameters
     ----------
@@ -561,6 +579,14 @@ def unstructured(grid, xr_cut):
     # Convert single Block to list for consistent handling
     if isinstance(grid, Block):
         grid = [grid]
+
+    # A cut curve usually ends on an endwall, but where that wall is sloped the
+    # wall cells straddling the cut have nodes past the end of the curve. Their
+    # distance is then to the end point rather than across the line, which is
+    # larger, so marching cubes puts the vertices on those edges off the line,
+    # tens of microns on a spinner, differently at every theta. Carry the end
+    # segments on straight so the zero level stays the line through the walls.
+    xr_cut = _extend_ends(np.asarray(xr_cut, dtype=float), CUT_EXTEND)
 
     # Loop over blocks
     triangles = []
@@ -807,7 +833,8 @@ def interpolate_to_structured(
         raise ValueError("cut has no meridional extent")
     mean = xr.mean(0)
     _, _, Vt = np.linalg.svd(xr - mean, full_matrices=False)
-    s = (xr - mean) @ Vt[0]
+    e = Vt[0]
+    s = (xr - mean) @ e
 
     # Orient so arc length 0 lies at the end with the smallest projection onto
     # the Beta reference direction d. The SVD sign is arbitrary, so flip s if the
@@ -815,7 +842,7 @@ def interpolate_to_structured(
     beta_rad = np.radians(Beta)
     d = np.array([-np.sin(beta_rad), np.cos(beta_rad)])
     if xr[s.argmin()] @ d > xr[s.argmax()] @ d:
-        s = -s
+        s, e = -s, -e
 
     # Reference line: de-duplicate by meridional footprint (snap (x, r) to a grid
     # of size atol), order the nodes by the oriented projection, and accumulate
@@ -824,10 +851,17 @@ def interpolate_to_structured(
     key = np.round(xr / atol)
     _, idx = np.unique(key, axis=0, return_index=True)
     order = idx[np.argsort(s[idx])]
-    xr_ref = xr[order]
-    s_ref = s[order]
-    if xr_ref.shape[0] < 2:
+    if order.size < 2:
         raise ValueError("cut has fewer than 2 distinct meridional stations")
+
+    # Chord length through every vertex in turn is not arc length. Vertices
+    # scatter across the line by round-off, more where cells are long and
+    # thin, and near a wall, where thousands of them crowd into a few microns
+    # of it, the zigzag between neighbours adds far more length than the line
+    # advances: a hundredth of zeta could be a ten-thousandth of the span.
+    # Average the vertices in bins of the projection first, so the scatter
+    # cancels rather than accumulates.
+    xr_ref, s_ref = _mean_line(xr[order], s[order], e, N_REF_BIN)
     seg = np.sqrt((np.diff(xr_ref, axis=0) ** 2).sum(1))
     arc = np.concatenate([[0.0], np.cumsum(seg)])
     zeta_ref = arc / arc[-1]
@@ -859,6 +893,15 @@ def interpolate_to_structured(
         # seam continuity instead.
         t0 = float(t_src.min())
         tn_src = (t_src - t0) / pitch
+        # Wrap whole triangles instead, by the whole pitches that bring each
+        # centroid into [0, 1): its vertices move together, so none straddles
+        # the seam, and with the tiling below the window is covered however
+        # far the cut's theta band skews along the line. A fan's outlet cut can
+        # skew by more than two pitches hub to tip, and one period of tiling
+        # either side then left a third of the window at the tip with no
+        # triangle over it, filled by the nearest-neighbour fallback.
+        tri_tn = tn_src.reshape(-1, 3)
+        tn_src = (tri_tn - np.floor(tri_tn.mean(axis=1))[:, None]).ravel()
         # Each pitchwise line spans the fluid the triangles cover at its span:
         # one whole pitch where the cut is clear of any blade, and one pitch
         # less the solid where it passes through one, such as an H-mesh
@@ -927,7 +970,48 @@ def interpolate_to_structured(
     return result_block
 
 
-def _pitchwise_fluid(zeta_t, tri_zeta, tri_tn, tol=1e-4):
+N_REF_BIN = 1000
+"""Bins of the projection :func:`interpolate_to_structured` averages the cut's
+vertices over to find the line it measures arc length along."""
+
+
+def _mean_line(xr, s, e, n_bin):
+    """Return the mean line through points `xr`, sorted by projection `s`.
+
+    The points are averaged in `n_bin` equal bins of `s`, and empty bins drop
+    out. The end bins' means are then slid along the direction `e` that `s`
+    projects onto, to the extremes of `s`, so the line spans every point
+    without ending on any one point's scatter.
+
+    Returns
+    -------
+    xr_ref : ndarray, shape (n, 2)
+    s_ref : ndarray, shape (n,)
+        Strictly increasing.
+    """
+    lo, hi = s[0], s[-1]
+    if not hi > lo:
+        raise ValueError("cut has fewer than 2 distinct meridional stations")
+    ib = np.clip(((s - lo) / (hi - lo) * n_bin).astype(int), 0, n_bin - 1)
+    count = np.bincount(ib, minlength=n_bin)
+    full = count > 0
+    s_bin = (np.bincount(ib, weights=s, minlength=n_bin) / np.maximum(count, 1))[full]
+    xr_bin = (
+        np.column_stack(
+            [np.bincount(ib, weights=xr[:, c], minlength=n_bin)[full] for c in (0, 1)]
+        )
+        / count[full, None]
+    )
+
+    first = xr_bin[0] + (lo - s_bin[0]) * e
+    last = xr_bin[-1] + (hi - s_bin[-1]) * e
+    inner = (s_bin > lo) & (s_bin < hi)
+    xr_ref = np.concatenate([[first], xr_bin[inner], [last]])
+    s_ref = np.concatenate([[lo], s_bin[inner], [hi]])
+    return xr_ref, s_ref
+
+
+def _pitchwise_fluid(zeta_t, tri_zeta, tri_tn, tol=1e-3):
     """Return where the fluid lies on each pitchwise line, in pitches.
 
     Slices every triangle with each line ``zeta = zeta_t[i]``: a triangle the
@@ -950,7 +1034,12 @@ def _pitchwise_fluid(zeta_t, tri_zeta, tri_tn, tol=1e-4):
         float32 copy of a shared vertex, which a vectorised cut kernel can
         round differently, and a triangle thin in arc length magnifies the
         difference where a line crosses it: well past float32 epsilon, well
-        short of any solid a regrid could resolve.
+        short of any solid a regrid could resolve. A tenth of a percent is
+        both. It holds only while arc length is a true distance along the
+        line, and the cut's endwall edges lie on it: a percent once failed to
+        clear a fan's spinner, when arc length was chained through scattered
+        vertices and the cut curve stopped at the wall, and the actual
+        mismatch was a ten-thousandth of the span.
 
     Returns
     -------

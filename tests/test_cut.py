@@ -1164,6 +1164,42 @@ class TestInterpolateToStructured:
         with pytest.raises(ValueError, match="separate"):
             interpolate_to_structured(raw, (9, 11), periodic=True, rtol=0.2)
 
+    def test_unstructured_cut_ending_on_sloped_wall(self):
+        """A cut ending on a sloped endwall keeps its wall vertices on the line.
+
+        The wall cells straddling the line have nodes past the end of the
+        curve, as at a fan inlet cut on a spinner. Measured to the end point
+        rather than across the line, their distances would put the cut's wall
+        vertices off the line, by an amount varying with theta.
+        """
+        block = _part_pitch_block(0.0, lambda r: np.pi / 4)
+        xrt = util.linmesh3([0.0, 1.0], [0.0, 1.0], [0.0, 1.0], block.shape)
+        hub = 0.5 + 0.4 * xrt[..., 0] + 0.05 * xrt[..., 2]
+        block.set_r(hub + xrt[..., 1] * (1.5 - hub))
+
+        x_cut = 0.55
+        raw = unstructured(block, np.array([[x_cut, 0.72], [x_cut, 1.5]]))
+
+        np.testing.assert_allclose(raw.x, x_cut, atol=1e-6)
+
+    def test_interpolate_arc_length_ignores_scatter(self):
+        """Vertices scattered across the line do not stretch arc length.
+
+        Chained through every vertex in turn, the scatter would zigzag and
+        crowd the regridded nodes towards the ends of the line, where the
+        vertices are most numerous.
+        """
+        rng = np.random.default_rng(0)
+        block = _part_pitch_block(0.0, lambda r: np.pi / 4)
+        raw = unstructured(block, np.array([[0.5, 0.5], [0.5, 1.5]]))
+        x = raw._data[..., 0]
+        raw._data[..., 0] = x + rng.uniform(-1e-3, 1e-3, x.shape) * np.ptp(raw.r)
+
+        result = interpolate_to_structured(raw, (9, 11), periodic=True)
+
+        r_true = 0.5 + util.cosine_cluster(9)
+        np.testing.assert_allclose(result.r[:, 0], r_true, atol=1e-3)
+
     def test_pitchwise_fluid_float32_jitter(self):
         """Round-off in the cut's vertices is not mistaken for a solid.
 

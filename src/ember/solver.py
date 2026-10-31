@@ -342,15 +342,41 @@ class BaseSolver(ABC):
     """Common interface for in-place flow solvers.
 
     A solver is constructed from its configuration and run with
-    ``solver.run(grid)``, which advances ``grid`` in place and returns the
-    convergence history. Both the built-in :class:`Solver` and external-solver
-    plugins (e.g. ``ember.plugins.ts.TS3Solver``) implement this contract so
-    they are drop-in interchangeable.
+    ``solver.run(grid, workdir)``, which advances ``grid`` in place and returns
+    the convergence history. ``workdir`` is where that one run keeps its files,
+    for solvers that run outside the process; it belongs to the run rather than
+    to the configuration, which one solver may use for many runs. Both the
+    built-in :class:`Solver` and external-solver plugins (e.g.
+    ``ember.plugins.ts.TS3Solver``) implement this contract so they are drop-in
+    interchangeable.
     """
 
+    def restart(self):
+        """Return a copy of this solver configured to continue a solution.
+
+        A start-up ramp exists for an initial guess; on a field that is
+        already a solution it is a kick, which the march then spends many
+        times its length recovering from. The copy drops any such ramp and
+        changes nothing else, so it marches the same problem with the same
+        settings from the first step:
+
+        .. code-block:: python
+
+            hist = solver.restart().run(grid)   # grid carries a solution
+
+        Not abstract, unlike :meth:`soft`: a solver without a start-up ramp,
+        such as the built-in :class:`Solver`, has nothing to drop and returns
+        itself.
+        """
+        return self
+
     @abstractmethod
-    def run(self, grid):
-        """Solve on ``grid`` in place; return a ``ConvergenceHistory``."""
+    def run(self, grid, workdir=None):
+        """Solve on ``grid`` in place; return a ``ConvergenceHistory``.
+
+        ``workdir`` is the directory this run keeps its files in, for a solver
+        that needs one; a solver that runs in memory ignores it."""
+        del workdir
         raise NotImplementedError
 
     @abstractmethod
@@ -617,11 +643,13 @@ class Solver(BaseSolver):
                 "averaged solution would come back scaled by n_step/n_step_avg."
             )
 
-    def run(self, grid):
+    def run(self, grid, workdir=None):
         """Drive ``grid`` through ``n_step`` steps in place; return the history.
 
-        The public :class:`BaseSolver` entry point for the stage-by-stage march.
+        The public :class:`BaseSolver` entry point for the stage-by-stage march,
+        in memory, so ``workdir`` is ignored.
         """
+        del workdir
         return _run(grid, self)
 
     def run_fmg(self, grid):

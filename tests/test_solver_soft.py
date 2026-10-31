@@ -19,6 +19,7 @@ Test cases:
 """
 
 import dataclasses
+import inspect
 
 import pytest
 
@@ -151,3 +152,17 @@ def test_soft_then_run_marches_in_place():
     assert soft_hist.i_step.size > 0
     assert hist.i_step.size > 0
     assert not hist.diverged
+
+
+def test_restart_of_a_solver_without_a_ramp_is_itself():
+    """The built-in solver has no start-up ramp, so restart() has nothing to drop."""
+    solver = ember.solver.Solver(n_step=100)
+    assert solver.restart() is solver
+
+
+def test_run_takes_a_workdir_it_may_ignore():
+    """Every solver is run as ``run(grid, workdir)``: the directory is the
+    run's, for a solver that keeps files, and optional for one that does not."""
+    for run in (ember.solver.BaseSolver.run, ember.solver.Solver.run):
+        param = inspect.signature(run).parameters["workdir"]
+        assert param.default is None

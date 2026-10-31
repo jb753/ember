@@ -1213,7 +1213,7 @@ class Grid(_LabelledList):
 
             block.set_mu_turb(np.full((ni, nj, nk), mu_mean))
 
-    def calculate_wdist(self, limit_pitch=np.inf):
+    def calculate_wdist(self, limit_pitch=np.inf, ignore_inviscid=False):
         """
         This method creates a pitchwise-repeated grid to include neighboring passages,
         extracts all wall nodes from the repeated blocks, builds a KDTree for efficient
@@ -1227,6 +1227,11 @@ class Grid(_LabelledList):
             blade pitch (``2*pi*r_ref/Nb``). This bakes the mixing-length limit
             directly into the stored wall distance, so downstream turbulence
             models need no separate cap. Defaults to ``np.inf`` (no limit).
+        ignore_inviscid : bool, optional
+            Leave :py:class:`~ember.patch.InviscidPatch` faces out of the walls
+            distance is measured to. A slip wall grows no boundary layer, so a
+            turbulence model should not be damped near one. Defaults to
+            ``False``, which counts them as walls like any other solid face.
 
         Examples
         --------
@@ -1237,7 +1242,7 @@ class Grid(_LabelledList):
             return  # No blocks to process
 
         for row in self.rows:
-            _calculate_wdist_row(row, limit_pitch)
+            _calculate_wdist_row(row, limit_pitch, ignore_inviscid)
 
     def check_nan(self):
         """Scan every block for NaN density or non-positive pressure; report the first bad block.
@@ -2311,11 +2316,12 @@ class GridConnectivity:
         return self._pairs
 
 
-def _calculate_wdist_row(grid, limit_pitch=np.inf):
+def _calculate_wdist_row(grid, limit_pitch=np.inf, ignore_inviscid=False):
     """Perform wall distance calc for a single blade row grid.
 
     If ``limit_pitch`` is finite, the (nondimensional) wall distance is capped
-    at ``limit_pitch`` times the row's reference blade pitch.
+    at ``limit_pitch`` times the row's reference blade pitch. With
+    ``ignore_inviscid``, slip walls are not walls to measure distance to.
     """
 
     # Reference pitch for this row, nondimensionalised by L_ref (shared per row)
@@ -2328,7 +2334,8 @@ def _calculate_wdist_row(grid, limit_pitch=np.inf):
     # Collect nondim polar coordinates
     xrt_wall = []
     for block in grid:
-        xrt_wall.append(block.xrt_nd[block._wall_nodes, :])
+        non_wall = block.patches.slip if ignore_inviscid else None
+        xrt_wall.append(block.xrt_nd[block._get_wall_nodes(non_wall), :])
 
     n_wall = sum(x.shape[0] for x in xrt_wall)
     if n_wall == 0:

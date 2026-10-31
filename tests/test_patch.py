@@ -2685,6 +2685,38 @@ class TestPeriodicPatchCheckMatch:
         # With looser tolerance, might match (depending on geometry)
         # Don't assert this since it depends on the specific coordinates
 
+    def test_periodic_patch_match_on_a_thin_slab_far_out(self):
+        """Test that faces a few float32 steps apart match on a thin slab far out.
+
+        A slab 2 cm high at 2 m asks for 2e-7 m at rtol=1e-5, under two of the
+        1.2e-7 m steps between float32 values there, so two faces meshed to
+        agree could miss by rounding alone.
+        """
+        block = ember.block.Block(shape=(5, 6, 2))
+        block.set_Nb(198)
+        pitch = block.pitch
+
+        x = np.linspace(0.0, 0.01, 5)
+        r = np.linspace(1.98, 2.0, 6)
+        xv, rv = np.meshgrid(x, r, indexing="ij")
+        r2 = np.stack([rv, rv], axis=-1).astype(np.float32)
+        for _ in range(3):
+            r2[2, 3, 1] = np.nextafter(r2[2, 3, 1], np.float32(3.0))
+        t = np.empty((5, 6, 2), dtype=np.float32)
+        t[..., 0] = 0.25 * pitch
+        t[..., 1] = 1.25 * pitch
+
+        block.set_x(np.stack([xv, xv], axis=-1))
+        block.set_r(r2)
+        block.set_t(t)
+
+        patch1 = PeriodicPatch(k=0)
+        patch2 = PeriodicPatch(k=-1)
+        patch1.attach_to_block(block)
+        patch2.attach_to_block(block)
+
+        assert patch1.check_match(patch2, rtol=1e-5) is not None
+
     def test_periodic_patch_match_across_wrap_cut(self):
         """Test that faces one pitch apart match when a node straddles the wrap cut.
 

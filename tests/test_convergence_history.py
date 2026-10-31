@@ -618,3 +618,86 @@ def test_a_history_written_since_the_rename_is_untouched():
         back = ConvergenceHistory.read_cnv(path)
 
     assert back.throttle[0] == pytest.approx(np.array([1.0, 0.9, -50.0]), rel=1e-5)
+
+
+def _hist_with_mdot(mdot_in, mdot_out, n_step_log=100):
+    """A fully-logged history whose inlet and outlet mass flows follow the
+    given series, one record every ``n_step_log`` steps."""
+    n = len(mdot_in)
+    hist = ConvergenceHistory(shape=(n,))
+    hist._set_metadata_by_key("n_node", 100)
+    hist._set_metadata_by_key("fluid", _FLUID)
+    hist._set_metadata_by_key("_time_start", 0.0)
+    hist._set_metadata_by_key("i_log", -1)
+    for k in hist._data_keys:
+        hist._versions[k] += 1
+    for i, (a, b) in enumerate(zip(mdot_in, mdot_out)):
+        hist.record_convergence(
+            i * n_step_log,
+            ConvergenceStep(
+                residual=np.full(5, 1.0, dtype=np.float32),
+                mdot=np.array([a, b], dtype=np.float32),
+                ho=np.zeros(2, dtype=np.float32),
+                s=np.zeros(2, dtype=np.float32),
+            ),
+        )
+    return hist
+
+
+def test_fluc_mdot_steady_flow_is_zero():
+    """A mass flow that does not move has no fluctuation, and is steady."""
+    hist = _hist_with_mdot([2.0] * 20, [2.0] * 20)
+    assert hist.fluc_mdot(1000) == 0.0
+    assert hist.check_steady(1e-6, 1000)
+
+
+def test_fluc_mdot_of_an_oscillation_is_its_rms_over_the_mean():
+    """An oscillation of amplitude a about a mean m reads a / sqrt(2) / m."""
+    i = np.arange(400)
+    mdot = 2.0 + 0.02 * np.sin(2.0 * np.pi * i / 20.0)
+    hist = _hist_with_mdot(mdot, mdot)
+    assert hist.fluc_mdot(400 * 100) == pytest.approx(0.01 / np.sqrt(2.0), rel=1e-3)
+
+
+def test_fluc_mdot_of_a_drift_is_its_range_over_root_twelve():
+    """A linear drift reads its range over sqrt(12), relative to its mean."""
+    mdot = np.linspace(0.99, 1.01, 1001)
+    hist = _hist_with_mdot(mdot, mdot)
+    assert hist.fluc_mdot(1001 * 100) == pytest.approx(0.02 / np.sqrt(12.0), rel=1e-2)
+
+
+def test_fluc_mdot_looks_only_at_the_window():
+    """A start-up transient before the window does not count against it."""
+    mdot = np.concatenate((np.linspace(0.5, 1.0, 50), np.ones(50)))
+    hist = _hist_with_mdot(mdot, mdot)
+    assert hist.fluc_mdot(40 * 100) == 0.0
+    assert hist.fluc_mdot(100 * 100) > 0.05
+
+
+def test_fluc_mdot_takes_the_whole_march_when_the_window_is_too_short():
+    """Fewer than two records in the window, and the whole march is judged."""
+    mdot = np.concatenate((np.linspace(0.5, 1.0, 10), np.ones(10)))
+    hist = _hist_with_mdot(mdot, mdot)
+    assert hist.fluc_mdot(1) == pytest.approx(hist.fluc_mdot(20 * 100))
+
+
+def test_fluc_mdot_is_the_worse_of_inlet_and_outlet():
+    """The larger relative fluctuation of the two stations is reported."""
+    i = np.arange(200)
+    steady = np.ones(200)
+    wobble = 1.0 + 0.04 * np.sin(2.0 * np.pi * i / 10.0)
+    for mdot_in, mdot_out in ((steady, wobble), (wobble, steady)):
+        hist = _hist_with_mdot(mdot_in, mdot_out)
+        assert hist.fluc_mdot(200 * 100) == pytest.approx(0.04 / np.sqrt(2.0), rel=1e-3)
+
+
+def test_check_steady_against_the_threshold_and_divergence():
+    """Steady at or under the threshold, unsteady over it, never if diverged."""
+    i = np.arange(200)
+    mdot = 1.0 + 0.01 * np.sin(2.0 * np.pi * i / 10.0)
+    hist = _hist_with_mdot(mdot, mdot)
+    fluc = hist.fluc_mdot(200 * 100)
+    assert hist.check_steady(1.01 * fluc, 200 * 100)
+    assert not hist.check_steady(0.99 * fluc, 200 * 100)
+    hist.diverged = True
+    assert not hist.check_steady(1.0, 200 * 100)
