@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.grid &#8212; ember 0.4.5 documentation</title>
+    <title>ember.grid &#8212; ember 0.4.6.dev8+g6c93dd767 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=340bb9e5"></script>
+    <script src="../../_static/documentation_options.js?v=0b94e509"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.5</p>
+<p class="blurb">Version 0.4.6.dev8+g6c93dd767</p>
 
 
 
@@ -297,6 +297,7 @@
 <span class="sd">.. autosummary::</span>
 
 <span class="sd">   Grid.accumulate_avg</span>
+<span class="sd">   Grid.add_polar_source</span>
 <span class="sd">   Grid.apply_bconds</span>
 <span class="sd">   Grid.calculate_wdist</span>
 <span class="sd">   Grid.check_nan</span>
@@ -1045,6 +1046,34 @@
             <span class="n">avg</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">accumulate_avg</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span> <span class="n">avg</span><span class="p">,</span> <span class="n">n_step_avg</span><span class="p">)</span>
             <span class="n">avg</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="Grid.add_polar_source">
+<a class="viewcode-back" href="../../api/grid.html#ember.grid.Grid.add_polar_source">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_polar_source</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add the polar source onto the body force on every block, alone.</span>
+
+<span class="sd">        The polar half of :meth:`update_timestep` with ``add_sources=True``,</span>
+<span class="sd">        for a source refresh step that holds ``dt_vol_nd`` (see</span>
+<span class="sd">        :attr:`~ember.solver.Solver.n_step_dt`). Pass it exactly when</span>
+<span class="sd">        :meth:`update_sources` has just rebuilt the viscous part, as for</span>
+<span class="sd">        ``add_sources``. It does not touch the SFD filter, so the solver allows</span>
+<span class="sd">        it only at zero gain.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="c1"># A no-op if current; see update_timestep.</span>
+            <span class="n">block</span><span class="o">.</span><span class="n">update_primitive</span><span class="p">()</span>
+            <span class="n">f_body</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">F_body_nd</span>
+            <span class="n">f_body</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">set_polar_source</span><span class="p">(</span>
+                <span class="n">cons</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span>
+                <span class="n">r</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">r_nd</span><span class="p">,</span>
+                <span class="n">p</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">P_nd</span><span class="p">,</span>
+                <span class="n">p_offset</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">P_offset_nd</span><span class="p">,</span>
+                <span class="n">vol</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">vol_nd</span><span class="p">,</span>
+                <span class="n">f_body</span><span class="o">=</span><span class="n">f_body</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">f_body</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">False</span></div>
 
 
 <div class="viewcode-block" id="Grid.align_cart_unstr">

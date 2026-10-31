@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.solver &#8212; ember 0.4.5 documentation</title>
+    <title>ember.solver &#8212; ember 0.4.6.dev8+g6c93dd767 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=340bb9e5"></script>
+    <script src="../../_static/documentation_options.js?v=0b94e509"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.5</p>
+<p class="blurb">Version 0.4.6.dev8+g6c93dd767</p>
 
 
 
@@ -637,6 +637,20 @@
     <span class="n">n_stage</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of time integration stages per step. 0 for scree, &gt;=1 for RK.&quot;&quot;&quot;</span>
 
+    <span class="n">n_step_dt</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of steps between time step updates.</span>
+
+<span class="sd">    :meth:`~ember.grid.Grid.update_timestep` runs on every step where</span>
+<span class="sd">    ``i_step % n_step_dt == 0`` and ``dt_vol_nd`` is held in between. That</span>
+<span class="sd">    pass also adds the polar source on a source refresh step, so a refresh</span>
+<span class="sd">    step off the cadence adds it alone, with</span>
+<span class="sd">    :meth:`~ember.grid.Grid.add_polar_source`. On the scree march, which</span>
+<span class="sd">    refreshes the sources every fifth step, ``5`` puts both on one cadence; the</span>
+<span class="sd">    RK march refreshes the sources every step, so with ``5`` it adds the polar</span>
+<span class="sd">    source alone on four steps in five. Must be 1 at nonzero</span>
+<span class="sd">    :attr:`gain_filt`, since the filter advances in the time step pass and</span>
+<span class="sd">    needs every step: pass ``n_step_dt=1`` to use SFD.&quot;&quot;&quot;</span>
+
     <span class="n">n_levels</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of coarse multigrid levels; 0 disables multigrid. Honored by</span>
 <span class="sd">    both integrators (:func:`scree_step` and :func:`rk_step`).&quot;&quot;&quot;</span>
@@ -751,9 +765,19 @@
 <span class="sd">        convergence history has any way to notice. Caught at construction</span>
 <span class="sd">        rather than after a march has been paid for.</span>
 
-<span class="sd">        An unknown :attr:`wall_law` is caught here for the same reason.</span>
+<span class="sd">        An unknown :attr:`wall_law` is caught here for the same reason, and so</span>
+<span class="sd">        is an :attr:`n_step_dt` that would skip SFD filter updates.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">ember</span><span class="o">.</span><span class="n">block_util</span><span class="o">.</span><span class="n">_wall_law_code</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wall_law</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_step_dt</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;n_step_dt must be &gt;= 1, got </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_step_dt</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_step_dt</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">gain_filt</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;n_step_dt=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_step_dt</span><span class="si">}</span><span class="s2"> with gain_filt=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">gain_filt</span><span class="si">}</span><span class="s2">: the &quot;</span>
+                <span class="s2">&quot;SFD filter advances in the time step pass, once per step, so &quot;</span>
+                <span class="s2">&quot;skipping that pass would stretch its time constant. Pass &quot;</span>
+                <span class="s2">&quot;n_step_dt=1 to use SFD.&quot;</span>
+            <span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_step_avg</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;n_step_avg must be &gt;= 0, got </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_step_avg</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_step_avg</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_step</span><span class="p">:</span>
@@ -1274,10 +1298,8 @@
         <span class="c1"># Refresh source terms every step for the multi-stage RK march, which</span>
         <span class="c1"># re-evaluates the residual each substep and needs current sources; the</span>
         <span class="c1"># scree march reuses one residual per step, so lag the expensive viscous</span>
-        <span class="c1"># pass to every fifth step there. Recompute the timestep every step</span>
-        <span class="c1"># regardless so dt_vol tracks the flow through fast transients: a lagged</span>
-        <span class="c1"># dt_vol is sized for an already-stale state and overshoots the</span>
-        <span class="c1"># stability limit during a cold start, and the timestep refresh is cheap.</span>
+        <span class="c1"># pass to every fifth step there. The timestep is recomputed every</span>
+        <span class="c1"># n_step_dt steps, independently of the sources (see below).</span>
         <span class="n">n_step_source</span> <span class="o">=</span> <span class="mi">5</span> <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_stage</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="mi">1</span>
         <span class="n">add_sources</span> <span class="o">=</span> <span class="n">i_step</span> <span class="o">%</span> <span class="n">n_step_source</span> <span class="o">==</span> <span class="mi">0</span>
         <span class="k">if</span> <span class="n">add_sources</span><span class="p">:</span>
@@ -1286,20 +1308,23 @@
 
         <span class="c1"># The timestep pass also finishes the body force on a refresh step (the</span>
         <span class="c1"># polar source and the SFD force, onto the viscous part just built) and</span>
-        <span class="c1"># advances the SFD low-pass filter on the dt_vol it has just computed.</span>
-        <span class="c1"># The filter advances every step regardless of the source cadence: its</span>
-        <span class="c1"># dt is a per-step increment, so advancing it on the scree march&#39;s</span>
-        <span class="c1"># every-fifth refresh would stretch the time constant fivefold. The</span>
-        <span class="c1"># force reads the filter before this step&#39;s update, the usual explicit</span>
-        <span class="c1"># SFD coupling. At the default zero gain the filter is never touched.</span>
-        <span class="n">grid</span><span class="o">.</span><span class="n">update_timestep</span><span class="p">(</span>
-            <span class="n">rf</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
-            <span class="n">fac_visc</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">fac_visc</span><span class="p">,</span>
-            <span class="n">add_sources</span><span class="o">=</span><span class="n">add_sources</span><span class="p">,</span>
-            <span class="n">gain_filt</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">gain_filt</span><span class="p">,</span>
-            <span class="n">cfl</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">cfl</span><span class="p">,</span>
-            <span class="n">delta_filt</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">delta_filt</span><span class="p">,</span>
-        <span class="p">)</span>
+        <span class="c1"># advances the SFD filter, whose dt is a per-step increment: on the</span>
+        <span class="c1"># scree march&#39;s every-fifth refresh its time constant would stretch</span>
+        <span class="c1"># fivefold. The force reads the filter before this step&#39;s update, the</span>
+        <span class="c1"># usual explicit coupling; at the default zero gain it is never touched.</span>
+        <span class="c1"># With n_step_dt &gt; 1 the pass runs only on that cadence, and a source</span>
+        <span class="c1"># refresh step off it adds the polar source alone (Solver.n_step_dt).</span>
+        <span class="k">if</span> <span class="n">i_step</span> <span class="o">%</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_step_dt</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">grid</span><span class="o">.</span><span class="n">update_timestep</span><span class="p">(</span>
+                <span class="n">rf</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
+                <span class="n">fac_visc</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">fac_visc</span><span class="p">,</span>
+                <span class="n">add_sources</span><span class="o">=</span><span class="n">add_sources</span><span class="p">,</span>
+                <span class="n">gain_filt</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">gain_filt</span><span class="p">,</span>
+                <span class="n">cfl</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">cfl</span><span class="p">,</span>
+                <span class="n">delta_filt</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">delta_filt</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">add_sources</span><span class="p">:</span>
+            <span class="n">grid</span><span class="o">.</span><span class="n">add_polar_source</span><span class="p">()</span>
 
         <span class="c1"># Prepare the residual</span>
         <span class="n">grid</span><span class="o">.</span><span class="n">update_residual</span><span class="p">(</span><span class="n">sf</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">sf_resid</span><span class="p">)</span>

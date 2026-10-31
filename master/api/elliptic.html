@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Elliptic grid generation &#8212; ember 0.4.5 documentation</title>
+    <title>Elliptic grid generation &#8212; ember 0.4.6.dev8+g6c93dd767 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=340bb9e5"></script>
+    <script src="../_static/documentation_options.js?v=0b94e509"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.5</p>
+<p class="blurb">Version 0.4.6.dev8+g6c93dd767</p>
 
 
 
@@ -210,7 +210,7 @@ with the neighbours’ pitch shifts already moved into the <cite>y</cite> compon
 
 <dl class="py function">
 <dt class="sig sig-object py" id="ember.elliptic.winslow_sweeps">
-<span class="sig-prename descclassname"><span class="pre">elliptic.</span></span><span class="sig-name descname"><span class="pre">winslow_sweeps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stencil_g</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stencil_s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pitch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">irregular</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">slide</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">corner</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wall</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_sweep</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/elliptic.html#winslow_sweeps"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.elliptic.winslow_sweeps" title="Link to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">elliptic.</span></span><span class="sig-name descname"><span class="pre">winslow_sweeps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stencil_g</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stencil_s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pitch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">irregular</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">slide</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">corner</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wall</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_sweep</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">slide_wall</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/elliptic.html#winslow_sweeps"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.elliptic.winslow_sweeps" title="Link to this definition">¶</a></dt>
 <dd><p>Point-Jacobi sweeps of Winslow’s equations, in single precision.</p>
 <p>Each sweep moves every regular node to the solution of its nine-point
 stencil of</p>
@@ -219,9 +219,13 @@ stencil of</p>
 <p>frozen at the coordinates the sweep starts from, and every singular point
 to a weighted row of the same; then every sliding node in <cite>y</cite> to a
 weighted row of the coordinates after that; then draws every node near a
-corner towards it; then slides every wall node along a closed line to the
-foot of the perpendicular from the node outside it, no further than half
-way to either neighbour, its gaps to them kept above a floor.</p>
+corner towards it; then slides every wall node along a closed line
+<cite>slide_wall</cite> of the way to the foot of the perpendicular from the node
+outside it, no further than half way to either neighbour, its gaps to
+them kept above a floor; then, if
+<cite>orth</cite> is positive, draws every node outside a wall node towards the
+wall’s outward normal at it, at the distance it lies, by <cite>orth</cite> of the
+way, which squares the grid at the wall where sliding cannot.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -246,6 +250,14 @@ lengths along it; the least cumulative arc length of each node past
 the first; and the samples of the line each node and the node outside
 it were nearest the sweep before.</p></li>
 <li><p><strong>n_sweep</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – Number of sweeps.</p></li>
+<li><p><strong>slide_wall</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a><em> or </em><em>array</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>n_wall</em><em>,</em><em>)</em>) – Fraction of the way each wall node slides towards the foot of the
+perpendicular from the node outside it each sweep, one for all or one
+per wall node: one, the whole way; zero holds the wall node where it
+is.</p></li>
+<li><p><strong>orth</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – Fraction of the way each node outside a wall node is drawn towards
+the wall’s outward normal each sweep, from zero, which leaves them
+be, to one. Outward is away from the inside of the closed wall line,
+whichever sense it winds in.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>

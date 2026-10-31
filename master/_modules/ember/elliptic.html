@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.elliptic &#8212; ember 0.4.5 documentation</title>
+    <title>ember.elliptic &#8212; ember 0.4.6.dev8+g6c93dd767 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=340bb9e5"></script>
+    <script src="../../_static/documentation_options.js?v=0b94e509"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.5</p>
+<p class="blurb">Version 0.4.6.dev8+g6c93dd767</p>
 
 
 
@@ -229,7 +229,17 @@
 <div class="viewcode-block" id="winslow_sweeps">
 <a class="viewcode-back" href="../../api/elliptic.html#ember.elliptic.winslow_sweeps">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">winslow_sweeps</span><span class="p">(</span>
-    <span class="n">X</span><span class="p">,</span> <span class="n">stencil_g</span><span class="p">,</span> <span class="n">stencil_s</span><span class="p">,</span> <span class="n">pitch</span><span class="p">,</span> <span class="n">irregular</span><span class="p">,</span> <span class="n">slide</span><span class="p">,</span> <span class="n">corner</span><span class="p">,</span> <span class="n">wall</span><span class="p">,</span> <span class="n">n_sweep</span>
+    <span class="n">X</span><span class="p">,</span>
+    <span class="n">stencil_g</span><span class="p">,</span>
+    <span class="n">stencil_s</span><span class="p">,</span>
+    <span class="n">pitch</span><span class="p">,</span>
+    <span class="n">irregular</span><span class="p">,</span>
+    <span class="n">slide</span><span class="p">,</span>
+    <span class="n">corner</span><span class="p">,</span>
+    <span class="n">wall</span><span class="p">,</span>
+    <span class="n">n_sweep</span><span class="p">,</span>
+    <span class="n">orth</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">slide_wall</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Point-Jacobi sweeps of Winslow&#39;s equations, in single precision.</span>
 
@@ -242,9 +252,13 @@
 <span class="sd">    frozen at the coordinates the sweep starts from, and every singular point</span>
 <span class="sd">    to a weighted row of the same; then every sliding node in `y` to a</span>
 <span class="sd">    weighted row of the coordinates after that; then draws every node near a</span>
-<span class="sd">    corner towards it; then slides every wall node along a closed line to the</span>
-<span class="sd">    foot of the perpendicular from the node outside it, no further than half</span>
-<span class="sd">    way to either neighbour, its gaps to them kept above a floor.</span>
+<span class="sd">    corner towards it; then slides every wall node along a closed line</span>
+<span class="sd">    `slide_wall` of the way to the foot of the perpendicular from the node</span>
+<span class="sd">    outside it, no further than half way to either neighbour, its gaps to</span>
+<span class="sd">    them kept above a floor; then, if</span>
+<span class="sd">    `orth` is positive, draws every node outside a wall node towards the</span>
+<span class="sd">    wall&#39;s outward normal at it, at the distance it lies, by `orth` of the</span>
+<span class="sd">    way, which squares the grid at the wall where sliding cannot.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -275,6 +289,16 @@
 <span class="sd">        it were nearest the sweep before.</span>
 <span class="sd">    n_sweep : int</span>
 <span class="sd">        Number of sweeps.</span>
+<span class="sd">    slide_wall : float or array, shape (n_wall,)</span>
+<span class="sd">        Fraction of the way each wall node slides towards the foot of the</span>
+<span class="sd">        perpendicular from the node outside it each sweep, one for all or one</span>
+<span class="sd">        per wall node: one, the whole way; zero holds the wall node where it</span>
+<span class="sd">        is.</span>
+<span class="sd">    orth : float</span>
+<span class="sd">        Fraction of the way each node outside a wall node is drawn towards</span>
+<span class="sd">        the wall&#39;s outward normal each sweep, from zero, which leaves them</span>
+<span class="sd">        be, to one. Outward is away from the inside of the closed wall line,</span>
+<span class="sd">        whichever sense it winds in.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -344,6 +368,8 @@
         <span class="n">seg0</span><span class="p">,</span>
         <span class="n">seg1</span><span class="p">,</span>
         <span class="nb">float</span><span class="p">(</span><span class="n">pitch</span><span class="p">),</span>
+        <span class="nb">float</span><span class="p">(</span><span class="n">orth</span><span class="p">),</span>
+        <span class="n">reals</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">slide_wall</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">),</span> <span class="p">(</span><span class="n">n_w</span><span class="p">,))),</span>
         <span class="nb">int</span><span class="p">(</span><span class="n">n_sweep</span><span class="p">),</span>
         <span class="nb">len</span><span class="p">(</span><span class="n">nodes_i</span><span class="p">),</span>
         <span class="nb">len</span><span class="p">(</span><span class="n">nodes_s</span><span class="p">),</span>
