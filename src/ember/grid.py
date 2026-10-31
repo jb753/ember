@@ -138,6 +138,7 @@ has blown up.
 .. autosummary::
 
    Grid.accumulate_avg
+   Grid.add_polar_source
    Grid.apply_bconds
    Grid.calculate_wdist
    Grid.check_nan
@@ -858,6 +859,31 @@ class Grid(_LabelledList):
             avg.flags.writeable = True
             ember.fortran.accumulate_avg(block.conserved_nd, avg, n_step_avg)
             avg.flags.writeable = False
+
+    def add_polar_source(self):
+        """Add the polar source onto the body force on every block, alone.
+
+        The polar half of :meth:`update_timestep` with ``add_sources=True``,
+        for a source refresh step that holds ``dt_vol_nd`` (see
+        :attr:`~ember.solver.Solver.n_step_dt`). Pass it exactly when
+        :meth:`update_sources` has just rebuilt the viscous part, as for
+        ``add_sources``. It does not touch the SFD filter, so the solver allows
+        it only at zero gain.
+        """
+        for block in self:
+            # A no-op if current; see update_timestep.
+            block.update_primitive()
+            f_body = block.F_body_nd
+            f_body.flags.writeable = True
+            ember.fortran.set_polar_source(
+                cons=block.conserved_nd,
+                r=block.r_nd,
+                p=block.P_nd,
+                p_offset=block.P_offset_nd,
+                vol=block.vol_nd,
+                f_body=f_body,
+            )
+            f_body.flags.writeable = False
 
     def align_cart_unstr(self, xyz):
         r"""Map an unstructured Cartesian point cloud onto this grid's nodes.

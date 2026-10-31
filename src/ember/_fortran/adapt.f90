@@ -297,3 +297,61 @@ subroutine set_timestep_sources( &
     end do
 
 end subroutine set_timestep_sources
+
+! POLAR SOURCE ALONE. The polar half of set_timestep_sources' add_sources pass,
+! for a source refresh step that does not recompute dt_vol (Solver.n_step_dt):
+!
+!   f_body(3) += vol * ((P - P_offset) + rho*Vt^2) / r
+!
+! It forms only the four cell averages the source needs, so it reads density,
+! r*rho*Vt, r and P and none of the timestep inputs (a, the other momenta, the
+! face areas, mu_turb, dt_vol). The averages and the source are written
+! expression for expression as set_timestep_sources writes them, and averaged
+! by hand for the same ifort reason given there. Keep the two in step:
+! tests/test_polar_only.py checks that they agree.
+subroutine set_polar_source( &
+        cons, &
+        r, &
+        P, &
+        P_offset, &
+        vol, &
+        f_body, &
+        ni, nj, nk &
+    )
+
+    implicit none
+
+    integer, intent(in) :: ni, nj, nk
+    real, intent(in) :: cons(ni, nj, nk, 5)          ! Nodal conserved variables
+    real, intent(in) :: r(ni, nj, nk)                ! Radial coordinate
+    real, intent(in) :: P(ni, nj, nk)                ! Nodal static pressure
+    real, intent(in) :: P_offset
+    real, intent(in) :: vol(ni-1, nj-1, nk-1)        ! Cell volume
+    real, intent(inout) :: f_body(ni-1, nj-1, nk-1, 5)
+
+    integer :: i, j, k
+    real :: rho_cell, rhorVt_cell, r_cell, P_cell, Vt
+
+    do k = 1, nk-1
+    do j = 1, nj-1
+    do i = 1, ni-1
+        rho_cell = 0.125e0 * ( &
+            cons(i,j,k,1) + cons(i+1,j,k,1) + cons(i,j+1,k,1) + cons(i+1,j+1,k,1) + &
+            cons(i,j,k+1,1) + cons(i+1,j,k+1,1) + cons(i,j+1,k+1,1) + cons(i+1,j+1,k+1,1))
+        rhorVt_cell = 0.125e0 * ( &
+            cons(i,j,k,4) + cons(i+1,j,k,4) + cons(i,j+1,k,4) + cons(i+1,j+1,k,4) + &
+            cons(i,j,k+1,4) + cons(i+1,j,k+1,4) + cons(i,j+1,k+1,4) + cons(i+1,j+1,k+1,4))
+        r_cell = 0.125e0 * ( &
+            r(i,j,k) + r(i+1,j,k) + r(i,j+1,k) + r(i+1,j+1,k) + &
+            r(i,j,k+1) + r(i+1,j,k+1) + r(i,j+1,k+1) + r(i+1,j+1,k+1))
+        P_cell = 0.125e0 * ( &
+            P(i,j,k) + P(i+1,j,k) + P(i,j+1,k) + P(i+1,j+1,k) + &
+            P(i,j,k+1) + P(i+1,j,k+1) + P(i,j+1,k+1) + P(i+1,j+1,k+1))
+        Vt = rhorVt_cell / (rho_cell * r_cell)
+        f_body(i, j, k, 3) = f_body(i, j, k, 3) &
+            + vol(i, j, k) * (((P_cell - P_offset) + rho_cell * Vt**2) / r_cell)
+    end do
+    end do
+    end do
+
+end subroutine set_polar_source

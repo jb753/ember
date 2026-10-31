@@ -23,7 +23,8 @@ Test cases:
   scree step or n_stage per Runge-Kutta step; one acoustic speed per block per
   timestep update; the transport properties once per source pass; nothing else
 - Grid operations: n_stage residuals per Runge-Kutta step and one per scree
-  step, one timestep per step plus the initial one, one smooth per step
+  step, one timestep per n_step_dt steps plus the initial one, one smooth per
+  step
 - check_nan's evaluation is the one the rest of the step reuses
 - All of the above whatever the multigrid depth
 """
@@ -43,6 +44,10 @@ N_BLOCK = 2
 # The scree march lags the viscous source pass to every fifth step; see
 # ember.solver._run.
 N_STEP_SOURCE_SCREE = 5
+
+# The default Solver.n_step_dt: the timestep pass, the one caller of the
+# acoustic speed, runs every fifth step from the first.
+N_STEP_DT = 5
 
 # Fluid methods a clean march calls on whole blocks, beyond the fused fill:
 # the acoustic speed for the timestep, and the transport properties for the
@@ -120,6 +125,11 @@ def source_passes(n_step, n_stage):
     return n_step
 
 
+def timestep_updates(n_step):
+    """How many timestep updates a march of n_step takes, after the seed."""
+    return ceil(n_step / N_STEP_DT)
+
+
 # Scree runs to six steps, so a second source pass falls inside the march.
 MARCHES = [
     (n_step, n_stage, n_levels)
@@ -142,7 +152,7 @@ def test_the_equation_of_state_is_called_only_where_the_step_needs_it(
     assert not hist.diverged
     expected = {
         "get_P_h_T": N_BLOCK * (1 + n_step * max(n_stage, 1)),
-        "get_a": N_BLOCK * (1 + n_step),
+        "get_a": N_BLOCK * (1 + timestep_updates(n_step)),
     }
     for name in TRANSPORT:
         expected[name] = N_BLOCK * source_passes(n_step, n_stage)
@@ -153,7 +163,7 @@ def test_the_equation_of_state_is_called_only_where_the_step_needs_it(
 def test_a_march_calls_residual_timestep_and_smooth_once_per_use(
     count_grid, n_step, n_stage, n_levels
 ):
-    """n_stage residuals per RK step, one per scree step; one timestep and smooth per step."""
+    """n_stage residuals per RK step, one per scree step; timesteps on the cadence; one smooth per step."""
     grid, conf = march(n_step, n_stage, n_levels)
 
     hist = conf.run(grid)
@@ -162,7 +172,7 @@ def test_a_march_calls_residual_timestep_and_smooth_once_per_use(
     assert dict(count_grid) == {
         "update_residual": n_step * max(n_stage, 1),
         # One before the loop seeds the timestep buffer.
-        "update_timestep": 1 + n_step,
+        "update_timestep": 1 + timestep_updates(n_step),
         "smooth": n_step,
     }
 

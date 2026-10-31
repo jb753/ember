@@ -5,6 +5,18 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
+.. _v0.4.6:
+
+0.4.6 (2026-10-31)
+------------------
+
+* Add ``Solver.n_step_dt``, the number of steps between time step updates,
+  defaulting to 5
+* Add ``Grid.add_polar_source``, the polar source without the time step pass
+* Add ``orth`` and ``slide_wall`` to ``elliptic.winslow_sweeps``, to square the
+  grid at a wall and to slide wall nodes only part of the way
+
+
 .. _v0.4.5:
 
 0.4.5 (2026-10-13)

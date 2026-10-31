@@ -65,7 +65,17 @@ def ttm_stencil(X, stencil_g, stencil_s, PQ, pitch=0.0):
 
 
 def winslow_sweeps(
-    X, stencil_g, stencil_s, pitch, irregular, slide, corner, wall, n_sweep
+    X,
+    stencil_g,
+    stencil_s,
+    pitch,
+    irregular,
+    slide,
+    corner,
+    wall,
+    n_sweep,
+    orth=0.0,
+    slide_wall=1.0,
 ):
     r"""Point-Jacobi sweeps of Winslow's equations, in single precision.
 
@@ -78,9 +88,13 @@ def winslow_sweeps(
     frozen at the coordinates the sweep starts from, and every singular point
     to a weighted row of the same; then every sliding node in `y` to a
     weighted row of the coordinates after that; then draws every node near a
-    corner towards it; then slides every wall node along a closed line to the
-    foot of the perpendicular from the node outside it, no further than half
-    way to either neighbour, its gaps to them kept above a floor.
+    corner towards it; then slides every wall node along a closed line
+    `slide_wall` of the way to the foot of the perpendicular from the node
+    outside it, no further than half way to either neighbour, its gaps to
+    them kept above a floor; then, if
+    `orth` is positive, draws every node outside a wall node towards the
+    wall's outward normal at it, at the distance it lies, by `orth` of the
+    way, which squares the grid at the wall where sliding cannot.
 
     Parameters
     ----------
@@ -111,6 +125,16 @@ def winslow_sweeps(
         it were nearest the sweep before.
     n_sweep : int
         Number of sweeps.
+    slide_wall : float or array, shape (n_wall,)
+        Fraction of the way each wall node slides towards the foot of the
+        perpendicular from the node outside it each sweep, one for all or one
+        per wall node: one, the whole way; zero holds the wall node where it
+        is.
+    orth : float
+        Fraction of the way each node outside a wall node is drawn towards
+        the wall's outward normal each sweep, from zero, which leaves them
+        be, to one. Outward is away from the inside of the closed wall line,
+        whichever sense it winds in.
 
     Returns
     -------
@@ -180,6 +204,8 @@ def winslow_sweeps(
         seg0,
         seg1,
         float(pitch),
+        float(orth),
+        reals(np.broadcast_to(np.asarray(slide_wall, dtype=f32), (n_w,))),
         int(n_sweep),
         len(nodes_i),
         len(nodes_s),

@@ -467,6 +467,20 @@ class Solver(BaseSolver):
     n_stage: int = 0
     """Number of time integration stages per step. 0 for scree, >=1 for RK."""
 
+    n_step_dt: int = 5
+    """Number of steps between time step updates.
+
+    :meth:`~ember.grid.Grid.update_timestep` runs on every step where
+    ``i_step % n_step_dt == 0`` and ``dt_vol_nd`` is held in between. That
+    pass also adds the polar source on a source refresh step, so a refresh
+    step off the cadence adds it alone, with
+    :meth:`~ember.grid.Grid.add_polar_source`. On the scree march, which
+    refreshes the sources every fifth step, ``5`` puts both on one cadence; the
+    RK march refreshes the sources every step, so with ``5`` it adds the polar
+    source alone on four steps in five. Must be 1 at nonzero
+    :attr:`gain_filt`, since the filter advances in the time step pass and
+    needs every step: pass ``n_step_dt=1`` to use SFD."""
+
     n_levels: int = 3
     """Number of coarse multigrid levels; 0 disables multigrid. Honored by
     both integrators (:func:`scree_step` and :func:`rk_step`)."""
@@ -581,9 +595,19 @@ class Solver(BaseSolver):
         convergence history has any way to notice. Caught at construction
         rather than after a march has been paid for.
 
-        An unknown :attr:`wall_law` is caught here for the same reason.
+        An unknown :attr:`wall_law` is caught here for the same reason, and so
+        is an :attr:`n_step_dt` that would skip SFD filter updates.
         """
         ember.block_util._wall_law_code(self.wall_law)
+        if self.n_step_dt < 1:
+            raise ValueError(f"n_step_dt must be >= 1, got {self.n_step_dt}.")
+        if self.n_step_dt > 1 and self.gain_filt != 0.0:
+            raise ValueError(
+                f"n_step_dt={self.n_step_dt} with gain_filt={self.gain_filt}: the "
+                "SFD filter advances in the time step pass, once per step, so "
+                "skipping that pass would stretch its time constant. Pass "
+                "n_step_dt=1 to use SFD."
+            )
         if self.n_step_avg < 0:
             raise ValueError(f"n_step_avg must be >= 0, got {self.n_step_avg}.")
         if self.n_step_avg > self.n_step:
@@ -1082,10 +1106,8 @@ def _run(grid, conf):
         # Refresh source terms every step for the multi-stage RK march, which
         # re-evaluates the residual each substep and needs current sources; the
         # scree march reuses one residual per step, so lag the expensive viscous
-        # pass to every fifth step there. Recompute the timestep every step
-        # regardless so dt_vol tracks the flow through fast transients: a lagged
-        # dt_vol is sized for an already-stale state and overshoots the
-        # stability limit during a cold start, and the timestep refresh is cheap.
+        # pass to every fifth step there. The timestep is recomputed every
+        # n_step_dt steps, independently of the sources (see below).
         n_step_source = 5 if conf.n_stage == 0 else 1
         add_sources = i_step % n_step_source == 0
         if add_sources:
@@ -1094,20 +1116,23 @@ def _run(grid, conf):
 
         # The timestep pass also finishes the body force on a refresh step (the
         # polar source and the SFD force, onto the viscous part just built) and
-        # advances the SFD low-pass filter on the dt_vol it has just computed.
-        # The filter advances every step regardless of the source cadence: its
-        # dt is a per-step increment, so advancing it on the scree march's
-        # every-fifth refresh would stretch the time constant fivefold. The
-        # force reads the filter before this step's update, the usual explicit
-        # SFD coupling. At the default zero gain the filter is never touched.
-        grid.update_timestep(
-            rf=0.2,
-            fac_visc=conf.fac_visc,
-            add_sources=add_sources,
-            gain_filt=conf.gain_filt,
-            cfl=conf.cfl,
-            delta_filt=conf.delta_filt,
-        )
+        # advances the SFD filter, whose dt is a per-step increment: on the
+        # scree march's every-fifth refresh its time constant would stretch
+        # fivefold. The force reads the filter before this step's update, the
+        # usual explicit coupling; at the default zero gain it is never touched.
+        # With n_step_dt > 1 the pass runs only on that cadence, and a source
+        # refresh step off it adds the polar source alone (Solver.n_step_dt).
+        if i_step % conf.n_step_dt == 0:
+            grid.update_timestep(
+                rf=0.2,
+                fac_visc=conf.fac_visc,
+                add_sources=add_sources,
+                gain_filt=conf.gain_filt,
+                cfl=conf.cfl,
+                delta_filt=conf.delta_filt,
+            )
+        elif add_sources:
+            grid.add_polar_source()
 
         # Prepare the residual
         grid.update_residual(sf=conf.sf_resid)

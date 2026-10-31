@@ -63,6 +63,8 @@ def _conf(**kwargs):
         fac_mgrid=0.0,
         inviscid=True,
         gain_filt=GAIN_FILT,
+        # SFD needs the timestep pass every step; see Solver.n_step_dt.
+        n_step_dt=1,
     )
     settings.update(kwargs)
     return ember.solver.Solver(**settings)
