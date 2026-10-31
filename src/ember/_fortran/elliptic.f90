@@ -98,7 +98,7 @@ subroutine winslow_sweeps(X, sg, ss, &
         sld, sld_ptr, sld_col, sld_w, sld_c, &
         cp_node, cp_corner, cp_dy, cp_f, &
         wn0, wn1, dy0, dy1, line, s_line, floor_, seg0, seg1, &
-        pitch, n_sweep, m_irr, m_sld, m_cp, m_w, &
+        pitch, orth, slide_f, n_sweep, m_irr, m_sld, m_cp, m_w, &
         n_node, n_reg, n_irr, n_irr_nb, n_sld, n_sld_nb, n_cp, n_w, n_line)
     ! Point-Jacobi sweeps of Winslow's equations, in place on X.
     !
@@ -110,10 +110,16 @@ subroutine winslow_sweeps(X, sg, ss, &
     !      constant, from the coordinates after 1;
     !   3. every node near a corner drawn towards it, by a factor it keeps of
     !      its distance;
-    !   4. every wall node slid along the wall line to the foot of the
-    !      perpendicular from the node outside it, no further than half way to
+    !   4. every wall node slid along the wall line its slide_f of the way to the
+    !      foot of the perpendicular from the node outside it, no further than
+    !      half way to
     !      either neighbour, the gaps between them kept above a floor, the wall
-    !      nodes closing in a ring whose last is its first a turn on.
+    !      nodes closing in a ring whose last is its first a turn on;
+    !   5. every node outside a wall node drawn towards the wall's outward
+    !      normal at it, at the distance it lies from it, by a factor orth of
+    !      the way, which squares the grid at the wall where sliding the wall
+    !      nodes alone cannot. Outward is away from the inside of the closed
+    !      wall line, by the sense it winds in. Zero orth leaves this out.
     !
     ! As in ttm_stencil, the kernel knows nothing of blocks: it works through
     ! the node numbers and pitch shifts it is given, counted from zero. Rows
@@ -145,18 +151,28 @@ subroutine winslow_sweeps(X, sg, ss, &
     double precision, intent(in) :: line(n_line, 2), s_line(n_line)
     double precision, intent(in) :: floor_(n_w)
     integer, intent(inout) :: seg0(n_w), seg1(n_w)
-    real, intent(in) :: pitch
+    real, intent(in) :: pitch, orth, slide_f(n_w)
 
     real :: Xnew(n_reg, 2), Xirr(n_irr, 2), y_sld(n_sld)
     double precision :: s0(n_w), s1(n_w), s_new(n_w), s_total, v, lo, hi
     real :: xE, yE, xN, yN, xW, yW, xS, yS, xNE, yNE, xNW, yNW, xSW, ySW
     real :: xSE, ySE, xi_x, xi_y, eta_x, eta_y, a, b, c, r
     real :: xc, yc
-    double precision :: px, py, fx, fy
+    double precision :: px, py, fx, fy, gx, gy, tx, ty, tn, sense, ds_line
+    real :: ax, ay, bx, by, dist
     integer :: it, n, i, q, half
 
     s_total = s_line(n_line)
     half = m_w / 2
+
+    ! The sense the wall line winds in, from its signed area: outward is to
+    ! the right of the way it runs if anticlockwise, the left if clockwise.
+    sense = 0.0d0
+    do i = 1, n_line - 1
+        sense = sense + line(i, 1) * line(i + 1, 2) - line(i + 1, 1) * line(i, 2)
+    end do
+    sense = sign(1.0d0, sense)
+    ds_line = s_total / dble(max(n_line - 1, 1))
 
     do it = 1, n_sweep
 
@@ -263,7 +279,7 @@ subroutine winslow_sweeps(X, sg, ss, &
                 else
                     hi = 0.5d0 * (s0(i) + s0(i + 1))
                 end if
-                s_new(i) = min(max(s1(i), lo), hi)
+                s_new(i) = min(max(s0(i) + slide_f(i) * (s1(i) - s0(i)), lo), hi)
             end do
 
             ! No gap below its floor: forward from the cut, back from a turn on.
@@ -284,6 +300,26 @@ subroutine winslow_sweeps(X, sg, ss, &
                 X(wn0(i) + 1, 1) = real(fx)
                 X(wn0(i) + 1, 2) = real(fy) - dy0(i)
             end do
+
+            ! 5. Nodes outside the wall nodes to the normal, the last wall
+            ! node being the first again.
+            if (orth > 0.0) then
+                do i = 1, m_w - 1
+                    call point_at(modulo(s_new(i) + ds_line, s_total), fx, fy)
+                    call point_at(modulo(s_new(i) - ds_line, s_total), gx, gy)
+                    tx = fx - gx
+                    ty = fy - gy
+                    tn = sqrt(tx * tx + ty * ty)
+                    ax = X(wn0(i) + 1, 1)
+                    ay = X(wn0(i) + 1, 2) + dy0(i)
+                    bx = X(wn1(i) + 1, 1)
+                    by = X(wn1(i) + 1, 2) + dy1(i)
+                    dist = sqrt((bx - ax)**2 + (by - ay)**2)
+                    X(wn1(i) + 1, 1) = bx + orth * (ax + dist * real(sense * ty / tn) - bx)
+                    X(wn1(i) + 1, 2) = by + orth * (ay - dist * real(sense * tx / tn) - by) &
+                        - dy1(i)
+                end do
+            end if
         end if
 
     end do

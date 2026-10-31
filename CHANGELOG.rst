@@ -13,6 +13,8 @@ public API without a deprecation period.
 * Add ``Solver.n_step_dt``, the number of steps between time step updates,
   defaulting to 5
 * Add ``Grid.add_polar_source``, the polar source without the time step pass
+* Add ``orth`` and ``slide_wall`` to ``elliptic.winslow_sweeps``, to square the
+  grid at a wall and to slide wall nodes only part of the way
 
 
 .. _v0.4.5:
