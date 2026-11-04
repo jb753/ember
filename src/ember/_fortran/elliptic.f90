@@ -99,7 +99,8 @@ subroutine winslow_sweeps(X, sg, ss, &
         cp_node, cp_corner, cp_dy, cp_f, &
         wn0, wn1, dy0, dy1, line, s_line, floor_, seg0, seg1, &
         pitch, orth, slide_f, n_sweep, m_irr, m_sld, m_cp, m_w, &
-        n_node, n_reg, n_irr, n_irr_nb, n_sld, n_sld_nb, n_cp, n_w, n_line)
+        on_n, on_dy, on_w, m_on, &
+        n_node, n_reg, n_irr, n_irr_nb, n_sld, n_sld_nb, n_cp, n_w, n_line, n_on)
     ! Point-Jacobi sweeps of Winslow's equations, in place on X.
     !
     ! Each sweep, in turn:
@@ -120,6 +121,9 @@ subroutine winslow_sweeps(X, sg, ss, &
     !      the way, which squares the grid at the wall where sliding the wall
     !      nodes alone cannot. Outward is away from the inside of the closed
     !      wall line, by the sense it winds in. Zero orth leaves this out.
+    !      Then, line by line out, the m_on lines of on_n beyond it, shifted
+    !      on_dy in y, likewise from the node inside each, by orth times
+    !      that line's on_w, along the same normal.
     !
     ! As in ttm_stencil, the kernel knows nothing of blocks: it works through
     ! the node numbers and pitch shifts it is given, counted from zero. Rows
@@ -138,6 +142,9 @@ subroutine winslow_sweeps(X, sg, ss, &
     integer, intent(in) :: n_node, n_reg, n_irr, n_irr_nb, n_sld, n_sld_nb
     integer, intent(in) :: n_cp, n_w, n_line, n_sweep
     integer, intent(in) :: m_irr, m_sld, m_cp, m_w
+    integer, intent(in) :: n_on, m_on
+    integer, intent(in) :: on_n(n_w, n_on)
+    real, intent(in) :: on_dy(n_w, n_on), on_w(n_on)
     real, intent(inout) :: X(n_node, 2)
     integer, intent(in) :: sg(n_reg, 9), ss(n_reg, 9)
     integer, intent(in) :: irr(n_irr), irr_ptr(n_irr + 1), irr_col(n_irr_nb)
@@ -159,8 +166,8 @@ subroutine winslow_sweeps(X, sg, ss, &
     real :: xSE, ySE, xi_x, xi_y, eta_x, eta_y, a, b, c, r
     real :: xc, yc
     double precision :: px, py, fx, fy, gx, gy, tx, ty, tn, sense, ds_line
-    real :: ax, ay, bx, by, dist
-    integer :: it, n, i, q, half
+    real :: ax, ay, bx, by, dist, ox, oy, f
+    integer :: it, n, i, q, half, k
 
     s_total = s_line(n_line)
     half = m_w / 2
@@ -318,6 +325,23 @@ subroutine winslow_sweeps(X, sg, ss, &
                     X(wn1(i) + 1, 1) = bx + orth * (ax + dist * real(sense * ty / tn) - bx)
                     X(wn1(i) + 1, 2) = by + orth * (ay - dist * real(sense * tx / tn) - by) &
                         - dy1(i)
+                    ! The lines beyond, each from the one inside it
+                    ax = X(wn1(i) + 1, 1)
+                    ay = X(wn1(i) + 1, 2) + dy1(i)
+                    do k = 1, m_on
+                        ox = real(sense * ty / tn)
+                        oy = -real(sense * tx / tn)
+                        bx = X(on_n(i, k) + 1, 1)
+                        by = X(on_n(i, k) + 1, 2) + on_dy(i, k)
+                        dist = sqrt((bx - ax)**2 + (by - ay)**2)
+                        f = orth * on_w(k)
+                        bx = bx + f * (ax + dist * ox - bx)
+                        by = by + f * (ay + dist * oy - by)
+                        X(on_n(i, k) + 1, 1) = bx
+                        X(on_n(i, k) + 1, 2) = by - on_dy(i, k)
+                        ax = bx
+                        ay = by
+                    end do
                 end do
             end if
         end if

@@ -76,6 +76,7 @@ def winslow_sweeps(
     n_sweep,
     orth=0.0,
     slide_wall=1.0,
+    orth_lines=None,
 ):
     r"""Point-Jacobi sweeps of Winslow's equations, in single precision.
 
@@ -135,6 +136,12 @@ def winslow_sweeps(
         the wall's outward normal each sweep, from zero, which leaves them
         be, to one. Outward is away from the inside of the closed wall line,
         whichever sense it winds in.
+    orth_lines : tuple, optional
+        ``(nodes, dy, weights)``: further lines out beyond the nodes outside
+        the wall nodes, ``nodes`` (n_wall, n_lines) and their shifts ``dy``
+        in `y`, each drawn after those towards the same normal from the node
+        inside it, at the distance it lies, by `orth` times its line's
+        ``weights``.
 
     Returns
     -------
@@ -172,7 +179,18 @@ def winslow_sweeps(
     seg1 = ints(seg1).copy()
     n_node = len(Xf)
     stencil_g = np.asfortranarray(stencil_g, dtype=i32)
-    for g in (stencil_g, nodes_i, col_i, nodes_s, col_s, cp_node, cp_corner, wn0, wn1):
+    if orth_lines is not None and np.shape(orth_lines[0])[1]:
+        on_n, on_dy, on_w = orth_lines
+        m_on = len(on_w)
+    else:
+        # As many rows as the wall arrays, which come as one unused entry
+        # when there is no wall
+        rows = max(n_w, 1)
+        on_n, on_dy, on_w, m_on = np.zeros((rows, 1)), np.zeros((rows, 1)), np.zeros(1), 0
+    on_n = np.asfortranarray(on_n, dtype=i32)
+    on_dy = np.asfortranarray(on_dy, dtype=f32)
+    for g in (stencil_g, nodes_i, col_i, nodes_s, col_s, cp_node, cp_corner, wn0, wn1,
+              on_n[:, :m_on]):
         g = np.asarray(g)
         if g.size and (g.min() < 0 or g.max() >= n_node):
             raise ValueError(f"Node numbers must lie in [0, {n_node}).")
@@ -211,6 +229,10 @@ def winslow_sweeps(
         len(nodes_s),
         len(cp_node),
         n_w,
+        on_n,
+        on_dy,
+        reals(on_w),
+        m_on,
     )
     return Xf, seg0[:n_w], seg1[:n_w]
 
