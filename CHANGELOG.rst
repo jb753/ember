@@ -5,6 +5,13 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
+.. _v0.4.7:
+
+0.4.7 (2026-11-04)
+------------------
+
+* Add an orthogonality option to the compiled elliptic smoothing kernel
+
 .. _v0.4.6:
 
 0.4.6 (2026-10-31)
