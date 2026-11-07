@@ -733,6 +733,24 @@ class TestConcatenateMetadata:
         with pytest.raises(ValueError, match="Metadata keys .* exist only in block1"):
             ember.block_util.concatenate(block1, block2, axis=0)
 
+    def test_blocks_without_a_frame_join_in_any_number(self, perfect_fluid):
+        """No Omega is invented for blocks that have none, so the result of one
+        join still joins to the next."""
+        blocks = []
+        for i, ni in enumerate((3, 5, 2)):
+            block = ember.block.Block(shape=(ni, 4, 5))
+            xrt = util.linmesh3([i, i + 1.0], [0.5, 1.5], [0.0, 0.2], (ni, 4, 5))
+            block.set_x(xrt[..., 0])
+            block.set_r(xrt[..., 1])
+            block.set_t(xrt[..., 2])
+            block.set_fluid(perfect_fluid)
+            blocks.append(block)
+
+        result = ember.block_util.concatenate(*blocks, axis=0)
+
+        assert result.shape == (10, 4, 5)
+        assert "Omega" not in result._metadata
+
 
 class TestConcatenatePatches:
     """Test patch handling during concatenation.

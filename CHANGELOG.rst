@@ -5,6 +5,13 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
+.. _v0.4.7:
+
+0.4.7 (2026-11-07)
+------------------
+
+* Add an orthogonality option to the compiled elliptic smoothing kernel
+
 .. _v0.4.6:
 
 0.4.6 (2026-10-31)
@@ -17,6 +24,8 @@ public API without a deprecation period.
   grid at a wall and to slide wall nodes only part of the way
 * Add ``BaseSolver.restart``, a copy of a solver without its start-up ramp to
   continue a solution; the built-in solver has none and returns itself
+* Fix ``block_util.concatenate`` refusing three or more blocks that have no
+  ``Omega``, by no longer setting one on the result when neither input has it
 * Add a ``workdir`` argument to ``BaseSolver.run``, where that run keeps its
   files, for a solver that runs outside the process; the built-in one ignores it
 * Add ``ignore_inviscid`` to ``Grid.calculate_wdist``, to leave slip walls out

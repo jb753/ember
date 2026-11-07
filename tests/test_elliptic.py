@@ -312,6 +312,42 @@ def test_sweeps_match_reference_on_random_stencils_with_pitch():
     np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
+def ring_lines(ni=24, nk=5):
+    """The ring's lines off the wall beyond the first, k = 2 to nk - 2, as
+    the wall nodes are, the first again at the end, and no shift."""
+    num = np.arange(ni * nk).reshape(ni, nk)
+    nodes = np.concatenate((num[:, 2 : nk - 1], num[:1, 2 : nk - 1]))
+    return nodes, np.zeros(nodes.shape)
+
+
+def test_sweeps_unchanged_by_lines_of_no_weight():
+    X, g, s, irregular, slide, corner, wall = ring_case()
+    nodes, dy = ring_lines()
+    args = (X, g, s, 0.0, irregular, slide, corner, wall, 3)
+    out, _, _ = winslow_sweeps(*args, orth=1.0)
+    lines = (nodes, dy, np.zeros(nodes.shape[1]))
+    out_lines, _, _ = winslow_sweeps(*args, orth=1.0, orth_lines=lines)
+    np.testing.assert_array_equal(out_lines, out)
+
+
+def test_sweeps_square_lines_to_the_wall():
+    # Drawn the whole way, the first line out and the next lie on the
+    # circle's normal through each wall node, its radius, at their distances
+    X, g, s, irregular, slide, corner, wall = ring_case()
+    nodes, dy = ring_lines()
+    wn0, wn1 = wall[0], wall[1]
+    lines = (nodes[:, :1], dy[:, :1], np.ones(1))
+    out, _, _ = winslow_sweeps(
+        X, g, s, 0.0, irregular, slide, corner, wall, 2, orth=1.0, orth_lines=lines
+    )
+    radial = out[wn0[:-1]] / np.linalg.norm(out[wn0[:-1]], axis=1)[:, None]
+    for n in (wn1[:-1], nodes[:-1, 0]):
+        d = out[n] - out[wn0[:-1]]
+        cross = radial[:, 0] * d[:, 1] - radial[:, 1] * d[:, 0]
+        np.testing.assert_allclose(cross / np.linalg.norm(d, axis=1), 0.0, atol=1e-3)
+        assert np.all(np.sum(radial * d, axis=1) > 0.0)
+
+
 def test_sweeps_refuse_node_numbers_out_of_range():
     X, g, s, irregular, slide, corner, wall = ring_case()
     g = g.copy()
