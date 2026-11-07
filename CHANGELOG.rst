@@ -7,7 +7,7 @@ public API without a deprecation period.
 
 .. _v0.4.7:
 
-0.4.7 (2026-11-04)
+0.4.7 (2026-11-07)
 ------------------
 
 * Add an orthogonality option to the compiled elliptic smoothing kernel
