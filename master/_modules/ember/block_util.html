@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.block_util &#8212; ember 0.4.6.dev11+g5fd4365db documentation</title>
+    <title>ember.block_util &#8212; ember 0.4.7 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=1670f476"></script>
+    <script src="../../_static/documentation_options.js?v=a78bb796"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.6.dev11+g5fd4365db</p>
+<p class="blurb">Version 0.4.7</p>
 
 
 
@@ -364,10 +364,13 @@
 
     <span class="c1"># Handle patches with proper index adjustment</span>
     <span class="n">result</span><span class="o">.</span><span class="n">_metadata</span><span class="p">[</span><span class="s2">&quot;patches&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">collections</span><span class="o">.</span><span class="n">BlockPatchCollection</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
-    <span class="n">Omega</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
-        <span class="p">[</span><span class="n">block1</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Omega&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">block2</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Omega&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span>
-    <span class="p">)</span>
-    <span class="n">result</span><span class="o">.</span><span class="n">_metadata</span><span class="p">[</span><span class="s2">&quot;Omega&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Omega</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">Omega</span><span class="p">))]</span>
+
+    <span class="c1"># The faster frame of the two, and only when they have one: inventing a</span>
+    <span class="c1"># zero for blocks that never set it would leave the result with a key its</span>
+    <span class="c1"># inputs lack, and joining it to a third such block would then be refused.</span>
+    <span class="n">Omega</span> <span class="o">=</span> <span class="p">[</span><span class="n">b</span><span class="o">.</span><span class="n">_metadata</span><span class="p">[</span><span class="s2">&quot;Omega&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="p">(</span><span class="n">block1</span><span class="p">,</span> <span class="n">block2</span><span class="p">)</span> <span class="k">if</span> <span class="s2">&quot;Omega&quot;</span> <span class="ow">in</span> <span class="n">b</span><span class="o">.</span><span class="n">_metadata</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">Omega</span><span class="p">:</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">_metadata</span><span class="p">[</span><span class="s2">&quot;Omega&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">Omega</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="nb">abs</span><span class="p">)</span>
 
     <span class="n">axis_offset</span> <span class="o">=</span> <span class="n">block1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span>
 
