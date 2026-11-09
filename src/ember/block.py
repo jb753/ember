@@ -355,6 +355,7 @@ Metadata:
    Block.label
    Block.Nb
    Block.Omega
+   Block.Omega_wall
    Block.patches
    Block.pitch
    Block.rpm
@@ -3218,11 +3219,29 @@ class Block(ember._struct.StructuredData):
         """
         return self.Omega * self.L_ref / self.fluid.V_ref
 
+    @property
+    def Omega_wall(self):
+        r"""Per-face wall angular velocity dict [rad/s].
+
+        Keys omega_walli1, omega_wallni, etc., each a float32 array of the same
+        shape as the corresponding :attr:`ijk_wall_visc` array, so the two can
+        be read together to find each wall face and the speed it turns at.
+        Defaults to :attr:`Omega` on all faces; overridden by RotatingPatch
+        faces.
+
+        See :attr:`Omega_wall_nd` for the nondimensional form.
+        """
+        scale = self.fluid.V_ref / self.L_ref
+        return {
+            key.removesuffix("_nd"): val * scale
+            for key, val in self.Omega_wall_nd.items()
+        }
+
     @cached_object
     def Omega_wall_nd(self):
         """Per-face wall angular velocity dict (nondimensional).
 
-        Keys Omega_walli1_nd, Omega_wallni_nd, etc., each a float32 array of the
+        Keys omega_walli1_nd, omega_wallni_nd, etc., each a float32 array of the
         same shape as the corresponding wall array. Defaults to Omega_nd on all
         faces; overridden by RotatingPatch faces.
         """

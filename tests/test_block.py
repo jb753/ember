@@ -61,6 +61,7 @@ Test cases:
 - test_outlet_patch_at_ini_is_free_surface: OutletPatch at i=-1 sets wallni to 1.0
 - test_periodic_patch_at_j0_is_free_surface: PeriodicPatch at j=0 sets wallj1 to 1.0
 - test_nonmatch_patch_at_jnj_is_free_surface: NonMatchPatch at j=-1 sets wallnj to 1.0
+- test_Omega_wall: Dimensional per-face wall angular velocity
 - test_Vxrt_rel_no_rotation: Vxrt_rel equals Vxrt when Omega is zero.
 - test_Vxrt_rel_with_rotation: Vxrt_rel tangential component equals Vt minus blade speed.
 """
@@ -71,7 +72,13 @@ import pytest
 import ember.fluid
 import numpy as np
 from ember import util
-from ember.patch import InletPatch, NonMatchPatch, OutletPatch, PeriodicPatch
+from ember.patch import (
+    InletPatch,
+    NonMatchPatch,
+    OutletPatch,
+    PeriodicPatch,
+    RotatingPatch,
+)
 
 
 @pytest.fixture
@@ -2256,6 +2263,33 @@ def test_nonmatch_patch_at_jnj_is_free_surface(block):
     w = block.ijk_wall_conv
     assert np.all(w["wallnj"] == 1.0)
     assert np.all(w["wallj1"] == 0.0)
+
+
+def test_Omega_wall(block):
+    """Omega_wall is Omega on every face but where a RotatingPatch overrides it."""
+    Omega, Omega_hub = 100.0, -50.0
+    block.set_L_ref(0.5)
+    block.set_Omega(Omega)
+    # Over part of the j=0 face only, so the override is per face cell.
+    hub = RotatingPatch(i=(0, 1), j=0)
+    block.patches.append(hub)
+    hub.set_Omega(Omega_hub)
+
+    O = block.Omega_wall
+    O_nd = block.Omega_wall_nd
+    w = block.ijk_wall_visc
+
+    assert set(O) == {key.removesuffix("_nd") for key in O_nd}
+    scale = block.fluid.V_ref / block.L_ref
+    for key in O:
+        assert O[key].shape == w[key.removeprefix("omega_")].shape
+        np.testing.assert_allclose(O[key], O_nd[key + "_nd"] * scale, rtol=1e-6)
+
+    # Only the first i cell of the j=0 face is covered by the patch.
+    np.testing.assert_allclose(O["omega_wallj1"][0], Omega_hub, rtol=1e-6)
+    np.testing.assert_allclose(O["omega_wallj1"][1:], Omega, rtol=1e-6)
+    for key in O.keys() - {"omega_wallj1"}:
+        np.testing.assert_allclose(O[key], Omega, rtol=1e-6)
 
 
 def test_setter_roundtrips_nonunity_refs():
