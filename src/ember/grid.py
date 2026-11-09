@@ -949,7 +949,7 @@ class Grid(_LabelledList):
         ------
         ValueError
             If no transformation aligns the cloud with the grid to tolerance, or,
-        if `merged`, leaves no point of the cloud unmatched.
+            if `merged`, leaves no point of the cloud unmatched.
 
         Examples
         --------
