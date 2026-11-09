@@ -395,13 +395,17 @@ class Grid(_LabelledList):
 
         return ordered
 
-    def _align_cartesian(self, xyz):
+    def _align_cartesian(self, xyz, merged=False):
         """Align Cartesian coordinates with grid by detecting coordinate transformation.
 
         Parameters
         ----------
         xyz : array_like, shape (N, 3)
-            Cartesian coordinates [x, y, z] where N == Grid.size
+            Cartesian coordinates [x, y, z] where N == Grid.size, or where
+            N <= Grid.size if `merged`
+        merged : bool, optional
+            The cloud holds coincident grid nodes once, so N may be less than
+            Grid.size; every point must then be the match of some grid node.
 
         Returns
         -------
@@ -410,9 +414,14 @@ class Grid(_LabelledList):
         - block_indices: list of index arrays, one per block with shape block.shape
         """
         xyz = np.asarray(xyz)
-        assert xyz.shape[0] == self.size, (
-            f"Input has {xyz.shape[0]} points, grid has {self.size}"
-        )
+        if merged:
+            assert xyz.shape[0] <= self.size, (
+                f"Input has {xyz.shape[0]} points, more than the grid's {self.size}"
+            )
+        else:
+            assert xyz.shape[0] == self.size, (
+                f"Input has {xyz.shape[0]} points, grid has {self.size}"
+            )
         assert xyz.shape[1] == 3, "xyz must have 3 columns"
 
         # Phase 1: Coarse alignment using bounding boxes
@@ -476,6 +485,16 @@ class Grid(_LabelledList):
 
                 # flat orders points column-major, so unflatten the same way.
                 block_indices.append(indices.reshape(block.shape, order="F"))
+
+            # Counting points cannot check a merged cloud, so check instead that
+            # none is left over: a point no node lands on is not of this grid.
+            # Unmerged, coincident nodes may all land on one of their copies,
+            # leaving the others unused, so the check only holds when merged.
+            if merged and not mapping_failed:
+                used = np.zeros(xyz.shape[0], dtype=bool)
+                for ind in block_indices:
+                    used[ind.ravel()] = True
+                mapping_failed = not used.all()
 
             if not mapping_failed:
                 return tuple(perm), tuple(signs.ravel()), block_indices
@@ -593,7 +612,7 @@ class Grid(_LabelledList):
 
         return grid
 
-    def set_conserved_cart_unstr(self, xyz, conserved_cart):
+    def set_conserved_cart_unstr(self, xyz, conserved_cart, merged=False):
         r"""Set conserved variables from Cartesian unstructured data.
 
         Useful for importing flow solutions from unstructured CFD solvers that
@@ -632,6 +651,9 @@ class Grid(_LabelledList):
             Cartesian coordinates [x, y, z] with components on last axis
         conserved_cart : array_like, shape (N, 5)
             Cartesian conserved flow variables [rho, rhoVx, rhoVy, rhoVz, rhoe] with components on last axis
+        merged : bool, optional
+            The cloud holds coincident grid nodes once; see
+            :meth:`align_cart_unstr`.
         """
         # Validation
         assert xyz.shape[1] == 3, "xyz must have 3 columns"
@@ -642,7 +664,7 @@ class Grid(_LabelledList):
         )
 
         # Step 1: Detect coordinate transformation and get block indices
-        perm, signs, block_indices = self._align_cartesian(xyz)
+        perm, signs, block_indices = self._align_cartesian(xyz, merged)
 
         # Step 2: Convert Cartesian conserved variables to polar form
         rho = conserved_cart[..., 0]
@@ -710,7 +732,7 @@ class Grid(_LabelledList):
         for block in self:
             block.set_L_ref(L_ref)
 
-    def set_primitive_cart_unstr(self, xyz, primitive_cart):
+    def set_primitive_cart_unstr(self, xyz, primitive_cart, merged=False):
         r"""Set primitive variables from Cartesian unstructured data.
 
         Useful for importing flow solutions from unstructured CFD solvers that
@@ -737,6 +759,9 @@ class Grid(_LabelledList):
             Cartesian coordinates [x, y, z] with components on last axis
         primitive_cart : array_like, shape (N, 5)
             Cartesian primitive flow variables [rho, Vx, Vy, Vz, P] with components on last axis
+        merged : bool, optional
+            The cloud holds coincident grid nodes once; see
+            :meth:`align_cart_unstr`.
         """
         # Validation
         assert xyz.shape[1] == 3, "xyz must have 3 columns"
@@ -751,7 +776,7 @@ class Grid(_LabelledList):
         primitive_cart_fp64 = np.asarray(primitive_cart, dtype=np.float64)
 
         # Step 1: Detect coordinate transformation and get block indices
-        perm, signs, block_indices = self._align_cartesian(xyz_fp64)
+        perm, signs, block_indices = self._align_cartesian(xyz_fp64, merged)
 
         # Step 2: Convert Cartesian primitive variables to polar form
         rho = primitive_cart_fp64[..., 0]
@@ -885,7 +910,7 @@ class Grid(_LabelledList):
             )
             f_body.flags.writeable = False
 
-    def align_cart_unstr(self, xyz):
+    def align_cart_unstr(self, xyz, merged=False):
         r"""Map an unstructured Cartesian point cloud onto this grid's nodes.
 
         Detects the coordinate permutation and sign flips that bring ``xyz``
@@ -903,7 +928,12 @@ class Grid(_LabelledList):
         ----------
         xyz : array_like, shape (N, 3)
             Cartesian coordinates :math:`(x, y, z)`, where ``N`` must equal
-            :attr:`size`.
+            :attr:`size` unless `merged`.
+        merged : bool, optional
+            The cloud holds each set of coincident grid nodes once, as an
+            unstructured mesh does where blocks meet, so ``N`` may be less than
+            :attr:`size` and several nodes map to one point. Every point must
+            then be the match of at least one node. Default False.
 
         Returns
         -------
@@ -918,7 +948,8 @@ class Grid(_LabelledList):
         Raises
         ------
         ValueError
-            If no transformation aligns the cloud with the grid to tolerance.
+            If no transformation aligns the cloud with the grid to tolerance, or,
+            if `merged`, leaves no point of the cloud unmatched.
 
         Examples
         --------
@@ -929,7 +960,7 @@ class Grid(_LabelledList):
         >>> for block, ind in zip(grid, block_indices):  # doctest: +SKIP
         ...     out[ind.flatten()] = block.wdist.flatten()  # doctest: +SKIP
         """
-        return self._align_cartesian(xyz)
+        return self._align_cartesian(xyz, merged)
 
     @util.profile
     def apply_bconds(self):

@@ -27,6 +27,10 @@ Test cases:
 - test_wrong_coordinate_dimensions: Error handling for wrong coordinate dimensions
 - test_unmatchable_coordinates: Error handling for unmatchable coordinates
 - test_block_indices_structure: Block indices structure validation
+- test_merged_cloud: Alignment of a cloud holding coincident nodes once
+- test_merged_leftover_point: Error for a merged cloud with an unmatched point
+- test_merged_needs_flag: Error for a merged cloud without the flag
+- test_merged_too_many_points: Error for a merged cloud larger than the grid
 - test_simple_cube: Bounding box for simple unit cube
 - test_single_point: Bounding box for single point
 - test_wrong_shape: Bounding box error for wrong input shape
@@ -1542,6 +1546,89 @@ class TestAlignCartesian:
         # Every unstructured node was written exactly once, with its own value.
         assert not np.isnan(out).any()
         np.testing.assert_allclose(out, xyz_input[:, 0], rtol=1e-6)
+
+
+class TestAlignCartesianMerged:
+    """Tests for Grid._align_cartesian with merged=True."""
+
+    @pytest.fixture
+    def abutting_grid(self):
+        """Two blocks sharing the constant-x face at their junction."""
+        import ember.fluid
+
+        fluid = ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
+        rm, dr = 0.8, 0.1
+        Nb = int(2 * np.pi * rm / dr)
+        pitch = 2 * np.pi / Nb
+        ni, nj, nk = 3, 4, 5
+        r = [rm - dr / 2, rm + dr / 2]
+        t = [0.0, pitch]
+
+        blocks = []
+        for x in ([0.0, 0.05], [0.05, 0.1]):
+            xrt = util.linmesh3(x, r, t, (ni, nj, nk))
+            block = Block(shape=(ni, nj, nk))
+            block.set_x(xrt[..., 0])
+            block.set_r(xrt[..., 1])
+            block.set_t(xrt[..., 2])
+            block.set_fluid(fluid)
+            blocks.append(block)
+
+        return Grid(blocks)
+
+    @staticmethod
+    def _merged_cloud(grid):
+        """Distinct node coordinates of the grid, in shuffled order."""
+        _f = _flatten(grid)
+        xyz = np.stack([_f.x, _f.y, _f.z], axis=-1).astype(np.float64)
+        # Coincident nodes share bit-identical coordinates here, so an exact
+        # unique merges the junction face.
+        xyz = np.unique(xyz, axis=0)
+        return xyz[np.random.default_rng(0).permutation(len(xyz))]
+
+    def test_merged_cloud(self, abutting_grid):
+        """Every node maps to its own coordinates, junction nodes to one point."""
+        xyz = self._merged_cloud(abutting_grid)
+        nj, nk = abutting_grid[0].shape[1:]
+        assert len(xyz) == abutting_grid.size - nj * nk
+
+        perm, signs, block_indices = abutting_grid._align_cartesian(xyz, merged=True)
+
+        assert perm == (0, 1, 2)
+        assert signs == (1, 1, 1)
+        for block, ind in zip(abutting_grid, block_indices):
+            np.testing.assert_allclose(
+                xyz[ind], np.stack([block.x, block.y, block.z], axis=-1), atol=1e-7
+            )
+        # The last face of the first block is the first face of the second.
+        np.testing.assert_array_equal(block_indices[0][-1], block_indices[1][0])
+
+    def test_merged_leftover_point(self, abutting_grid):
+        """A point that no node lands on is not of this grid."""
+        xyz = self._merged_cloud(abutting_grid)
+        # Off the grid but inside its bounding box, so the alignment itself
+        # still succeeds.
+        stray = xyz.mean(axis=0, keepdims=True) + 1e-3
+        xyz = np.concatenate([xyz, stray])
+
+        with pytest.raises(
+            ValueError, match="No valid coordinate transformation found"
+        ):
+            abutting_grid._align_cartesian(xyz, merged=True)
+
+    def test_merged_needs_flag(self, abutting_grid):
+        """Without the flag the point count must still equal the grid size."""
+        xyz = self._merged_cloud(abutting_grid)
+
+        with pytest.raises(AssertionError, match="Input has .* points, grid has .*"):
+            abutting_grid._align_cartesian(xyz)
+
+    def test_merged_too_many_points(self, abutting_grid):
+        """A merged cloud cannot hold more points than the grid has nodes."""
+        xyz = np.random.randn(abutting_grid.size + 1, 3)
+
+        with pytest.raises(AssertionError, match="more than the grid's"):
+            abutting_grid._align_cartesian(xyz, merged=True)
 
 
 class TestBoundingBoxFunction:

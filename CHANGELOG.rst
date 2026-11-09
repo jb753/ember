@@ -5,6 +5,16 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
+.. _v0.4.8:
+
+0.4.8 (2026-11-09)
+------------------
+
+* Add ``merged`` to ``Grid.align_cart_unstr``, ``set_primitive_cart_unstr``
+  and ``set_conserved_cart_unstr``, to accept a point cloud holding the
+  coincident nodes where blocks meet only once
+* Add ``Block.Omega_wall``, the per-face wall angular velocity in rad/s
+
 .. _v0.4.7:
 
 0.4.7 (2026-11-07)
