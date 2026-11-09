@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.grid &#8212; ember 0.4.7 documentation</title>
+    <title>ember.grid &#8212; ember 0.4.8 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=a78bb796"></script>
+    <script src="../../_static/documentation_options.js?v=4f911454"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.7</p>
+<p class="blurb">Version 0.4.8</p>
 
 
 
@@ -556,13 +556,17 @@
 
         <span class="k">return</span> <span class="n">ordered</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_align_cartesian</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xyz</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_align_cartesian</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xyz</span><span class="p">,</span> <span class="n">merged</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Align Cartesian coordinates with grid by detecting coordinate transformation.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        xyz : array_like, shape (N, 3)</span>
-<span class="sd">            Cartesian coordinates [x, y, z] where N == Grid.size</span>
+<span class="sd">            Cartesian coordinates [x, y, z] where N == Grid.size, or where</span>
+<span class="sd">            N &lt;= Grid.size if `merged`</span>
+<span class="sd">        merged : bool, optional</span>
+<span class="sd">            The cloud holds coincident grid nodes once, so N may be less than</span>
+<span class="sd">            Grid.size; every point must then be the match of some grid node.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
@@ -571,9 +575,14 @@
 <span class="sd">        - block_indices: list of index arrays, one per block with shape block.shape</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">xyz</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">xyz</span><span class="p">)</span>
-        <span class="k">assert</span> <span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Input has </span><span class="si">{</span><span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> points, grid has </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2">&quot;</span>
-        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">merged</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Input has </span><span class="si">{</span><span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> points, more than the grid&#39;s </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Input has </span><span class="si">{</span><span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> points, grid has </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
         <span class="k">assert</span> <span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;xyz must have 3 columns&quot;</span>
 
         <span class="c1"># Phase 1: Coarse alignment using bounding boxes</span>
@@ -637,6 +646,16 @@
 
                 <span class="c1"># flat orders points column-major, so unflatten the same way.</span>
                 <span class="n">block_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">))</span>
+
+            <span class="c1"># Counting points cannot check a merged cloud, so check instead that</span>
+            <span class="c1"># none is left over: a point no node lands on is not of this grid.</span>
+            <span class="c1"># Unmerged, coincident nodes may all land on one of their copies,</span>
+            <span class="c1"># leaving the others unused, so the check only holds when merged.</span>
+            <span class="k">if</span> <span class="n">merged</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">mapping_failed</span><span class="p">:</span>
+                <span class="n">used</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="n">block_indices</span><span class="p">:</span>
+                    <span class="n">used</span><span class="p">[</span><span class="n">ind</span><span class="o">.</span><span class="n">ravel</span><span class="p">()]</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">mapping_failed</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">used</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
 
             <span class="k">if</span> <span class="ow">not</span> <span class="n">mapping_failed</span><span class="p">:</span>
                 <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">perm</span><span class="p">),</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">signs</span><span class="o">.</span><span class="n">ravel</span><span class="p">()),</span> <span class="n">block_indices</span>
@@ -762,7 +781,7 @@
 
 <div class="viewcode-block" id="Grid.set_conserved_cart_unstr">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.Grid.set_conserved_cart_unstr">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">set_conserved_cart_unstr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xyz</span><span class="p">,</span> <span class="n">conserved_cart</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_conserved_cart_unstr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xyz</span><span class="p">,</span> <span class="n">conserved_cart</span><span class="p">,</span> <span class="n">merged</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Set conserved variables from Cartesian unstructured data.</span>
 
 <span class="sd">        Useful for importing flow solutions from unstructured CFD solvers that</span>
@@ -801,6 +820,9 @@
 <span class="sd">            Cartesian coordinates [x, y, z] with components on last axis</span>
 <span class="sd">        conserved_cart : array_like, shape (N, 5)</span>
 <span class="sd">            Cartesian conserved flow variables [rho, rhoVx, rhoVy, rhoVz, rhoe] with components on last axis</span>
+<span class="sd">        merged : bool, optional</span>
+<span class="sd">            The cloud holds coincident grid nodes once; see</span>
+<span class="sd">            :meth:`align_cart_unstr`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Validation</span>
         <span class="k">assert</span> <span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;xyz must have 3 columns&quot;</span>
@@ -811,7 +833,7 @@
         <span class="p">)</span>
 
         <span class="c1"># Step 1: Detect coordinate transformation and get block indices</span>
-        <span class="n">perm</span><span class="p">,</span> <span class="n">signs</span><span class="p">,</span> <span class="n">block_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_align_cartesian</span><span class="p">(</span><span class="n">xyz</span><span class="p">)</span>
+        <span class="n">perm</span><span class="p">,</span> <span class="n">signs</span><span class="p">,</span> <span class="n">block_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_align_cartesian</span><span class="p">(</span><span class="n">xyz</span><span class="p">,</span> <span class="n">merged</span><span class="p">)</span>
 
         <span class="c1"># Step 2: Convert Cartesian conserved variables to polar form</span>
         <span class="n">rho</span> <span class="o">=</span> <span class="n">conserved_cart</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
@@ -888,7 +910,7 @@
 
 <div class="viewcode-block" id="Grid.set_primitive_cart_unstr">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.Grid.set_primitive_cart_unstr">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">set_primitive_cart_unstr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xyz</span><span class="p">,</span> <span class="n">primitive_cart</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_primitive_cart_unstr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xyz</span><span class="p">,</span> <span class="n">primitive_cart</span><span class="p">,</span> <span class="n">merged</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Set primitive variables from Cartesian unstructured data.</span>
 
 <span class="sd">        Useful for importing flow solutions from unstructured CFD solvers that</span>
@@ -915,6 +937,9 @@
 <span class="sd">            Cartesian coordinates [x, y, z] with components on last axis</span>
 <span class="sd">        primitive_cart : array_like, shape (N, 5)</span>
 <span class="sd">            Cartesian primitive flow variables [rho, Vx, Vy, Vz, P] with components on last axis</span>
+<span class="sd">        merged : bool, optional</span>
+<span class="sd">            The cloud holds coincident grid nodes once; see</span>
+<span class="sd">            :meth:`align_cart_unstr`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Validation</span>
         <span class="k">assert</span> <span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;xyz must have 3 columns&quot;</span>
@@ -929,7 +954,7 @@
         <span class="n">primitive_cart_fp64</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">primitive_cart</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
 
         <span class="c1"># Step 1: Detect coordinate transformation and get block indices</span>
-        <span class="n">perm</span><span class="p">,</span> <span class="n">signs</span><span class="p">,</span> <span class="n">block_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_align_cartesian</span><span class="p">(</span><span class="n">xyz_fp64</span><span class="p">)</span>
+        <span class="n">perm</span><span class="p">,</span> <span class="n">signs</span><span class="p">,</span> <span class="n">block_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_align_cartesian</span><span class="p">(</span><span class="n">xyz_fp64</span><span class="p">,</span> <span class="n">merged</span><span class="p">)</span>
 
         <span class="c1"># Step 2: Convert Cartesian primitive variables to polar form</span>
         <span class="n">rho</span> <span class="o">=</span> <span class="n">primitive_cart_fp64</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
@@ -1078,7 +1103,7 @@
 
 <div class="viewcode-block" id="Grid.align_cart_unstr">
 <a class="viewcode-back" href="../../api/grid.html#ember.grid.Grid.align_cart_unstr">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">align_cart_unstr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xyz</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">align_cart_unstr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xyz</span><span class="p">,</span> <span class="n">merged</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Map an unstructured Cartesian point cloud onto this grid&#39;s nodes.</span>
 
 <span class="sd">        Detects the coordinate permutation and sign flips that bring ``xyz``</span>
@@ -1096,7 +1121,12 @@
 <span class="sd">        ----------</span>
 <span class="sd">        xyz : array_like, shape (N, 3)</span>
 <span class="sd">            Cartesian coordinates :math:`(x, y, z)`, where ``N`` must equal</span>
-<span class="sd">            :attr:`size`.</span>
+<span class="sd">            :attr:`size` unless `merged`.</span>
+<span class="sd">        merged : bool, optional</span>
+<span class="sd">            The cloud holds each set of coincident grid nodes once, as an</span>
+<span class="sd">            unstructured mesh does where blocks meet, so ``N`` may be less than</span>
+<span class="sd">            :attr:`size` and several nodes map to one point. Every point must</span>
+<span class="sd">            then be the match of at least one node. Default False.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
@@ -1111,7 +1141,8 @@
 <span class="sd">        Raises</span>
 <span class="sd">        ------</span>
 <span class="sd">        ValueError</span>
-<span class="sd">            If no transformation aligns the cloud with the grid to tolerance.</span>
+<span class="sd">            If no transformation aligns the cloud with the grid to tolerance, or,</span>
+<span class="sd">            if `merged`, leaves no point of the cloud unmatched.</span>
 
 <span class="sd">        Examples</span>
 <span class="sd">        --------</span>
@@ -1122,7 +1153,7 @@
 <span class="sd">        &gt;&gt;&gt; for block, ind in zip(grid, block_indices):  # doctest: +SKIP</span>
 <span class="sd">        ...     out[ind.flatten()] = block.wdist.flatten()  # doctest: +SKIP</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_align_cartesian</span><span class="p">(</span><span class="n">xyz</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_align_cartesian</span><span class="p">(</span><span class="n">xyz</span><span class="p">,</span> <span class="n">merged</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="Grid.apply_bconds">

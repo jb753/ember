@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Block &#8212; ember 0.4.7 documentation</title>
+    <title>Block &#8212; ember 0.4.8 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=a78bb796"></script>
+    <script src="../_static/documentation_options.js?v=4f911454"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.7</p>
+<p class="blurb">Version 0.4.8</p>
 
 
 
@@ -165,6 +165,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.Nb"><code class="docutils literal notranslate"><span class="pre">Nb</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.Omega"><code class="docutils literal notranslate"><span class="pre">Omega</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.Omega_nd"><code class="docutils literal notranslate"><span class="pre">Omega_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.Omega_wall"><code class="docutils literal notranslate"><span class="pre">Omega_wall</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.Omega_wall_nd"><code class="docutils literal notranslate"><span class="pre">Omega_wall_nd</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.P_nd"><code class="docutils literal notranslate"><span class="pre">P_nd</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.P_offset_nd"><code class="docutils literal notranslate"><span class="pre">P_offset_nd</span></code></a></li>
@@ -969,16 +970,19 @@ conserved variables themselves.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.Omega" title="ember.block.Block.Omega"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.Omega</span></code></a></p></td>
 <td><p>Reference frame angular velocity <span class="math notranslate nohighlight">\(\Omega\)</span> [rad/s], scalar float.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.patches" title="ember.block.Block.patches"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.patches</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.Omega_wall" title="ember.block.Block.Omega_wall"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.Omega_wall</span></code></a></p></td>
+<td><p>Per-face wall angular velocity dict [rad/s].</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.patches" title="ember.block.Block.patches"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.patches</span></code></a></p></td>
 <td><p>Boundary conditions for the block.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.pitch" title="ember.block.Block.pitch"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.pitch</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.pitch" title="ember.block.Block.pitch"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.pitch</span></code></a></p></td>
 <td><p>Circumferential pitch [rad].</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.rpm" title="ember.block.Block.rpm"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.rpm</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.rpm" title="ember.block.Block.rpm"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.rpm</span></code></a></p></td>
 <td><p>Reference frame revolutions per minute [rpm]</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.triangulated" title="ember.block.Block.triangulated"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.triangulated</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.triangulated" title="ember.block.Block.triangulated"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.triangulated</span></code></a></p></td>
 <td><p>Whether the data represents a triangulated mesh.</p></td>
 </tr>
 </tbody>
@@ -2383,10 +2387,22 @@ full block.</p>
 </dd></dl>
 
 <dl class="py property">
+<dt class="sig sig-object py" id="ember.block.Block.Omega_wall">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Omega_wall</span></span><a class="headerlink" href="#ember.block.Block.Omega_wall" title="Link to this definition">¶</a></dt>
+<dd><p>Per-face wall angular velocity dict [rad/s].</p>
+<p>Keys omega_walli1, omega_wallni, etc., each a float32 array of the same
+shape as the corresponding <a class="reference internal" href="#ember.block.Block.ijk_wall_visc" title="ember.block.Block.ijk_wall_visc"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ijk_wall_visc</span></code></a> array, so the two can
+be read together to find each wall face and the speed it turns at.
+Defaults to <a class="reference internal" href="#ember.block.Block.Omega" title="ember.block.Block.Omega"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Omega</span></code></a> on all faces; overridden by RotatingPatch
+faces.</p>
+<p>See <a class="reference internal" href="#ember.block.Block.Omega_wall_nd" title="ember.block.Block.Omega_wall_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Omega_wall_nd</span></code></a> for the nondimensional form.</p>
+</dd></dl>
+
+<dl class="py property">
 <dt class="sig sig-object py" id="ember.block.Block.Omega_wall_nd">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Omega_wall_nd</span></span><a class="headerlink" href="#ember.block.Block.Omega_wall_nd" title="Link to this definition">¶</a></dt>
 <dd><p>Per-face wall angular velocity dict (nondimensional).</p>
-<p>Keys Omega_walli1_nd, Omega_wallni_nd, etc., each a float32 array of the
+<p>Keys omega_walli1_nd, omega_wallni_nd, etc., each a float32 array of the
 same shape as the corresponding wall array. Defaults to Omega_nd on all
 faces; overridden by RotatingPatch faces.</p>
 </dd></dl>

@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Grid &#8212; ember 0.4.7 documentation</title>
+    <title>Grid &#8212; ember 0.4.8 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=a78bb796"></script>
+    <script src="../_static/documentation_options.js?v=4f911454"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.7</p>
+<p class="blurb">Version 0.4.8</p>
 
 
 
@@ -381,7 +381,7 @@ solution on another grid, or an unstructured cloud of points, mapped
 onto the grid’s structured topology via <a class="reference internal" href="#ember.grid.Grid.align_cart_unstr" title="ember.grid.Grid.align_cart_unstr"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Grid.align_cart_unstr()</span></code></a>.</p>
 <table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.align_cart_unstr" title="ember.grid.Grid.align_cart_unstr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.align_cart_unstr</span></code></a>(xyz)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.align_cart_unstr" title="ember.grid.Grid.align_cart_unstr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.align_cart_unstr</span></code></a>(xyz[, merged])</p></td>
 <td><p>Map an unstructured Cartesian point cloud onto this grid's nodes.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.apply_guess_meridional" title="ember.grid.Grid.apply_guess_meridional"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.apply_guess_meridional</span></code></a>(block_guess[, ...])</p></td>
@@ -396,10 +396,10 @@ onto the grid’s structured topology via <a class="reference internal" href="#e
 <tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.interp_from_grid" title="ember.grid.Grid.interp_from_grid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.interp_from_grid</span></code></a>(src)</p></td>
 <td><p>Interpolate the solution from another grid onto this one.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.set_conserved_cart_unstr" title="ember.grid.Grid.set_conserved_cart_unstr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.set_conserved_cart_unstr</span></code></a>(xyz, ...)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.set_conserved_cart_unstr" title="ember.grid.Grid.set_conserved_cart_unstr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.set_conserved_cart_unstr</span></code></a>(xyz, ...[, merged])</p></td>
 <td><p>Set conserved variables from Cartesian unstructured data.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.set_primitive_cart_unstr" title="ember.grid.Grid.set_primitive_cart_unstr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.set_primitive_cart_unstr</span></code></a>(xyz, ...)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.set_primitive_cart_unstr" title="ember.grid.Grid.set_primitive_cart_unstr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.set_primitive_cart_unstr</span></code></a>(xyz, ...[, merged])</p></td>
 <td><p>Set primitive variables from Cartesian unstructured data.</p></td>
 </tr>
 </tbody>
@@ -535,7 +535,7 @@ working fluid, reference length, mean radius, and total node count.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="ember.grid.Grid.set_conserved_cart_unstr">
-<span class="sig-name descname"><span class="pre">set_conserved_cart_unstr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conserved_cart</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.set_conserved_cart_unstr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.set_conserved_cart_unstr" title="Link to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">set_conserved_cart_unstr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conserved_cart</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">merged</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.set_conserved_cart_unstr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.set_conserved_cart_unstr" title="Link to this definition">¶</a></dt>
 <dd><p>Set conserved variables from Cartesian unstructured data.</p>
 <p>Useful for importing flow solutions from unstructured CFD solvers that
 store data on arbitrary point clouds in Cartesian coordinates.</p>
@@ -566,6 +566,8 @@ datum-free. See <a class="reference internal" href="fluid.html#datum-state"><spa
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>xyz</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>N</em><em>, </em><em>3</em><em>)</em>) – Cartesian coordinates [x, y, z] with components on last axis</p></li>
 <li><p><strong>conserved_cart</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>N</em><em>, </em><em>5</em><em>)</em>) – Cartesian conserved flow variables [rho, rhoVx, rhoVy, rhoVz, rhoe] with components on last axis</p></li>
+<li><p><strong>merged</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>optional</em>) – The cloud holds coincident grid nodes once; see
+<a class="reference internal" href="#ember.grid.Grid.align_cart_unstr" title="ember.grid.Grid.align_cart_unstr"><code class="xref py py-meth docutils literal notranslate"><span class="pre">align_cart_unstr()</span></code></a>.</p></li>
 </ul>
 </dd>
 </dl>
@@ -604,7 +606,7 @@ nondimensionalisation.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="ember.grid.Grid.set_primitive_cart_unstr">
-<span class="sig-name descname"><span class="pre">set_primitive_cart_unstr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">primitive_cart</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.set_primitive_cart_unstr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.set_primitive_cart_unstr" title="Link to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">set_primitive_cart_unstr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">primitive_cart</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">merged</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.set_primitive_cart_unstr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.set_primitive_cart_unstr" title="Link to this definition">¶</a></dt>
 <dd><p>Set primitive variables from Cartesian unstructured data.</p>
 <p>Useful for importing flow solutions from unstructured CFD solvers that
 store data on arbitrary point clouds in Cartesian coordinates.</p>
@@ -623,6 +625,8 @@ primitive state <span class="math notranslate nohighlight">\((\rho,\ V_x,\ V_r,\
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>xyz</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>N</em><em>, </em><em>3</em><em>)</em>) – Cartesian coordinates [x, y, z] with components on last axis</p></li>
 <li><p><strong>primitive_cart</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>N</em><em>, </em><em>5</em><em>)</em>) – Cartesian primitive flow variables [rho, Vx, Vy, Vz, P] with components on last axis</p></li>
+<li><p><strong>merged</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>optional</em>) – The cloud holds coincident grid nodes once; see
+<a class="reference internal" href="#ember.grid.Grid.align_cart_unstr" title="ember.grid.Grid.align_cart_unstr"><code class="xref py py-meth docutils literal notranslate"><span class="pre">align_cart_unstr()</span></code></a>.</p></li>
 </ul>
 </dd>
 </dl>
@@ -680,7 +684,7 @@ it only at zero gain.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="ember.grid.Grid.align_cart_unstr">
-<span class="sig-name descname"><span class="pre">align_cart_unstr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xyz</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.align_cart_unstr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.align_cart_unstr" title="Link to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">align_cart_unstr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">merged</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.align_cart_unstr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.align_cart_unstr" title="Link to this definition">¶</a></dt>
 <dd><p>Map an unstructured Cartesian point cloud onto this grid’s nodes.</p>
 <p>Detects the coordinate permutation and sign flips that bring <code class="docutils literal notranslate"><span class="pre">xyz</span></code>
 into the grid’s own Cartesian frame, then locates each grid node within
@@ -693,8 +697,14 @@ scattering <a class="reference internal" href="block.html#ember.block.Block.wdis
 node array.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>xyz</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>N</em><em>, </em><em>3</em><em>)</em>) – Cartesian coordinates <span class="math notranslate nohighlight">\((x, y, z)\)</span>, where <code class="docutils literal notranslate"><span class="pre">N</span></code> must equal
-<a class="reference internal" href="#ember.grid.Grid.size" title="ember.grid.Grid.size"><code class="xref py py-attr docutils literal notranslate"><span class="pre">size</span></code></a>.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>xyz</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>N</em><em>, </em><em>3</em><em>)</em>) – Cartesian coordinates <span class="math notranslate nohighlight">\((x, y, z)\)</span>, where <code class="docutils literal notranslate"><span class="pre">N</span></code> must equal
+<a class="reference internal" href="#ember.grid.Grid.size" title="ember.grid.Grid.size"><code class="xref py py-attr docutils literal notranslate"><span class="pre">size</span></code></a> unless <cite>merged</cite>.</p></li>
+<li><p><strong>merged</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a><em>, </em><em>optional</em>) – The cloud holds each set of coincident grid nodes once, as an
+unstructured mesh does where blocks meet, so <code class="docutils literal notranslate"><span class="pre">N</span></code> may be less than
+<a class="reference internal" href="#ember.grid.Grid.size" title="ember.grid.Grid.size"><code class="xref py py-attr docutils literal notranslate"><span class="pre">size</span></code></a> and several nodes map to one point. Every point must
+then be the match of at least one node. Default False.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><ul class="simple">
@@ -706,7 +716,8 @@ node array.</p>
 </p>
 </dd>
 <dt class="field-odd">Raises<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.15)"><strong>ValueError</strong></a> – If no transformation aligns the cloud with the grid to tolerance.</p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.15)"><strong>ValueError</strong></a> – If no transformation aligns the cloud with the grid to tolerance, or,
+    if <cite>merged</cite>, leaves no point of the cloud unmatched.</p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
