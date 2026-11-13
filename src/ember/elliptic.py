@@ -77,6 +77,7 @@ def winslow_sweeps(
     orth=0.0,
     slide_wall=1.0,
     orth_lines=None,
+    relax=1.0,
 ):
     r"""Point-Jacobi sweeps of Winslow's equations, in single precision.
 
@@ -142,6 +143,14 @@ def winslow_sweeps(
         in `y`, each drawn after those towards the same normal from the node
         inside it, at the distance it lies, by `orth` times its line's
         ``weights``.
+    relax : float
+        Fraction of the way every node but the wall nodes moves each sweep,
+        from where the sweep found it to where it would otherwise put it. One,
+        the default, is plain point-Jacobi; below one, under-relaxed, the
+        sweeps damp the node-to-node oscillation that plain point-Jacobi
+        leaves undamped where the grid is skewed, and converge to the same
+        grid more slowly. The wall nodes always keep where they slid, on the
+        wall line.
 
     Returns
     -------
@@ -186,11 +195,26 @@ def winslow_sweeps(
         # As many rows as the wall arrays, which come as one unused entry
         # when there is no wall
         rows = max(n_w, 1)
-        on_n, on_dy, on_w, m_on = np.zeros((rows, 1)), np.zeros((rows, 1)), np.zeros(1), 0
+        on_n, on_dy, on_w, m_on = (
+            np.zeros((rows, 1)),
+            np.zeros((rows, 1)),
+            np.zeros(1),
+            0,
+        )
     on_n = np.asfortranarray(on_n, dtype=i32)
     on_dy = np.asfortranarray(on_dy, dtype=f32)
-    for g in (stencil_g, nodes_i, col_i, nodes_s, col_s, cp_node, cp_corner, wn0, wn1,
-              on_n[:, :m_on]):
+    for g in (
+        stencil_g,
+        nodes_i,
+        col_i,
+        nodes_s,
+        col_s,
+        cp_node,
+        cp_corner,
+        wn0,
+        wn1,
+        on_n[:, :m_on],
+    ):
         g = np.asarray(g)
         if g.size and (g.min() < 0 or g.max() >= n_node):
             raise ValueError(f"Node numbers must lie in [0, {n_node}).")
@@ -224,6 +248,7 @@ def winslow_sweeps(
         float(pitch),
         float(orth),
         reals(np.broadcast_to(np.asarray(slide_wall, dtype=f32), (n_w,))),
+        float(relax),
         int(n_sweep),
         len(nodes_i),
         len(nodes_s),

@@ -98,7 +98,7 @@ subroutine winslow_sweeps(X, sg, ss, &
         sld, sld_ptr, sld_col, sld_w, sld_c, &
         cp_node, cp_corner, cp_dy, cp_f, &
         wn0, wn1, dy0, dy1, line, s_line, floor_, seg0, seg1, &
-        pitch, orth, slide_f, n_sweep, m_irr, m_sld, m_cp, m_w, &
+        pitch, orth, slide_f, relax, n_sweep, m_irr, m_sld, m_cp, m_w, &
         on_n, on_dy, on_w, m_on, &
         n_node, n_reg, n_irr, n_irr_nb, n_sld, n_sld_nb, n_cp, n_w, n_line, n_on)
     ! Point-Jacobi sweeps of Winslow's equations, in place on X.
@@ -124,6 +124,12 @@ subroutine winslow_sweeps(X, sg, ss, &
     !      Then, line by line out, the m_on lines of on_n beyond it, shifted
     !      on_dy in y, likewise from the node inside each, by orth times
     !      that line's on_w, along the same normal.
+    !   6. if relax is not one, every node but the wall nodes moved back to
+    !      relax of the way from where the sweep found it to where 1 to 5 put
+    !      it: under-relaxed, the sweeps damp the node-to-node oscillation that
+    !      plain point-Jacobi leaves undamped where the grid is skewed, and
+    !      converge to the same grid. The wall nodes keep where 4 slid them,
+    !      which is on the wall line.
     !
     ! As in ttm_stencil, the kernel knows nothing of blocks: it works through
     ! the node numbers and pitch shifts it is given, counted from zero. Rows
@@ -158,9 +164,10 @@ subroutine winslow_sweeps(X, sg, ss, &
     double precision, intent(in) :: line(n_line, 2), s_line(n_line)
     double precision, intent(in) :: floor_(n_w)
     integer, intent(inout) :: seg0(n_w), seg1(n_w)
-    real, intent(in) :: pitch, orth, slide_f(n_w)
+    real, intent(in) :: pitch, orth, slide_f(n_w), relax
 
     real :: Xnew(n_reg, 2), Xirr(n_irr, 2), y_sld(n_sld)
+    real, allocatable :: Xold(:, :)
     double precision :: s0(n_w), s1(n_w), s_new(n_w), s_total, v, lo, hi
     real :: xE, yE, xN, yN, xW, yW, xS, yS, xNE, yNE, xNW, yNW, xSW, ySW
     real :: xSE, ySE, xi_x, xi_y, eta_x, eta_y, a, b, c, r
@@ -181,7 +188,11 @@ subroutine winslow_sweeps(X, sg, ss, &
     sense = sign(1.0d0, sense)
     ds_line = s_total / dble(max(n_line - 1, 1))
 
+    if (relax /= 1.0) allocate(Xold(n_node, 2))
+
     do it = 1, n_sweep
+
+        if (relax /= 1.0) Xold = X
 
         ! 1. Regular nodes and singular points, from X as it is.
         do n = 1, n_reg
@@ -344,6 +355,14 @@ subroutine winslow_sweeps(X, sg, ss, &
                     end do
                 end do
             end if
+        end if
+
+        ! 6. Under-relaxed, the wall nodes where they slid.
+        if (relax /= 1.0) then
+            do i = 1, m_w
+                Xold(wn0(i) + 1, :) = X(wn0(i) + 1, :)
+            end do
+            X = Xold + relax * (X - Xold)
         end if
 
     end do

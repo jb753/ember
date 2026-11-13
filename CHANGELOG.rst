@@ -5,6 +5,13 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
+Unreleased
+----------
+
+* Add ``relax`` to ``ember.elliptic.winslow_sweeps``: each sweep moves every
+  node but the wall nodes that fraction of the way, which damps the
+  node-to-node oscillation plain point-Jacobi leaves on skewed grids
+
 .. _v0.4.8:
 
 0.4.8 (2026-11-09)
