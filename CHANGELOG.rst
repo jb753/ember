@@ -10,9 +10,9 @@ public API without a deprecation period.
 0.4.9 (2026-11-17)
 ------------------
 
-* Add a relaxation factor to elliptic Winsolw sweeps to suppress instability
+* Add a relaxation factor to elliptic Winslow sweeps to suppress instability
 * Instead of erroring when a block does not divide evenly into the specified
-  multigrid levels, warn and blocks to run with fewer levels than requested
+  multigrid levels, warn and allow blocks to run with fewer levels than requested
 * Fix mixing out stalling on constant-radius cuts with swirl
 
 .. _v0.4.8:
