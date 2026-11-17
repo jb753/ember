@@ -1,3 +1,24 @@
+! Change-limiter mode, set once per march by set_damp_shared. 0 clips each
+! conserved variable by its own factor (multall's form); 1 clips all five
+! increments of a cell by one shared factor, 1/(1 + max_m |dU_m|/(dampin
+! mean|dU_m|)), so the limiter scales the update without turning it in
+! conserved-variable space. Per variable, a cell whose energy increment is a
+! far larger outlier than its momentum increment keeps its kinetic energy
+! change and loses its total energy change, which cools it.
+module damp_mode
+    implicit none
+    integer :: damp_shared = 0
+end module damp_mode
+
+
+subroutine set_damp_shared(flag)
+    use damp_mode
+    implicit none
+    integer, intent(in) :: flag
+    damp_shared = flag
+end subroutine set_damp_shared
+
+
 
 
 ! No-op coarse-residual smoother: the plain (non-IRS) kernels pass this to
@@ -195,12 +216,13 @@ end subroutine damp_state_update
 ! The sum is over the UNSCALED increment, as multall's is -- SUMCHG is
 ! accumulated in the combine loop at 7714, before the limiter runs at 7736.
 subroutine damp_increment(dU, rfac, dampin, scale, ni, nj, nk, np)
+    use damp_mode
     implicit none
     integer, intent(in) :: ni, nj, nk, np
     real, intent(inout) :: dU(ni-1, nj-1, nk-1, np)
     real, intent(inout) :: rfac(np)
     real,    intent(in) :: dampin, scale
-    real    :: sum_abs(np), s, r, v, a
+    real    :: sum_abs(np), s, r, v, a, g, rs(np)
     integer :: i, j, k, ip
     ! Limiter off: no traversal at all, so fine_term's write is the last thing
     ! to touch dU and the scatter sees exactly what it saw before this routine
@@ -208,6 +230,28 @@ subroutine damp_increment(dU, rfac, dampin, scale, ni, nj, nk, np)
     ! here is enough to perturb the increment by 1 ULP even when the arithmetic
     ! is the identity.
     if (dampin <= 0e0) return
+    if (damp_shared /= 0) then
+        do ip = 1, np
+            sum_abs(ip) = 0e0
+            rs(ip) = rfac(ip) / scale
+        end do
+        do k = 1, nk-1
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    g = 0e0
+                    do ip = 1, np
+                        a = abs(dU(i,j,k,ip))
+                        sum_abs(ip) = sum_abs(ip) + a
+                        g = max(g, a*rs(ip))
+                    end do
+                    g = 1e0 / (1e0 + g)
+                    do ip = 1, np
+                        dU(i,j,k,ip) = dU(i,j,k,ip) * g
+                    end do
+                end do
+            end do
+        end do
+    else
     do ip = 1, np
         ! rfac is stored scale-invariant; recover this call's reciprocal mean.
         r = rfac(ip) / scale
@@ -224,6 +268,7 @@ subroutine damp_increment(dU, rfac, dampin, scale, ni, nj, nk, np)
         end do
         sum_abs(ip) = s
     end do
+    end if
     call damp_state_update(rfac, sum_abs, dampin, scale, &
                            (ni-1)*(nj-1)*(nk-1), np)
 end subroutine damp_increment
@@ -619,6 +664,7 @@ end subroutine mg_collapse_levels
 ! cheap against the dt_vol and q streams it is added to.
 subroutine mg_fine_scatter(src, nci, ncj, nck, base, cons, &
         scale, dt_vol, q, ni, nj, nk, np, rbuf, rfac, dampin)
+    use damp_mode
     implicit none
     integer, intent(in) :: nci, ncj, nck, ni, nj, nk, np
     real, intent(in)    :: src(nci, ncj, nck, np)
@@ -637,7 +683,7 @@ subroutine mg_fine_scatter(src, nci, ncj, nck, base, cons, &
     ! neutrally.
     real, intent(inout) :: rfac(np)
     real,    intent(in) :: dampin
-    real    :: sum_abs(np), s, r, v, a
+    real    :: sum_abs(np), s, r, v, a, g, rs(np)
     integer :: i, j, ip, kc, kb, jb, cur, prev, sw
 
     do ip = 1, np
@@ -673,7 +719,25 @@ subroutine mg_fine_scatter(src, nci, ncj, nck, base, cons, &
         ! pre-limiter code. The cost when it IS on is a read and a write over
         ! two k-planes of rbuf, resident in cache, against the dt_vol and q
         ! streams the assembly already pulls from memory.
-        if (dampin > 0e0) then
+        if (dampin > 0e0 .and. damp_shared /= 0) then
+            do ip = 1, np
+                rs(ip) = rfac(ip) / scale
+            end do
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    g = 0e0
+                    do ip = 1, np
+                        a = abs(rbuf(i,j,ip,cur))
+                        sum_abs(ip) = sum_abs(ip) + a
+                        g = max(g, a*rs(ip))
+                    end do
+                    g = 1e0 / (1e0 + g)
+                    do ip = 1, np
+                        rbuf(i,j,ip,cur) = rbuf(i,j,ip,cur) * g
+                    end do
+                end do
+            end do
+        else if (dampin > 0e0) then
             do ip = 1, np
                 ! rfac is stored scale-invariant; recover this call's reciprocal
                 ! mean. See the damp_increment block above.

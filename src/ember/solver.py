@@ -530,6 +530,16 @@ class Solver(BaseSolver):
     mean|dU|))``, per conserved variable, so cells far above their block mean
     are pulled back towards ``dampin`` times it."""
 
+    damp_shared: bool = False
+    """Clip all five conserved increments of a cell by one shared factor.
+
+    The :attr:`dampin` limiter normally clips each conserved variable by its
+    own factor. Where one variable's increment is a far larger outlier than the
+    others' -- the energy at a node that the scheme is trying to reheat -- that
+    turns the update in conserved-variable space: the momentum change survives
+    and the energy change does not, and the node cools. With this set, every
+    variable of the cell is scaled by the factor of its largest outlier."""
+
     rf_inlet: float | None = 0.05
     """Characteristic under-relaxation
     (:attr:`~ember.patch.NonReflectingPatch.sigma`) on every
@@ -1115,6 +1125,7 @@ def _run(grid, conf):
     _validate_throttle(grid)
 
     _apply_bcond_relaxation(grid, conf)
+    ember.fortran.set_damp_shared(int(conf.damp_shared))
 
     # Initialise timesteps
     grid.update_timestep(rf=1.0, fac_visc=conf.fac_visc)
