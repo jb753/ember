@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.solver &#8212; ember 0.4.8 documentation</title>
+    <title>ember.solver &#8212; ember 0.4.9.dev9+gd2d7e40af documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=4f911454"></script>
+    <script src="../../_static/documentation_options.js?v=9a1c0f49"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.8</p>
+<p class="blurb">Version 0.4.9.dev9+gd2d7e40af</p>
 
 
 
@@ -343,9 +343,11 @@
 <span class="sd">two knobs:</span>
 
 <span class="sd">- :attr:`~Solver.n_levels` -- number of coarse levels; 0 disables</span>
-<span class="sd">  multigrid. Each block&#39;s cell counts must be an exact multiple of the coarsest</span>
-<span class="sd">  block size ``2**n_levels`` in every direction, or :meth:`Solver.run` raises before</span>
-<span class="sd">  marching.</span>
+<span class="sd">  multigrid. A block whose cell counts are not all multiples of the coarsest</span>
+<span class="sd">  block size ``2**n_levels`` runs with as many levels as they divide into,</span>
+<span class="sd">  :attr:`~ember.block.Block.n_levels_max`; :meth:`Solver.run` logs which.</span>
+<span class="sd">  :meth:`Solver.run_fmg`, which halves every block ``n_levels`` times, refuses</span>
+<span class="sd">  such a grid.</span>
 <span class="sd">- :attr:`~Solver.fac_mgrid` -- scaling on the coarse correction; 0 also</span>
 <span class="sd">  disables multigrid.</span>
 <span class="sd">- :attr:`~Solver.expon_mgrid` -- base of the per-level geometric decay applied</span>
@@ -701,6 +703,16 @@
 <span class="sd">    mean|dU|))``, per conserved variable, so cells far above their block mean</span>
 <span class="sd">    are pulled back towards ``dampin`` times it.&quot;&quot;&quot;</span>
 
+    <span class="n">damp_shared</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Clip all five conserved increments of a cell by one shared factor.</span>
+
+<span class="sd">    The :attr:`dampin` limiter normally clips each conserved variable by its</span>
+<span class="sd">    own factor. Where one variable&#39;s increment is a far larger outlier than the</span>
+<span class="sd">    others&#39; -- the energy at a node that the scheme is trying to reheat -- that</span>
+<span class="sd">    turns the update in conserved-variable space: the momentum change survives</span>
+<span class="sd">    and the energy change does not, and the node cools. With this set, every</span>
+<span class="sd">    variable of the cell is scaled by the factor of its largest outlier.&quot;&quot;&quot;</span>
+
     <span class="n">rf_inlet</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="mf">0.05</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Characteristic under-relaxation</span>
 <span class="sd">    (:attr:`~ember.patch.NonReflectingPatch.sigma`) on every</span>
@@ -872,7 +884,14 @@
 <div class="viewcode-block" id="scree_step">
 <a class="viewcode-back" href="../../api/solver.html#ember.solver.scree_step">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">scree_step</span><span class="p">(</span>
-    <span class="n">grid</span><span class="p">,</span> <span class="n">cfl</span><span class="p">,</span> <span class="n">fac_mgrid</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">expon_mgrid</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">n_levels</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sf_irs</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">dampin</span><span class="o">=</span><span class="mf">0.0</span>
+    <span class="n">grid</span><span class="p">,</span>
+    <span class="n">cfl</span><span class="p">,</span>
+    <span class="n">fac_mgrid</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">expon_mgrid</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>
+    <span class="n">n_levels</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">sf_irs</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">dampin</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">damp_shared</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Advance every block one Denton scree step in place.&quot;&quot;&quot;</span>
     <span class="c1"># Preconditions: dt_vol_nd populated and cached P/T consistent with</span>
@@ -888,6 +907,8 @@
     <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">grid</span><span class="p">:</span>
         <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span>
         <span class="n">cell_shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+        <span class="c1"># As deep as asked, or as the block&#39;s cell counts divide into</span>
+        <span class="n">n_levels_block</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">n_levels_eff</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">n_levels_max</span><span class="p">)</span>
         <span class="c1"># block.store is sized to the nodal shape (shared with the RK path) but</span>
         <span class="c1"># the Denton residual history is cell-shaped, so carve a leading</span>
         <span class="c1"># cell-shaped view of it. It is a separate, persistent buffer from the</span>
@@ -899,19 +920,19 @@
         <span class="c1"># flow buffers, and the kernels below reuse the same arena, so it must</span>
         <span class="c1"># be fully materialised first -- passing it as an argument guarantees</span>
         <span class="c1"># that ordering.</span>
-        <span class="k">if</span> <span class="n">n_levels_eff</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">n_levels_block</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="c1"># Denton block-sum multigrid over the scheme-agnostic engine</span>
             <span class="c1"># (mg_restrict_levels), like advance_rk_stage_mg&#39;s coarse path at</span>
             <span class="c1"># alpha=1 but for the scree fine term: every level uses the</span>
             <span class="c1"># Denton-lagged q = 2*residual - store, and the correction is</span>
             <span class="c1"># injected into the fine cell increment, fused with its cell-&gt;node</span>
             <span class="c1"># scatter, so a rolling two-plane buffer serves. sf_irs &gt; 0 picks</span>
-            <span class="c1"># the coarse-IRS kernel; the fine term arrives already smoothed by</span>
-            <span class="c1"># the caller. ONE carve: rbuf and coarse scratch reach one call.</span>
+            <span class="c1"># the coarse-IRS kernel. ONE carve: rbuf (sixth slot: the shared</span>
+            <span class="c1"># limiter&#39;s factor) and coarse scratch reach one call.</span>
             <span class="n">rbuf</span><span class="p">,</span> <span class="o">*</span><span class="n">mg_bufs</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span>
                 <span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
-                <span class="o">*</span><span class="n">mg_coarse_shapes</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="n">n_levels_eff</span><span class="p">),</span>
+                <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+                <span class="o">*</span><span class="n">mg_coarse_shapes</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="n">n_levels_block</span><span class="p">),</span>
             <span class="p">)</span>
             <span class="n">kernel</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">scree_mg_irs</span>
@@ -928,10 +949,11 @@
                 <span class="n">fmgrid</span><span class="o">=</span><span class="n">fac_mgrid</span><span class="p">,</span>
                 <span class="n">expon_mgrid</span><span class="o">=</span><span class="n">expon_mgrid</span><span class="p">,</span>
                 <span class="n">sf_irs</span><span class="o">=</span><span class="n">sf_irs</span><span class="p">,</span>
-                <span class="n">n_levels</span><span class="o">=</span><span class="n">n_levels_eff</span><span class="p">,</span>
+                <span class="n">n_levels</span><span class="o">=</span><span class="n">n_levels_block</span><span class="p">,</span>
                 <span class="n">rbuf</span><span class="o">=</span><span class="n">rbuf</span><span class="p">,</span>
                 <span class="n">rfac</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">damp_rfac</span><span class="p">,</span>
                 <span class="n">dampin</span><span class="o">=</span><span class="n">dampin</span><span class="p">,</span>
+                <span class="n">damp_shared</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">damp_shared</span><span class="p">),</span>
                 <span class="o">**</span><span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">MG_COARSE_NAMES</span><span class="p">,</span> <span class="n">mg_bufs</span><span class="p">)),</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -941,7 +963,9 @@
             <span class="c1"># increment straight onto cons -- bypassing the setters so the P/T</span>
             <span class="c1"># cache stays frozen. Untouched by fac_mgrid/n_levels. This path</span>
             <span class="c1"># still materialises the full-volume increment, as rk_plain does.</span>
-            <span class="n">tmp</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="n">cell_shape</span><span class="p">)</span>
+            <span class="c1"># drow is the shared limiter&#39;s per-cell factor along a row; one</span>
+            <span class="c1"># carve with tmp, as both reach one call.</span>
+            <span class="n">tmp</span><span class="p">,</span> <span class="n">drow</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="n">cell_shape</span><span class="p">,</span> <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,))</span>
             <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">scree_plain</span><span class="p">(</span>
                 <span class="n">cons</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span>
                 <span class="n">residual</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">residual_nd</span><span class="p">,</span>
@@ -949,8 +973,10 @@
                 <span class="n">dt_vol</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">dt_vol_nd</span><span class="p">,</span>
                 <span class="n">cfl</span><span class="o">=</span><span class="n">cfl</span><span class="p">,</span>
                 <span class="n">tmp</span><span class="o">=</span><span class="n">tmp</span><span class="p">,</span>
+                <span class="n">drow</span><span class="o">=</span><span class="n">drow</span><span class="p">,</span>
                 <span class="n">rfac</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">damp_rfac</span><span class="p">,</span>
                 <span class="n">dampin</span><span class="o">=</span><span class="n">dampin</span><span class="p">,</span>
+                <span class="n">damp_shared</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">damp_shared</span><span class="p">),</span>
             <span class="p">)</span></div>
 
 
@@ -1011,7 +1037,15 @@
 <div class="viewcode-block" id="advance_rk_stage_mg">
 <a class="viewcode-back" href="../../api/solver.html#ember.solver.advance_rk_stage_mg">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">advance_rk_stage_mg</span><span class="p">(</span>
-    <span class="n">grid</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">cfl</span><span class="p">,</span> <span class="n">fac_mgrid</span><span class="p">,</span> <span class="n">n_levels</span><span class="p">,</span> <span class="n">expon_mgrid</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">sf_irs</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">dampin</span><span class="o">=</span><span class="mf">0.0</span>
+    <span class="n">grid</span><span class="p">,</span>
+    <span class="n">alpha</span><span class="p">,</span>
+    <span class="n">cfl</span><span class="p">,</span>
+    <span class="n">fac_mgrid</span><span class="p">,</span>
+    <span class="n">n_levels</span><span class="p">,</span>
+    <span class="n">expon_mgrid</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>
+    <span class="n">sf_irs</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">dampin</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">damp_shared</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;One Jameson RK stage, optionally with Denton block-sum multigrid.</span>
 
@@ -1049,7 +1083,9 @@
     <span class="n">n_levels_eff</span> <span class="o">=</span> <span class="n">n_levels</span> <span class="k">if</span> <span class="n">fac_mgrid</span> <span class="o">&gt;</span> <span class="mf">0.0</span> <span class="k">else</span> <span class="mi">0</span>
     <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">grid</span><span class="p">:</span>
         <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span>
-        <span class="k">if</span> <span class="n">n_levels_eff</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># As deep as asked, or as the block&#39;s cell counts divide into</span>
+        <span class="n">n_levels_block</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">n_levels_eff</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">n_levels_max</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">n_levels_block</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="c1"># Multigrid-on RK wrappers over the scheme-agnostic engine</span>
             <span class="c1"># (mg_restrict_levels). sf_irs &gt; 0 selects the coarse-IRS kernel,</span>
             <span class="c1"># otherwise the plain _noirs kernel, which enters no smoothing code</span>
@@ -1057,11 +1093,11 @@
             <span class="c1"># passed. mg_collapse_levels leaves the total in corr_all&#39;s finest</span>
             <span class="c1"># slot and the fine scatter injects it alongside the fine term, so</span>
             <span class="c1"># a rolling two-plane buffer serves in place of a full-volume</span>
-            <span class="c1"># increment. One carve, as in scree_step: both reach one call.</span>
+            <span class="c1"># increment. One carve, as in scree_step; rbuf&#39;s sixth slot too.</span>
             <span class="n">rbuf</span><span class="p">,</span> <span class="o">*</span><span class="n">mg_bufs</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span>
                 <span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
-                <span class="o">*</span><span class="n">mg_coarse_shapes</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="n">n_levels_eff</span><span class="p">,</span> <span class="mi">0</span><span class="p">)),</span>
+                <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+                <span class="o">*</span><span class="n">mg_coarse_shapes</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="n">n_levels_block</span><span class="p">),</span>
             <span class="p">)</span>
             <span class="n">kernel</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">rk_mg_irs</span> <span class="k">if</span> <span class="n">sf_irs</span> <span class="o">&gt;</span> <span class="mf">0.0</span> <span class="k">else</span> <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">rk_mg_noirs</span>
@@ -1077,15 +1113,18 @@
                 <span class="n">fmgrid</span><span class="o">=</span><span class="n">fac_mgrid</span><span class="p">,</span>
                 <span class="n">expon_mgrid</span><span class="o">=</span><span class="n">expon_mgrid</span><span class="p">,</span>
                 <span class="n">sf_irs</span><span class="o">=</span><span class="n">sf_irs</span><span class="p">,</span>
-                <span class="n">n_levels</span><span class="o">=</span><span class="n">n_levels_eff</span><span class="p">,</span>
+                <span class="n">n_levels</span><span class="o">=</span><span class="n">n_levels_block</span><span class="p">,</span>
                 <span class="n">rbuf</span><span class="o">=</span><span class="n">rbuf</span><span class="p">,</span>
                 <span class="n">rfac</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">damp_rfac</span><span class="p">,</span>
                 <span class="n">dampin</span><span class="o">=</span><span class="n">dampin</span><span class="p">,</span>
+                <span class="n">damp_shared</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">damp_shared</span><span class="p">),</span>
                 <span class="o">**</span><span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">MG_COARSE_NAMES</span><span class="p">,</span> <span class="n">mg_bufs</span><span class="p">)),</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># Multigrid off: plain Jameson RK fine-term stage, no coarse scratch.</span>
-            <span class="n">tmp</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+            <span class="n">tmp</span><span class="p">,</span> <span class="n">drow</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">carve_view</span><span class="p">(</span>
+                <span class="n">block</span><span class="o">.</span><span class="n">scratch</span><span class="p">,</span> <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,)</span>
+            <span class="p">)</span>
             <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">rk_plain</span><span class="p">(</span>
                 <span class="n">cons</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">conserved_nd</span><span class="p">,</span>
                 <span class="n">snapshot</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">store</span><span class="p">,</span>
@@ -1094,8 +1133,10 @@
                 <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">,</span>
                 <span class="n">cfl</span><span class="o">=</span><span class="n">cfl</span><span class="p">,</span>
                 <span class="n">tmp</span><span class="o">=</span><span class="n">tmp</span><span class="p">,</span>
+                <span class="n">drow</span><span class="o">=</span><span class="n">drow</span><span class="p">,</span>
                 <span class="n">rfac</span><span class="o">=</span><span class="n">block</span><span class="o">.</span><span class="n">damp_rfac</span><span class="p">,</span>
                 <span class="n">dampin</span><span class="o">=</span><span class="n">dampin</span><span class="p">,</span>
+                <span class="n">damp_shared</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">damp_shared</span><span class="p">),</span>
             <span class="p">)</span></div>
 
 
@@ -1130,6 +1171,7 @@
             <span class="n">expon_mgrid</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">expon_mgrid</span><span class="p">,</span>
             <span class="n">sf_irs</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">sf_resid</span><span class="p">,</span>
             <span class="n">dampin</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">dampin</span><span class="p">,</span>
+            <span class="n">damp_shared</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">damp_shared</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">grid</span><span class="o">.</span><span class="n">update_cached_conserved</span><span class="p">()</span>
         <span class="n">grid</span><span class="o">.</span><span class="n">apply_bconds</span><span class="p">()</span>
@@ -1203,21 +1245,24 @@
             <span class="n">patch</span><span class="o">.</span><span class="n">_reflective</span> <span class="o">=</span> <span class="n">conf</span><span class="o">.</span><span class="n">mix_reflective</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_validate_mg</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">n_levels</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Raise if any block cannot be evenly divided into the coarsest MG blocks.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_mg</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">n_levels</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check ``n_levels`` against the grid, and say which blocks run shallower.</span>
 
 <span class="sd">    Denton block-sum multigrid with ``n_levels`` coarse levels groups cells into</span>
-<span class="sd">    blocks of linear size up to ``2**n_levels``. We require exact division (no</span>
-<span class="sd">    runt edge blocks), so every cell dimension ``ni-1, nj-1, nk-1`` must be a</span>
-<span class="sd">    multiple of the coarsest block size. Since the sizes are powers of two,</span>
-<span class="sd">    divisibility by the coarsest implies it for every finer level, so one check</span>
-<span class="sd">    per dimension suffices. No-op when ``n_levels &lt;= 0``.</span>
+<span class="sd">    blocks of linear size up to ``2**n_levels``, which must divide every cell</span>
+<span class="sd">    count exactly (no runt edge blocks). Each block marches with as many levels</span>
+<span class="sd">    as asked or as its cell counts divide into,</span>
+<span class="sd">    :attr:`~ember.block.Block.n_levels_max`, whichever is fewer: multigrid acts</span>
+<span class="sd">    within a block and nothing passes between blocks at the coarse levels, so a</span>
+<span class="sd">    shallower block converges more slowly but to the same answer. Those blocks</span>
+<span class="sd">    are logged. With `strict`, as for :func:`_run_fmg`, whose resampled chain</span>
+<span class="sd">    halves every block ``n_levels`` times, they are refused instead. No-op when</span>
+<span class="sd">    ``n_levels &lt;= 0``.</span>
 
 <span class="sd">    Also caps ``n_levels`` at :data:`ember.block.MAX_MG_LEVELS`, because the</span>
 <span class="sd">    shared scratch arena is sized for that depth and a deeper hierarchy would</span>
 <span class="sd">    carve past its end. Checked here rather than at allocation so a bad</span>
-<span class="sd">    configuration is refused before marching, alongside the divisibility rule</span>
-<span class="sd">    it belongs with.</span>
+<span class="sd">    configuration is refused before marching.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">n_levels</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">return</span>
@@ -1231,14 +1276,20 @@
         <span class="p">)</span>
     <span class="n">b_coarse</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="n">n_levels</span>
     <span class="k">for</span> <span class="n">i_block</span><span class="p">,</span> <span class="n">block</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
-        <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span>
-        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">n_cell</span> <span class="ow">in</span> <span class="p">((</span><span class="s2">&quot;i&quot;</span><span class="p">,</span> <span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;j&quot;</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="n">nk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)):</span>
-            <span class="k">if</span> <span class="n">n_cell</span> <span class="o">%</span> <span class="n">b_coarse</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Block </span><span class="si">{</span><span class="n">i_block</span><span class="si">}</span><span class="s2"> has </span><span class="si">{</span><span class="n">n_cell</span><span class="si">}</span><span class="s2"> cells in </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> but &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;multigrid n_levels=</span><span class="si">{</span><span class="n">n_levels</span><span class="si">}</span><span class="s2"> needs a multiple of the &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;coarsest block size </span><span class="si">{</span><span class="n">b_coarse</span><span class="si">}</span><span class="s2">.&quot;</span>
-                <span class="p">)</span>
+        <span class="k">if</span> <span class="n">block</span><span class="o">.</span><span class="n">n_levels_max</span> <span class="o">&gt;=</span> <span class="n">n_levels</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">cells</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">strict</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Block </span><span class="si">{</span><span class="n">i_block</span><span class="si">}</span><span class="s2"> has </span><span class="si">{</span><span class="n">cells</span><span class="si">}</span><span class="s2"> cells but multigrid &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;n_levels=</span><span class="si">{</span><span class="n">n_levels</span><span class="si">}</span><span class="s2"> needs every count a multiple of the &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;coarsest block size </span><span class="si">{</span><span class="n">b_coarse</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Block </span><span class="si">{</span><span class="n">i_block</span><span class="si">}</span><span class="s2"> has </span><span class="si">{</span><span class="n">cells</span><span class="si">}</span><span class="s2"> cells, which divide into &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">n_levels_max</span><span class="si">}</span><span class="s2"> multigrid levels, not the </span><span class="si">{</span><span class="n">n_levels</span><span class="si">}</span><span class="s2"> asked &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;for; it runs with </span><span class="si">{</span><span class="n">block</span><span class="o">.</span><span class="n">n_levels_max</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_validate_throttle</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
@@ -1289,7 +1340,8 @@
 <span class="sd">        ``accumulate_avg`` may never have populated).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="c1"># Fail fast if the grid cannot be evenly blocked for multigrid.</span>
+    <span class="c1"># Fail fast on a depth the scratch cannot hold; say which blocks run</span>
+    <span class="c1"># shallower than asked.</span>
     <span class="n">_validate_mg</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_levels</span><span class="p">)</span>
     <span class="n">_validate_throttle</span><span class="p">(</span><span class="n">grid</span><span class="p">)</span>
 
@@ -1381,6 +1433,7 @@
                 <span class="n">n_levels</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">n_levels</span><span class="p">,</span>
                 <span class="n">sf_irs</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">sf_resid</span><span class="p">,</span>
                 <span class="n">dampin</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">dampin</span><span class="p">,</span>
+                <span class="n">damp_shared</span><span class="o">=</span><span class="n">conf</span><span class="o">.</span><span class="n">damp_shared</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">rk_step</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">conf</span><span class="p">)</span>
@@ -1439,7 +1492,7 @@
 <span class="sd">    hierarchy ``n_levels`` already names -- so the coarsest runs plain and the</span>
 <span class="sd">    finest runs at full ``n_levels``, identical to :meth:`Solver.run` on the finest.</span>
 
-<span class="sd">    The single validation ``_validate_mg(grid, n_levels)`` is sufficient for the</span>
+<span class="sd">    The single validation ``_validate_mg(grid, n_levels, strict=True)`` is sufficient for the</span>
 <span class="sd">    whole chain: level ``i`` holds ``N / 2**(n_levels - i)`` cells per dimension</span>
 <span class="sd">    and its depth-``i`` march needs those divisible by ``2**i``, which reduces to</span>
 <span class="sd">    ``N`` (the finest cell count) divisible by ``2**n_levels`` at every level.</span>
@@ -1463,7 +1516,7 @@
 <span class="sd">    list of ConvergenceHistory</span>
 <span class="sd">        Per-level histories, coarsest first, finest last.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">_validate_mg</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_levels</span><span class="p">)</span>
+    <span class="n">_validate_mg</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_levels</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">n_levels</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">[</span><span class="n">_run</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">conf</span><span class="p">)]</span>
 

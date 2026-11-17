@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Block &#8212; ember 0.4.8 documentation</title>
+    <title>Block &#8212; ember 0.4.9.dev9+gd2d7e40af documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=4f911454"></script>
+    <script src="../_static/documentation_options.js?v=9a1c0f49"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.8</p>
+<p class="blurb">Version 0.4.9.dev9+gd2d7e40af</p>
 
 
 
@@ -162,6 +162,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.Max"><code class="docutils literal notranslate"><span class="pre">Max</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.mu_nd"><code class="docutils literal notranslate"><span class="pre">mu_nd</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.mu_turb"><code class="docutils literal notranslate"><span class="pre">mu_turb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.n_levels_max"><code class="docutils literal notranslate"><span class="pre">n_levels_max</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.Nb"><code class="docutils literal notranslate"><span class="pre">Nb</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.Omega"><code class="docutils literal notranslate"><span class="pre">Omega</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ember.block.Block.Omega_nd"><code class="docutils literal notranslate"><span class="pre">Omega_nd</span></code></a></li>
@@ -917,37 +918,40 @@ conserved variables themselves.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.frozen" title="ember.block.Block.frozen"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.frozen</span></code></a></p></td>
 <td><p>Whether this instance is read-only, from <code class="xref py py-meth docutils literal notranslate"><span class="pre">freeze()</span></code>.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.ndim" title="ember.block.Block.ndim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.ndim</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.n_levels_max" title="ember.block.Block.n_levels_max"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.n_levels_max</span></code></a></p></td>
+<td><p>the power of two in their greatest common divisor; <code class="docutils literal notranslate"><span class="pre">int</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.ndim" title="ember.block.Block.ndim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.ndim</span></code></a></p></td>
 <td><p>Number of spatial dimensions.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.ni" title="ember.block.Block.ni"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.ni</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.ni" title="ember.block.Block.ni"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.ni</span></code></a></p></td>
 <td><p>Number of points along first axis.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.nj" title="ember.block.Block.nj"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.nj</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.nj" title="ember.block.Block.nj"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.nj</span></code></a></p></td>
 <td><p>Number of points along second axis.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.nk" title="ember.block.Block.nk"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.nk</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.nk" title="ember.block.Block.nk"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.nk</span></code></a></p></td>
 <td><p>Number of points along third axis.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.nvar" title="ember.block.Block.nvar"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.nvar</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.nvar" title="ember.block.Block.nvar"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.nvar</span></code></a></p></td>
 <td><p>Number of variables stored at each spatial point.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.shape" title="ember.block.Block.shape"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.shape</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.shape" title="ember.block.Block.shape"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.shape</span></code></a></p></td>
 <td><p>Shape of the grid points.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.shape_cell" title="ember.block.Block.shape_cell"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.shape_cell</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.shape_cell" title="ember.block.Block.shape_cell"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.shape_cell</span></code></a></p></td>
 <td><p>Shape of cell-centred arrays <cite>(ni-1, nj-1, nk-1)</cite>.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.shape_iface" title="ember.block.Block.shape_iface"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.shape_iface</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.shape_iface" title="ember.block.Block.shape_iface"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.shape_iface</span></code></a></p></td>
 <td><p>Shape of i-face arrays <cite>(ni, nj-1, nk-1)</cite>.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.shape_jface" title="ember.block.Block.shape_jface"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.shape_jface</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.shape_jface" title="ember.block.Block.shape_jface"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.shape_jface</span></code></a></p></td>
 <td><p>Shape of j-face arrays <cite>(ni-1, nj, nk-1)</cite>.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.shape_kface" title="ember.block.Block.shape_kface"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.shape_kface</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.shape_kface" title="ember.block.Block.shape_kface"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.shape_kface</span></code></a></p></td>
 <td><p>Shape of k-face arrays <cite>(ni-1, nj-1, nk)</cite>.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block.Block.size" title="ember.block.Block.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.size</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.block.Block.size" title="ember.block.Block.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Block.size</span></code></a></p></td>
 <td><p>Total number of spatial points.</p></td>
 </tr>
 </tbody>
@@ -2364,6 +2368,21 @@ full block.</p>
 <dt class="sig sig-object py" id="ember.block.Block.mu_turb">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">mu_turb</span></span><a class="headerlink" href="#ember.block.Block.mu_turb" title="Link to this definition">¶</a></dt>
 <dd><p>Turbulent viscosity <span class="math notranslate nohighlight">\(\mu_\mathrm{turb}\)</span> [kg/m/s].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.block.Block.n_levels_max">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">n_levels_max</span></span><a class="headerlink" href="#ember.block.Block.n_levels_max" title="Link to this definition">¶</a></dt>
+<dd><p>the
+power of two in their greatest common divisor; <code class="docutils literal notranslate"><span class="pre">int</span></code>.</p>
+<p>A fact about the shape alone. How many levels a march asks for, and the
+most it may, are the solver’s: each block runs the lesser of what is
+asked and this.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Most multigrid levels this block’s cell counts all divide into</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py property">

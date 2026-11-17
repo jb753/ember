@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.average &#8212; ember 0.4.8 documentation</title>
+    <title>ember.average &#8212; ember 0.4.9.dev9+gd2d7e40af documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=4f911454"></script>
+    <script src="../../_static/documentation_options.js?v=9a1c0f49"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.8</p>
+<p class="blurb">Version 0.4.9.dev9+gd2d7e40af</p>
 
 
 
@@ -737,6 +737,13 @@
         <span class="o">*</span> <span class="mf">1e-4</span>
     <span class="p">)</span>
 
+    <span class="c1"># The Newton step works in the frame of the cut&#39;s own normal, fixed, so</span>
+    <span class="c1"># one rotation serves every iteration. Not the flow&#39;s pitch angle: through</span>
+    <span class="c1"># a cut the flow crosses obliquely, as at a radial impeller exit, the</span>
+    <span class="c1"># Jacobian there is the flux through the wrong face and the steps wander</span>
+    <span class="c1"># off rather than converge.</span>
+    <span class="n">rot_to</span><span class="p">,</span> <span class="n">rot_from</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">rotation_matrices</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">A</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">A</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
     <span class="c1"># Iteratively adjust conserved variables to match total flow</span>
     <span class="n">rf</span> <span class="o">=</span> <span class="mf">0.1</span>
     <span class="n">max_iter</span> <span class="o">=</span> <span class="mi">10000</span>
@@ -764,14 +771,12 @@
         <span class="k">elif</span> <span class="n">niter</span> <span class="o">-</span> <span class="n">best_iter</span> <span class="o">&gt;</span> <span class="n">n_stall</span><span class="p">:</span>
             <span class="k">break</span>
 
-        <span class="c1"># Resolve to interface-aligned velocities. Beta moves every iteration</span>
-        <span class="c1"># as mix&#39;s state does, so the matrix can&#39;t be hoisted out of the loop</span>
-        <span class="c1"># -- but building both directions from it here, once, means the</span>
-        <span class="c1"># to/from pair below shares one sine and cosine rather than each</span>
-        <span class="c1"># re-deriving its own.</span>
-        <span class="n">Beta</span> <span class="o">=</span> <span class="n">mix</span><span class="o">.</span><span class="n">Beta</span>
-        <span class="n">rot_to</span><span class="p">,</span> <span class="n">rot_from</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">rotation_matrices</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">Beta</span><span class="p">))</span>
+        <span class="c1"># Resolve to velocities through and along the cut, the frame in which</span>
+        <span class="c1"># the Jacobian below is the flux through it. The momentum errors are</span>
+        <span class="c1"># turned into the same frame, so each correction lands on the</span>
+        <span class="c1"># component it belongs to.</span>
         <span class="n">block_util</span><span class="o">.</span><span class="n">resolve_to_interface</span><span class="p">(</span><span class="n">mix</span><span class="p">,</span> <span class="n">rot_to</span><span class="p">)</span>
+        <span class="n">err_flux</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">rot_to</span> <span class="o">@</span> <span class="n">err_flux</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
 
         <span class="c1"># Calculate Jacobian of conserved/flux transformation (nondimensional)</span>
         <span class="n">f2c</span> <span class="o">=</span> <span class="n">perturbation</span><span class="o">.</span><span class="n">flux_to_conserved</span><span class="p">(</span><span class="n">mix</span><span class="p">)</span>
