@@ -78,6 +78,7 @@ def winslow_sweeps(
     slide_wall=1.0,
     orth_lines=None,
     relax=1.0,
+    floors=None,
 ):
     r"""Point-Jacobi sweeps of Winslow's equations, in single precision.
 
@@ -151,6 +152,14 @@ def winslow_sweeps(
         leaves undamped where the grid is skewed, and converge to the same
         grid more slowly. The wall nodes always keep where they slid, on the
         wall line.
+    floors : tuple, optional
+        ``(w_min, on_min)``, shapes (n_wall,) and (n_wall, n_lines): with
+        `orth_lines`, the least length of each cell of each line out from a
+        wall node, the first from the wall node to the node outside it, the
+        rest between the lines of `orth_lines` in turn. Each sweep ends with
+        every node nearer the node inside it than that pushed out along the
+        cell between them to it, line by line out, so the lines keep their
+        thickness where the sweeps would draw them in. None for no floor.
 
     Returns
     -------
@@ -202,6 +211,11 @@ def winslow_sweeps(
             0,
         )
     on_n = np.asfortranarray(on_n, dtype=i32)
+    if floors is not None and m_on:
+        w_min, on_min = floors
+        m_min = 1
+    else:
+        w_min, on_min, m_min = np.zeros(on_n.shape[0]), np.zeros(on_n.shape), 0
     on_dy = np.asfortranarray(on_dy, dtype=f32)
     for g in (
         stencil_g,
@@ -259,6 +273,9 @@ def winslow_sweeps(
         on_dy,
         reals(on_w),
         m_on,
+        reals(np.broadcast_to(np.asarray(w_min, dtype=f32), (on_n.shape[0],))),
+        np.asfortranarray(np.broadcast_to(np.asarray(on_min, dtype=f32), on_n.shape)),
+        m_min,
     )
     return Xf, seg0[:n_w], seg1[:n_w]
 

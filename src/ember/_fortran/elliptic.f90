@@ -99,7 +99,7 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
         cp_node, cp_corner, cp_dy, cp_f, &
         wn0, wn1, dy0, dy1, line, s_line, floor_, seg0, seg1, &
         pitch, orth, slide_f, relax, n_sweep, m_irr, m_sld, m_cp, m_w, &
-        on_n, on_dy, on_w, m_on, &
+        on_n, on_dy, on_w, m_on, w_min, on_min, m_min, &
         n_node, n_reg, n_irr, n_irr_nb, n_sld, n_sld_nb, n_cp, n_w, n_line, n_on)
     ! Point-Jacobi sweeps of Winslow's equations, in place on X.
     !
@@ -130,6 +130,12 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
     !      plain point-Jacobi leaves undamped where the grid is skewed, and
     !      converge to the same grid. The wall nodes keep where 4 slid them,
     !      which is on the wall line.
+    !   7. if m_min is not zero, every line out from a wall node, through the
+    !      node outside it and on through the m_on lines of on_n, held no
+    !      shorter cell by cell than w_min and on_min: line by line out, each
+    !      node lying nearer the node inside it than that pushed out along
+    !      the cell between them to it, so the line keeps its thickness where
+    !      the sweeps would draw it in.
     !
     ! As in ttm_stencil, the kernel knows nothing of blocks: it works through
     ! the node numbers and pitch shifts it is given, counted from zero. Rows
@@ -154,6 +160,8 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
     integer, intent(in) :: n_on, m_on
     integer, intent(in) :: on_n(n_w, n_on)
     real, intent(in) :: on_dy(n_w, n_on), on_w(n_on)
+    integer, intent(in) :: m_min
+    real, intent(in) :: w_min(n_w), on_min(n_w, n_on)
     real, intent(inout) :: X(n_node, 2), Xold(n_node, 2)
     integer, intent(in) :: sg(n_reg, 9), ss(n_reg, 9)
     integer, intent(in) :: irr(n_irr), irr_ptr(n_irr + 1), irr_col(n_irr_nb)
@@ -363,6 +371,38 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
                 Xold(wn0(i) + 1, :) = X(wn0(i) + 1, :)
             end do
             X = Xold + relax * (X - Xold)
+        end if
+
+        ! 7. The lines out from the wall no thinner than their floors.
+        if (m_min /= 0) then
+            do i = 1, m_w - 1
+                ax = X(wn0(i) + 1, 1)
+                ay = X(wn0(i) + 1, 2) + dy0(i)
+                bx = X(wn1(i) + 1, 1)
+                by = X(wn1(i) + 1, 2) + dy1(i)
+                dist = sqrt((bx - ax)**2 + (by - ay)**2)
+                if (dist < w_min(i) .and. dist > 0.0) then
+                    bx = ax + (bx - ax) * (w_min(i) / dist)
+                    by = ay + (by - ay) * (w_min(i) / dist)
+                    X(wn1(i) + 1, 1) = bx
+                    X(wn1(i) + 1, 2) = by - dy1(i)
+                end if
+                ax = bx
+                ay = by
+                do k = 1, m_on
+                    bx = X(on_n(i, k) + 1, 1)
+                    by = X(on_n(i, k) + 1, 2) + on_dy(i, k)
+                    dist = sqrt((bx - ax)**2 + (by - ay)**2)
+                    if (dist < on_min(i, k) .and. dist > 0.0) then
+                        bx = ax + (bx - ax) * (on_min(i, k) / dist)
+                        by = ay + (by - ay) * (on_min(i, k) / dist)
+                        X(on_n(i, k) + 1, 1) = bx
+                        X(on_n(i, k) + 1, 2) = by - on_dy(i, k)
+                    end if
+                    ax = bx
+                    ay = by
+                end do
+            end do
         end if
 
     end do
