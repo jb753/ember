@@ -93,7 +93,7 @@ subroutine ttm_stencil(X, sg, ss, PQ, pitch, w, src, n_node, n_reg)
 
 end subroutine ttm_stencil
 
-subroutine winslow_sweeps(X, sg, ss, &
+subroutine winslow_sweeps(X, Xold, sg, ss, &
         irr, irr_ptr, irr_col, irr_w, irr_c, &
         sld, sld_ptr, sld_col, sld_w, sld_c, &
         cp_node, cp_corner, cp_dy, cp_f, &
@@ -142,6 +142,9 @@ subroutine winslow_sweeps(X, sg, ss, &
     ! are double. The groups' counts m_irr, m_sld, m_cp and m_w are given apart
     ! from their arrays' lengths, which f2py will not let be zero: an empty
     ! group comes as one unused entry.
+    !
+    ! Xold is the caller's scratch for 6, holding X as each sweep found it;
+    ! untouched when relax is one.
 
     implicit none
 
@@ -151,7 +154,7 @@ subroutine winslow_sweeps(X, sg, ss, &
     integer, intent(in) :: n_on, m_on
     integer, intent(in) :: on_n(n_w, n_on)
     real, intent(in) :: on_dy(n_w, n_on), on_w(n_on)
-    real, intent(inout) :: X(n_node, 2)
+    real, intent(inout) :: X(n_node, 2), Xold(n_node, 2)
     integer, intent(in) :: sg(n_reg, 9), ss(n_reg, 9)
     integer, intent(in) :: irr(n_irr), irr_ptr(n_irr + 1), irr_col(n_irr_nb)
     real, intent(in) :: irr_w(n_irr_nb), irr_c(n_irr)
@@ -167,7 +170,6 @@ subroutine winslow_sweeps(X, sg, ss, &
     real, intent(in) :: pitch, orth, slide_f(n_w), relax
 
     real :: Xnew(n_reg, 2), Xirr(n_irr, 2), y_sld(n_sld)
-    real, allocatable :: Xold(:, :)
     double precision :: s0(n_w), s1(n_w), s_new(n_w), s_total, v, lo, hi
     real :: xE, yE, xN, yN, xW, yW, xS, yS, xNE, yNE, xNW, yNW, xSW, ySW
     real :: xSE, ySE, xi_x, xi_y, eta_x, eta_y, a, b, c, r
@@ -187,8 +189,6 @@ subroutine winslow_sweeps(X, sg, ss, &
     end do
     sense = sign(1.0d0, sense)
     ds_line = s_total / dble(max(n_line - 1, 1))
-
-    if (relax /= 1.0) allocate(Xold(n_node, 2))
 
     do it = 1, n_sweep
 

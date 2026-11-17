@@ -220,6 +220,7 @@ def winslow_sweeps(
             raise ValueError(f"Node numbers must lie in [0, {n_node}).")
     ember.fortran.winslow_sweeps(
         Xf,
+        np.empty_like(Xf),  # scratch for the relaxation
         stencil_g,
         np.asfortranarray(stencil_s, dtype=i32),
         ints(nodes_i),
