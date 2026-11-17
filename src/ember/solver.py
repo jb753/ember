@@ -699,7 +699,14 @@ class Solver(BaseSolver):
 
 
 def scree_step(
-    grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0, dampin=0.0
+    grid,
+    cfl,
+    fac_mgrid=0.0,
+    expon_mgrid=2.0,
+    n_levels=0,
+    sf_irs=0.0,
+    dampin=0.0,
+    damp_shared=False,
 ):
     """Advance every block one Denton scree step in place."""
     # Preconditions: dt_vol_nd populated and cached P/T consistent with
@@ -735,11 +742,11 @@ def scree_step(
             # Denton-lagged q = 2*residual - store, and the correction is
             # injected into the fine cell increment, fused with its cell->node
             # scatter, so a rolling two-plane buffer serves. sf_irs > 0 picks
-            # the coarse-IRS kernel; the fine term arrives already smoothed by
-            # the caller. ONE carve: rbuf and coarse scratch reach one call.
+            # the coarse-IRS kernel. ONE carve: rbuf (sixth slot: the shared
+            # limiter's factor) and coarse scratch reach one call.
             rbuf, *mg_bufs = util.carve_view(
                 block.scratch,
-                (ni - 1, nj - 1, 5, 2),
+                (ni - 1, nj - 1, 6, 2),
                 *mg_coarse_shapes(ni, nj, nk, n_levels_block),
             )
             kernel = (
@@ -761,6 +768,7 @@ def scree_step(
                 rbuf=rbuf,
                 rfac=block.damp_rfac,
                 dampin=dampin,
+                damp_shared=int(damp_shared),
                 **dict(zip(MG_COARSE_NAMES, mg_bufs)),
             )
         else:
@@ -770,7 +778,9 @@ def scree_step(
             # increment straight onto cons -- bypassing the setters so the P/T
             # cache stays frozen. Untouched by fac_mgrid/n_levels. This path
             # still materialises the full-volume increment, as rk_plain does.
-            tmp = util.carve_view(block.scratch, cell_shape)
+            # drow is the shared limiter's per-cell factor along a row; one
+            # carve with tmp, as both reach one call.
+            tmp, drow = util.carve_view(block.scratch, cell_shape, (ni - 1,))
             ember.fortran.scree_plain(
                 cons=block.conserved_nd,
                 residual=block.residual_nd,
@@ -778,8 +788,10 @@ def scree_step(
                 dt_vol=block.dt_vol_nd,
                 cfl=cfl,
                 tmp=tmp,
+                drow=drow,
                 rfac=block.damp_rfac,
                 dampin=dampin,
+                damp_shared=int(damp_shared),
             )
 
 
@@ -834,7 +846,15 @@ def mg_coarse_shapes(ni, nj, nk, n_levels):
 
 
 def advance_rk_stage_mg(
-    grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0, dampin=0.0
+    grid,
+    alpha,
+    cfl,
+    fac_mgrid,
+    n_levels,
+    expon_mgrid=2.0,
+    sf_irs=0.0,
+    dampin=0.0,
+    damp_shared=False,
 ):
     r"""One Jameson RK stage, optionally with Denton block-sum multigrid.
 
@@ -882,10 +902,10 @@ def advance_rk_stage_mg(
             # passed. mg_collapse_levels leaves the total in corr_all's finest
             # slot and the fine scatter injects it alongside the fine term, so
             # a rolling two-plane buffer serves in place of a full-volume
-            # increment. One carve, as in scree_step: both reach one call.
+            # increment. One carve, as in scree_step; rbuf's sixth slot too.
             rbuf, *mg_bufs = util.carve_view(
                 block.scratch,
-                (ni - 1, nj - 1, 5, 2),
+                (ni - 1, nj - 1, 6, 2),
                 *mg_coarse_shapes(ni, nj, nk, n_levels_block),
             )
             kernel = (
@@ -906,11 +926,14 @@ def advance_rk_stage_mg(
                 rbuf=rbuf,
                 rfac=block.damp_rfac,
                 dampin=dampin,
+                damp_shared=int(damp_shared),
                 **dict(zip(MG_COARSE_NAMES, mg_bufs)),
             )
         else:
             # Multigrid off: plain Jameson RK fine-term stage, no coarse scratch.
-            tmp = util.carve_view(block.scratch, (ni - 1, nj - 1, nk - 1, 5))
+            tmp, drow = util.carve_view(
+                block.scratch, (ni - 1, nj - 1, nk - 1, 5), (ni - 1,)
+            )
             ember.fortran.rk_plain(
                 cons=block.conserved_nd,
                 snapshot=block.store,
@@ -919,8 +942,10 @@ def advance_rk_stage_mg(
                 alpha=alpha,
                 cfl=cfl,
                 tmp=tmp,
+                drow=drow,
                 rfac=block.damp_rfac,
                 dampin=dampin,
+                damp_shared=int(damp_shared),
             )
 
 
@@ -952,6 +977,7 @@ def rk_step(grid, conf):
             expon_mgrid=conf.expon_mgrid,
             sf_irs=conf.sf_resid,
             dampin=conf.dampin,
+            damp_shared=conf.damp_shared,
         )
         grid.update_cached_conserved()
         grid.apply_bconds()
@@ -1125,7 +1151,6 @@ def _run(grid, conf):
     _validate_throttle(grid)
 
     _apply_bcond_relaxation(grid, conf)
-    ember.fortran.set_damp_shared(int(conf.damp_shared))
 
     # Initialise timesteps
     grid.update_timestep(rf=1.0, fac_visc=conf.fac_visc)
@@ -1213,6 +1238,7 @@ def _run(grid, conf):
                 n_levels=conf.n_levels,
                 sf_irs=conf.sf_resid,
                 dampin=conf.dampin,
+                damp_shared=conf.damp_shared,
             )
         else:
             rk_step(grid, conf)

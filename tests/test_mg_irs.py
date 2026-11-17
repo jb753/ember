@@ -83,7 +83,7 @@ def _run(
         expon_mgrid=expon_mgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
-        rbuf=Z(ni - 1, nj - 1, NP, 2),
+        rbuf=Z(ni - 1, nj - 1, NP + 1, 2),
         dtblk=Z(nc1i, nc1j, nc1k),
         rawbuf=Z(nc1i, nc1j, nc1k, NP),
         sdt=Z(nc1i, nc1j, nc1k),
@@ -92,6 +92,7 @@ def _run(
         triw=Z(n_tri),
         rfac=Z(NP),
         dampin=0.0,
+        damp_shared=0,
     )
     return cons
 
@@ -169,8 +170,10 @@ def test_rk_plain_matches_mg_at_fac_mgrid_zero():
         alpha=1.0,
         cfl=0.4,
         tmp=tmp,
+        drow=np.zeros(NI - 1, dtype=np.float32),
         rfac=np.zeros(NP, dtype=np.float32),
         dampin=0.0,
+        damp_shared=0,
     )
     np.testing.assert_allclose(cons_plain, cons_mg, atol=1e-6, rtol=1e-3)
 

@@ -45,7 +45,7 @@ def _phase_buffers(block):
     # two-plane increment plus the coarse scratch, since both fuse the final
     # prolong with the cell->node scatter -- and with it off both materialise a
     # full-volume cell-shaped increment on its own.
-    mg_on = util.carve_view(block.scratch, (ni - 1, nj - 1, 5, 2), *mg_shapes)
+    mg_on = util.carve_view(block.scratch, (ni - 1, nj - 1, 6, 2), *mg_shapes)
 
     return {
         "update_sources": [*faces, tq, planes, rows, *transport],
@@ -55,7 +55,7 @@ def _phase_buffers(block):
         )
         + [util.carve_view(block.scratch, (ni, nj, nk, 5))],
         "march_mg": list(mg_on),
-        "march_nomg": [util.carve_view(block.scratch, tmp_shape)],
+        "march_nomg": list(util.carve_view(block.scratch, tmp_shape, (ni - 1,))),
     }
 
 

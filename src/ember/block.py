@@ -931,10 +931,12 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
       update_residual  set_residual's rolling planes and rows + the IRS work
                        vector
       scree / RK, MG   the seven multigrid coarse buffers + the caller's
-                       rolling two-plane increment (the prolongation is
-                       injection, collapsed in place inside ``corr_all``)
+                       rolling two-plane increment, with a sixth slot per
+                       plane for the shared limiter's factor (the prolongation
+                       is injection, collapsed in place inside ``corr_all``)
       scree / RK, no MG  the caller's full-volume cell-shaped increment, which
-                       the multigrid-off kernels still materialise
+                       the multigrid-off kernels still materialise, + the
+                       shared limiter's row of factors
       smooth           the constant-coefficient kernel's rolling k-plane
                        buffer, or, with adaptive smoothing on, the nodal
                        sensor factors (3 directions) plus the accumulated
@@ -963,8 +965,8 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
         ni * nj * nk,  # update_timestep
         ni * njp * 5 * 2 + ni * 5 * 3 + ni * nj * nk * 5,  # update_residual
         ni * nj * nk * 4,  # smooth
-        mg + (ni - 1) * (nj - 1) * 5 * 2,  # scree/RK + multigrid
-        (ni - 1) * (nj - 1) * (nk - 1) * 5,  # scree/RK, no multigrid
+        mg + (ni - 1) * (nj - 1) * 6 * 2,  # scree/RK + multigrid
+        (ni - 1) * (nj - 1) * (nk - 1) * 5 + (ni - 1),  # scree/RK, no multigrid
     )
 
 
