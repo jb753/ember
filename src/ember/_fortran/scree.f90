@@ -194,12 +194,27 @@ end subroutine damp_state_update
 !
 ! The sum is over the UNSCALED increment, as multall's is -- SUMCHG is
 ! accumulated in the combine loop at 7714, before the limiter runs at 7736.
-subroutine damp_increment(dU, rfac, dampin, scale, ni, nj, nk, np)
+!
+! damp_shared picks the limiter's form. 0 clips each conserved variable by its
+! own factor (multall's form); nonzero clips all five increments of a cell by
+! one shared factor, 1/(1 + max_m |dU_m|/(dampin mean|dU_m|)), so the limiter
+! scales the update without turning it in conserved-variable space. Per
+! variable, a cell whose energy increment is a far larger outlier than its
+! momentum increment keeps its kinetic energy change and loses its total
+! energy change, which cools it.
+!
+! The shared mode needs each cell's largest outlier before it can scale any of
+! the cell's variables. Taking it variable by variable along a row of i, into
+! the caller's drow, keeps every inner loop running along i so it vectorizes;
+! a loop over the np variables inside the i loop does not.
+subroutine damp_increment(dU, rfac, dampin, damp_shared, scale, drow, &
+        ni, nj, nk, np)
     implicit none
-    integer, intent(in) :: ni, nj, nk, np
+    integer, intent(in) :: ni, nj, nk, np, damp_shared
     real, intent(inout) :: dU(ni-1, nj-1, nk-1, np)
     real, intent(inout) :: rfac(np)
     real,    intent(in) :: dampin, scale
+    real, intent(inout) :: drow(ni-1)
     real    :: sum_abs(np), s, r, v, a
     integer :: i, j, k, ip
     ! Limiter off: no traversal at all, so fine_term's write is the last thing
@@ -208,6 +223,36 @@ subroutine damp_increment(dU, rfac, dampin, scale, ni, nj, nk, np)
     ! here is enough to perturb the increment by 1 ULP even when the arithmetic
     ! is the identity.
     if (dampin <= 0e0) return
+    if (damp_shared /= 0) then
+        do ip = 1, np
+            sum_abs(ip) = 0e0
+        end do
+        do k = 1, nk-1
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    drow(i) = 0e0
+                end do
+                do ip = 1, np
+                    r = rfac(ip) / scale
+                    s = 0e0
+                    do i = 1, ni-1
+                        a = abs(dU(i,j,k,ip))
+                        s = s + a
+                        drow(i) = max(drow(i), a*r)
+                    end do
+                    sum_abs(ip) = sum_abs(ip) + s
+                end do
+                do i = 1, ni-1
+                    drow(i) = 1e0 / (1e0 + drow(i))
+                end do
+                do ip = 1, np
+                    do i = 1, ni-1
+                        dU(i,j,k,ip) = dU(i,j,k,ip) * drow(i)
+                    end do
+                end do
+            end do
+        end do
+    else
     do ip = 1, np
         ! rfac is stored scale-invariant; recover this call's reciprocal mean.
         r = rfac(ip) / scale
@@ -224,6 +269,7 @@ subroutine damp_increment(dU, rfac, dampin, scale, ni, nj, nk, np)
         end do
         sum_abs(ip) = s
     end do
+    end if
     call damp_state_update(rfac, sum_abs, dampin, scale, &
                            (ni-1)*(nj-1)*(nk-1), np)
 end subroutine damp_increment
@@ -618,9 +664,9 @@ end subroutine mg_collapse_levels
 ! from an array an eighth the size, resident in cache, so even scalarised it is
 ! cheap against the dt_vol and q streams it is added to.
 subroutine mg_fine_scatter(src, nci, ncj, nck, base, cons, &
-        scale, dt_vol, q, ni, nj, nk, np, rbuf, rfac, dampin)
+        scale, dt_vol, q, ni, nj, nk, np, rbuf, rfac, dampin, damp_shared)
     implicit none
-    integer, intent(in) :: nci, ncj, nck, ni, nj, nk, np
+    integer, intent(in) :: nci, ncj, nck, ni, nj, nk, np, damp_shared
     real, intent(in)    :: src(nci, ncj, nck, np)
     real, intent(in)    :: scale
     real, intent(in)    :: dt_vol(ni-1, nj-1, nk-1)
@@ -630,7 +676,10 @@ subroutine mg_fine_scatter(src, nci, ncj, nck, base, cons, &
     ! scree passes cons itself and the aliasing is benign (every node is read
     ! and written at its own index within one statement).
     real, intent(inout) :: cons(ni, nj, nk, np)
-    real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
+    ! Slots 1..np of each plane hold the increment; slot np+1 is scratch for
+    ! the shared limiter's per-cell factor, which only the plane being built
+    ! uses, so the emits never read it.
+    real, intent(inout) :: rbuf(ni-1, nj-1, np+1, 2)
     ! Change-limiter state: lagged reciprocal normaliser in, rolled on exit.
     ! dampin <= 0 skips the limiter pass entirely and leaves rfac at zero. See
     ! the damp_increment block above for why it is skipped rather than run
@@ -638,7 +687,7 @@ subroutine mg_fine_scatter(src, nci, ncj, nck, base, cons, &
     real, intent(inout) :: rfac(np)
     real,    intent(in) :: dampin
     real    :: sum_abs(np), s, r, v, a
-    integer :: i, j, ip, kc, kb, jb, cur, prev, sw
+    integer :: i, j, ip, kc, kb, jb, cur, prev, sw, gp
 
     do ip = 1, np
         sum_abs(ip) = 0e0
@@ -673,7 +722,40 @@ subroutine mg_fine_scatter(src, nci, ncj, nck, base, cons, &
         ! pre-limiter code. The cost when it IS on is a read and a write over
         ! two k-planes of rbuf, resident in cache, against the dt_vol and q
         ! streams the assembly already pulls from memory.
-        if (dampin > 0e0) then
+        if (dampin > 0e0 .and. damp_shared /= 0) then
+            ! The per-cell factor for the whole plane, in slot np+1, so each
+            ! pass runs over the plane variable by variable and vectorizes.
+            gp = np + 1
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    rbuf(i,j,gp,cur) = 0e0
+                end do
+            end do
+            do ip = 1, np
+                r = rfac(ip) / scale
+                s = 0e0
+                do j = 1, nj-1
+                    do i = 1, ni-1
+                        a = abs(rbuf(i,j,ip,cur))
+                        s = s + a
+                        rbuf(i,j,gp,cur) = max(rbuf(i,j,gp,cur), a*r)
+                    end do
+                end do
+                sum_abs(ip) = sum_abs(ip) + s
+            end do
+            do j = 1, nj-1
+                do i = 1, ni-1
+                    rbuf(i,j,gp,cur) = 1e0 / (1e0 + rbuf(i,j,gp,cur))
+                end do
+            end do
+            do ip = 1, np
+                do j = 1, nj-1
+                    do i = 1, ni-1
+                        rbuf(i,j,ip,cur) = rbuf(i,j,ip,cur) * rbuf(i,j,gp,cur)
+                    end do
+                end do
+            end do
+        else if (dampin > 0e0) then
             do ip = 1, np
                 ! rfac is stored scale-invariant; recover this call's reciprocal
                 ! mean. See the damp_increment block above.
@@ -787,8 +869,8 @@ end subroutine mg_fine_scatter
 
 
 ! scree, multigrid off: form q, fine term only, roll history and frozen-scatter.
-subroutine scree_plain(cons, residual, store, dt_vol, cfl, tmp, rfac, dampin, &
-        ni, nj, nk, np)
+subroutine scree_plain(cons, residual, store, dt_vol, cfl, tmp, drow, rfac, &
+        dampin, damp_shared, ni, nj, nk, np)
     implicit none
     integer, intent(in) :: ni, nj, nk, np
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
@@ -797,18 +879,21 @@ subroutine scree_plain(cons, residual, store, dt_vol, cfl, tmp, rfac, dampin, &
     real, intent(inout) :: store(ni-1, nj-1, nk-1, np)  ! in: (dF/dt)_{n-1}; out: (dF/dt)_n
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: drow(ni-1)
     real, intent(inout) :: rfac(np)
+    integer, intent(in) :: damp_shared
 
     call scree_form_q(store, residual, ni, nj, nk, np)
     call fine_term(store, dt_vol, cfl, tmp, ni, nj, nk, np)
-    call damp_increment(tmp, rfac, dampin, cfl, ni, nj, nk, np)
+    call damp_increment(tmp, rfac, dampin, damp_shared, cfl, drow, &
+                        ni, nj, nk, np)
     call scree_roll_and_scatter(cons, residual, store, tmp, ni, nj, nk, np)
 end subroutine scree_plain
 
 
 ! RK stage, multigrid off: fine term only (q = residual), scatter off snapshot.
 subroutine rk_plain(cons, snapshot, residual, dt_vol, alpha, cfl, tmp, &
-        rfac, dampin, ni, nj, nk, np)
+        drow, rfac, dampin, damp_shared, ni, nj, nk, np)
     implicit none
     integer, intent(in) :: ni, nj, nk, np
     real,    intent(in) :: residual(ni-1, nj-1, nk-1, np)
@@ -817,10 +902,13 @@ subroutine rk_plain(cons, snapshot, residual, dt_vol, alpha, cfl, tmp, &
     real,    intent(in) :: snapshot(ni, nj, nk, np)
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: tmp(ni-1, nj-1, nk-1, np)
+    real, intent(inout) :: drow(ni-1)
     real, intent(inout) :: rfac(np)
+    integer, intent(in) :: damp_shared
 
     call fine_term(residual, dt_vol, alpha*cfl, tmp, ni, nj, nk, np)
-    call damp_increment(tmp, rfac, dampin, alpha*cfl, ni, nj, nk, np)
+    call damp_increment(tmp, rfac, dampin, damp_shared, alpha*cfl, drow, &
+                        ni, nj, nk, np)
     ! cons = snapshot + cell_to_node(tmp). Distinct in/out (snapshot vs cons).
     call cell_to_node_generic(tmp, snapshot, cons, ni, nj, nk, np)
 end subroutine rk_plain
@@ -841,7 +929,7 @@ end subroutine rk_plain
 ! scree, multigrid on, coarse-level IRS.
 subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
         fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, rawbuf, sdt, sv, &
-        corr_all, triw, rfac, dampin, &
+        corr_all, triw, rfac, dampin, damp_shared, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_tri)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
@@ -852,7 +940,7 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
     real,    intent(in) :: cfl, fmgrid, expon_mgrid, sf_irs
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: store(ni-1, nj-1, nk-1, np)   ! in: (dF/dt)_{n-1}; out: rolled to residual
-    real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
+    real, intent(inout) :: rbuf(ni-1, nj-1, np+1, 2)
     real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
     real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
     real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
@@ -861,6 +949,7 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
     real, intent(inout) :: triw(n_tri)
     real, intent(inout) :: rfac(np)
     real,    intent(in) :: dampin
+    integer, intent(in) :: damp_shared
     external :: smooth_residual_tri_tiled
 
     call scree_form_q(store, residual, ni, nj, nk, np)
@@ -871,7 +960,8 @@ subroutine scree_mg_irs(cons, residual, store, dt_vol, vol, cfl, &
     call mg_collapse_levels(corr_all, n_levels, ni, nj, nk, np, n_corr)
     call mg_fine_scatter(corr_all(n_corr - nc1i*nc1j*nc1k*np + 1), &
                        nc1i, nc1j, nc1k, cons, cons, &
-                       cfl, dt_vol, store, ni, nj, nk, np, rbuf, rfac, dampin)
+                       cfl, dt_vol, store, ni, nj, nk, np, rbuf, rfac, dampin, &
+                       damp_shared)
     call scree_roll(residual, store, ni, nj, nk, np)
 end subroutine scree_mg_irs
 
@@ -879,7 +969,7 @@ end subroutine scree_mg_irs
 ! scree, multigrid on, no smoothing.
 subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
         fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, rawbuf, sdt, sv, &
-        corr_all, triw, rfac, dampin, &
+        corr_all, triw, rfac, dampin, damp_shared, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_tri)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
@@ -890,7 +980,7 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
     real,    intent(in) :: cfl, fmgrid, expon_mgrid, sf_irs
     real, intent(inout) :: cons(ni, nj, nk, np)
     real, intent(inout) :: store(ni-1, nj-1, nk-1, np)   ! in: (dF/dt)_{n-1}; out: rolled to residual
-    real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
+    real, intent(inout) :: rbuf(ni-1, nj-1, np+1, 2)
     real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
     real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
     real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
@@ -899,6 +989,7 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
     real, intent(inout) :: triw(n_tri)
     real, intent(inout) :: rfac(np)
     real,    intent(in) :: dampin
+    integer, intent(in) :: damp_shared
     external :: mg_smooth_noop
 
     call scree_form_q(store, residual, ni, nj, nk, np)
@@ -909,7 +1000,8 @@ subroutine scree_mg_noirs(cons, residual, store, dt_vol, vol, cfl, &
     call mg_collapse_levels(corr_all, n_levels, ni, nj, nk, np, n_corr)
     call mg_fine_scatter(corr_all(n_corr - nc1i*nc1j*nc1k*np + 1), &
                        nc1i, nc1j, nc1k, cons, cons, &
-                       cfl, dt_vol, store, ni, nj, nk, np, rbuf, rfac, dampin)
+                       cfl, dt_vol, store, ni, nj, nk, np, rbuf, rfac, dampin, &
+                       damp_shared)
     call scree_roll(residual, store, ni, nj, nk, np)
 end subroutine scree_mg_noirs
 
@@ -917,7 +1009,7 @@ end subroutine scree_mg_noirs
 ! RK stage, multigrid on, coarse-level IRS. q = residual (passed directly).
 subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
         alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, &
-        rawbuf, sdt, sv, corr_all, triw, rfac, dampin, &
+        rawbuf, sdt, sv, corr_all, triw, rfac, dampin, damp_shared, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_tri)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
@@ -928,7 +1020,7 @@ subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
     real,    intent(in) :: alpha, cfl, fmgrid, expon_mgrid, sf_irs
     real,    intent(in) :: snapshot(ni, nj, nk, np)
     real, intent(inout) :: cons(ni, nj, nk, np)
-    real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
+    real, intent(inout) :: rbuf(ni-1, nj-1, np+1, 2)
     real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
     real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
     real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
@@ -937,6 +1029,7 @@ subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
     real, intent(inout) :: triw(n_tri)
     real, intent(inout) :: rfac(np)
     real,    intent(in) :: dampin
+    integer, intent(in) :: damp_shared
     external :: smooth_residual_tri_tiled
 
     call mg_restrict_levels(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, &
@@ -947,14 +1040,14 @@ subroutine rk_mg_irs(cons, snapshot, residual, dt_vol, vol, &
     call mg_fine_scatter(corr_all(n_corr - nc1i*nc1j*nc1k*np + 1), &
                        nc1i, nc1j, nc1k, snapshot, cons, &
                        alpha*cfl, dt_vol, residual, ni, nj, nk, np, rbuf, &
-                       rfac, dampin)
+                       rfac, dampin, damp_shared)
 end subroutine rk_mg_irs
 
 
 ! RK stage, multigrid on, no smoothing. q = residual (passed directly).
 subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
         alpha, cfl, fmgrid, expon_mgrid, sf_irs, n_levels, rbuf, dtblk, &
-        rawbuf, sdt, sv, corr_all, triw, rfac, dampin, &
+        rawbuf, sdt, sv, corr_all, triw, rfac, dampin, damp_shared, &
         ni, nj, nk, np, nc1i, nc1j, nc1k, n_corr, n_tri)
     implicit none
     integer, intent(in) :: ni, nj, nk, np, n_levels, nc1i, nc1j, nc1k
@@ -965,7 +1058,7 @@ subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
     real,    intent(in) :: alpha, cfl, fmgrid, expon_mgrid, sf_irs
     real,    intent(in) :: snapshot(ni, nj, nk, np)
     real, intent(inout) :: cons(ni, nj, nk, np)
-    real, intent(inout) :: rbuf(ni-1, nj-1, np, 2)
+    real, intent(inout) :: rbuf(ni-1, nj-1, np+1, 2)
     real, intent(inout) :: dtblk(nc1i, nc1j, nc1k)
     real, intent(inout) :: rawbuf(nc1i, nc1j, nc1k, np)
     real, intent(inout) :: sdt(nc1i, nc1j, nc1k)
@@ -974,6 +1067,7 @@ subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
     real, intent(inout) :: triw(n_tri)
     real, intent(inout) :: rfac(np)
     real,    intent(in) :: dampin
+    integer, intent(in) :: damp_shared
     external :: mg_smooth_noop
 
     call mg_restrict_levels(residual, dt_vol, vol, alpha*cfl, fmgrid, expon_mgrid, &
@@ -984,5 +1078,5 @@ subroutine rk_mg_noirs(cons, snapshot, residual, dt_vol, vol, &
     call mg_fine_scatter(corr_all(n_corr - nc1i*nc1j*nc1k*np + 1), &
                        nc1i, nc1j, nc1k, snapshot, cons, &
                        alpha*cfl, dt_vol, residual, ni, nj, nk, np, rbuf, &
-                       rfac, dampin)
+                       rfac, dampin, damp_shared)
 end subroutine rk_mg_noirs

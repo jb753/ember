@@ -19,6 +19,7 @@ Correctness contract:
 """
 
 import numpy as np
+import pytest
 
 import ember.grid  # noqa: F401  binds ember.fortran
 import ember.solver
@@ -52,7 +53,7 @@ def _Z(*shape):
     return np.asfortranarray(np.zeros(shape, dtype=np.float32))
 
 
-def _run_plain(inp, rfac, dampin, cfl=CFL, ni=NI, nj=NJ, nk=NK):
+def _run_plain(inp, rfac, dampin, cfl=CFL, ni=NI, nj=NJ, nk=NK, shared=False):
     """One scree_plain call. ``rfac`` is carried in and updated in place."""
     cons = np.asfortranarray(inp["cons"].copy())
     store = np.asfortranarray(inp["store"].copy())
@@ -63,13 +64,26 @@ def _run_plain(inp, rfac, dampin, cfl=CFL, ni=NI, nj=NJ, nk=NK):
         dt_vol=inp["dt_vol"],
         cfl=cfl,
         tmp=_Z(ni - 1, nj - 1, nk - 1, NP),
+        drow=_Z(ni - 1),
         rfac=rfac,
         dampin=dampin,
+        damp_shared=int(shared),
     )
     return cons, store
 
 
-def _run_mg(inp, rfac, dampin, cfl=CFL, ni=NI, nj=NJ, nk=NK, n_levels=N_LEVELS):
+def _run_mg(
+    inp,
+    rfac,
+    dampin,
+    cfl=CFL,
+    ni=NI,
+    nj=NJ,
+    nk=NK,
+    n_levels=N_LEVELS,
+    fmgrid=FAC_MGRID,
+    shared=False,
+):
     """One scree_mg_noirs call. ``rfac`` is carried in and updated in place."""
     cons = np.asfortranarray(inp["cons"].copy())
     store = np.asfortranarray(inp["store"].copy())
@@ -82,11 +96,11 @@ def _run_mg(inp, rfac, dampin, cfl=CFL, ni=NI, nj=NJ, nk=NK, n_levels=N_LEVELS):
         dt_vol=inp["dt_vol"],
         vol=inp["vol"],
         cfl=cfl,
-        fmgrid=FAC_MGRID,
+        fmgrid=fmgrid,
         expon_mgrid=2.0,
         sf_irs=0.0,
         n_levels=n_levels,
-        rbuf=_Z(ni - 1, nj - 1, NP, 2),
+        rbuf=_Z(ni - 1, nj - 1, NP + 1, 2),
         dtblk=_Z(nc1i, nc1j, nc1k),
         rawbuf=_Z(nc1i, nc1j, nc1k, NP),
         sdt=_Z(nc1i, nc1j, nc1k),
@@ -95,6 +109,7 @@ def _run_mg(inp, rfac, dampin, cfl=CFL, ni=NI, nj=NJ, nk=NK, n_levels=N_LEVELS):
         triw=_Z(n_tri),
         rfac=rfac,
         dampin=dampin,
+        damp_shared=int(shared),
     )
     return cons, store
 
@@ -214,3 +229,56 @@ def test_outlier_is_clipped_towards_dampin_times_the_mean():
     # cell_to_node averages the limited cell increment onto the nodes, which
     # can only reduce it further, so the bound holds with margin.
     assert dU.max() <= bound * (1.0 + 1e-4)
+
+
+@pytest.mark.parametrize("path", ["plain", "mg"])
+def test_shared_mode_scales_each_cell_by_its_largest_outlier(path):
+    """In shared mode every variable of a cell is scaled by ONE factor.
+
+    The factor is ``1/(1 + max_m |dU_m| r_m)``, ``r_m`` the lagged reciprocal
+    of variable m's block mean. Both paths are linear in the increment until
+    the limiter, so the limited march must equal an UNLIMITED march whose
+    q = 2*residual - store has been scaled cell by cell by that factor --
+    which pins down the factor without reaching inside the kernel. Multigrid
+    runs at fmgrid = 0 so the coarse correction, which is not linear in a
+    per-cell rescale of q, is zero and the fine scatter is all that remains.
+
+    The energy residual carries outliers far above its mean while the momentum
+    residual does not; that is the case the shared mode exists for, and where
+    it differs from clipping each variable on its own.
+    """
+
+    def runner(inp, rfac, dampin, shared=True):
+        if path == "plain":
+            return _run_plain(inp, rfac, dampin, shared=shared)
+        return _run_mg(inp, rfac, dampin, fmgrid=0.0, shared=shared)
+
+    dampin = 2.0
+    inp = _make_inputs(NI, NJ, NK, seed=7)
+    inp["residual"][::3, ::2, ::4, 4] *= 40.0
+
+    rfac = _Z(NP)
+    runner(inp, rfac, dampin)  # priming call: the lag leaves this one unlimited
+    rfac_in = rfac.copy()
+    cons_shared, _ = runner(inp, rfac, dampin)
+
+    q = 2.0 * inp["residual"] - inp["store"]
+    dU = CFL * inp["dt_vol"][..., None] * q
+    g = 1.0 / (1.0 + np.max(np.abs(dU) * (rfac_in / CFL), axis=-1))
+    scaled = dict(
+        inp,
+        residual=np.asfortranarray(inp["residual"] * g[..., None]),
+        store=np.asfortranarray(inp["store"] * g[..., None]),
+    )
+    cons_ref, _ = runner(scaled, _Z(NP), dampin=0.0)
+    change = np.abs(cons_ref - inp["cons"]).max()
+    np.testing.assert_allclose(cons_shared, cons_ref, rtol=0, atol=1e-5 * change)
+
+    # The roll is over the unscaled increment in either mode, so the state
+    # carried to the next call must not depend on the mode.
+    rfac_own = rfac_in.copy()
+    cons_own, _ = runner(inp, rfac_own, dampin, shared=False)
+    np.testing.assert_allclose(rfac, rfac_own, rtol=1e-5)
+    # And the test means something: clipping each variable on its own lands
+    # somewhere visibly different.
+    assert np.abs(cons_own - cons_shared).max() > 1e-2 * change

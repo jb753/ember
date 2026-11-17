@@ -70,8 +70,10 @@ def _run_plain(residual, dt_vol, store, cons, ni, nj, nk):
         dt_vol=dt_vol,
         cfl=CFL,
         tmp=tmp,
+        drow=np.zeros(ni - 1, dtype=np.float32),
         rfac=np.zeros(NP, dtype=np.float32),
         dampin=0.0,
+        damp_shared=0,
     )
     return cons_out, store_out
 
@@ -121,7 +123,7 @@ def _run_mg(
         expon_mgrid=expon_mgrid,
         sf_irs=sf_irs,
         n_levels=n_levels,
-        rbuf=Z(ni - 1, nj - 1, NP, 2),
+        rbuf=Z(ni - 1, nj - 1, NP + 1, 2),
         dtblk=Z(nc1i, nc1j, nc1k),
         rawbuf=Z(nc1i, nc1j, nc1k, NP),
         sdt=Z(nc1i, nc1j, nc1k),
@@ -130,6 +132,7 @@ def _run_mg(
         triw=Z(n_tri),
         rfac=Z(NP),
         dampin=0.0,
+        damp_shared=0,
     )
     return cons_out, store_out
 
@@ -518,13 +521,108 @@ def test_scree_step_fac_mgrid_zero_skips_coarse():
 
 
 def test_validate_mg_still_triggers_for_scree():
-    """_validate_mg gates n_levels for scree the same way it does for RK."""
+    """Strict, as for the full multigrid start, _validate_mg refuses a block
+    whose cells do not divide into the levels asked, for scree as for RK."""
     ni, nj, nk = 10, 10, 10  # 9 cells, not divisible by 2**2
     block = _make_block((ni, nj, nk))
     grid = ember.grid.Grid([block])
 
-    with pytest.raises(ValueError):
-        ember.solver._validate_mg(grid, n_levels=2)
+    with pytest.raises(ValueError, match="multiple"):
+        ember.solver._validate_mg(grid, n_levels=2, strict=True)
+
+
+@pytest.mark.parametrize(
+    ("shape", "expected"),
+    [
+        ((17, 17, 17), 4),  # 16 cells every way
+        ((10, 10, 10), 0),  # 9 cells: odd
+        ((13, 17, 17), 2),  # 12 cells one way: 4 divides all
+        ((149, 21, 17), 2),  # a tip gap block: 148, 20, 16
+        ((9, 9, 9), 3),
+    ],
+)
+def test_n_levels_max_is_the_power_of_two_dividing_every_cell_count(shape, expected):
+    assert _make_block(shape).n_levels_max == expected
+
+
+def test_validate_mg_says_which_blocks_run_shallower(caplog):
+    """Not strict, as for a march, a block that divides into fewer levels than
+    asked is logged, not refused; one that divides into enough is not."""
+    grid = ember.grid.Grid([_make_block((17, 17, 17)), _make_block((13, 17, 17))])
+    with caplog.at_level("INFO", logger="ember.solver"):
+        ember.solver._validate_mg(grid, n_levels=3)
+    messages = [r.getMessage() for r in caplog.records]
+    assert len(messages) == 1
+    assert "Block 1" in messages[0] and "runs with 2" in messages[0]
+
+
+def _synthetic_grid(shape, seed):
+    """One block with synthetic residual, timestep and history, as
+    :func:`test_scree_step_mg_changes_result` builds, for comparing steps."""
+    ni, nj, nk = shape
+    rng = np.random.default_rng(seed)
+    residual_data = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
+    dt_vol_data = 0.5 + rng.random((ni - 1, nj - 1, nk - 1))
+    store_data = rng.standard_normal((ni - 1, nj - 1, nk - 1, NP))
+
+    def _build():
+        block = _make_block(shape)
+        block.residual_nd.flags.writeable = True
+        block.residual_nd[...] = residual_data
+        block.residual_nd.flags.writeable = False
+        block.dt_vol_nd.flags.writeable = True
+        block.dt_vol_nd[...] = dt_vol_data
+        block.dt_vol_nd.flags.writeable = False
+        store_cell = util.carve_view(block.store, (ni - 1, nj - 1, nk - 1, NP))
+        store_cell[...] = store_data
+        return ember.grid.Grid([block])
+
+    return _build
+
+
+@pytest.mark.parametrize("sf_irs", [0.0, 0.5])
+def test_scree_step_runs_a_block_at_the_levels_it_divides_into(sf_irs):
+    """Asked for 3 levels, a block of 12 x 16 x 16 cells, which divide into
+    2, steps exactly as if asked for 2, and not as if asked for 1."""
+    build = _synthetic_grid((13, 17, 17), seed=11)
+
+    def step(n_levels):
+        grid = build()
+        ember.solver.scree_step(
+            grid, cfl=CFL, fac_mgrid=0.2, n_levels=n_levels, sf_irs=sf_irs
+        )
+        return grid[0].conserved_nd.copy()
+
+    np.testing.assert_array_equal(step(3), step(2))
+    assert not np.array_equal(step(2), step(1))
+
+
+def test_scree_step_runs_a_block_that_divides_into_none_plain():
+    """Odd cell counts divide into no levels: the step is the plain one."""
+    build = _synthetic_grid((10, 10, 10), seed=12)
+
+    def step(fac_mgrid, n_levels):
+        grid = build()
+        ember.solver.scree_step(grid, cfl=CFL, fac_mgrid=fac_mgrid, n_levels=n_levels)
+        return grid[0].conserved_nd.copy()
+
+    np.testing.assert_array_equal(step(0.2, 2), step(0.0, 0))
+
+
+def test_rk_stage_runs_a_block_at_the_levels_it_divides_into():
+    """The RK stage takes the same per-block depth as scree."""
+    build = _synthetic_grid((13, 17, 17), seed=13)
+
+    def stage(n_levels):
+        grid = build()
+        grid[0].store[...] = grid[0].conserved_nd
+        ember.solver.advance_rk_stage_mg(
+            grid, alpha=0.5, cfl=CFL, fac_mgrid=0.2, n_levels=n_levels
+        )
+        return grid[0].conserved_nd.copy()
+
+    np.testing.assert_array_equal(stage(3), stage(2))
+    assert not np.array_equal(stage(2), stage(1))
 
 
 @pytest.fixture(scope="module")

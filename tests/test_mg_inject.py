@@ -268,7 +268,7 @@ def _dense_restriction(nc, np_):
             expon_mgrid=EXPON_MGRID,
             sf_irs=0.0,
             n_levels=1,
-            rbuf=Z(nf, nf, np_, 2),
+            rbuf=Z(nf, nf, np_ + 1, 2),
             dtblk=Z(nc, nc, nc),
             rawbuf=Z(nc, nc, nc, np_),
             sdt=Z(nc, nc, nc),
@@ -277,6 +277,7 @@ def _dense_restriction(nc, np_):
             triw=Z(n_tri),
             rfac=Z(np_),
             dampin=0.0,
+            damp_shared=0,
         )
         rows.append(corr_all.reshape(nc, nc, nc, np_, order="F")[..., 0].ravel("F"))
     return np.stack(rows, axis=1)

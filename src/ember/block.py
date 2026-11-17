@@ -334,6 +334,7 @@ Grid shape and array metadata:
 
    Block.flat
    Block.frozen
+   Block.n_levels_max
    Block.ndim
    Block.ni
    Block.nj
@@ -485,6 +486,7 @@ Indexing and slicing return a view over a sub-region::
 """
 
 import logging
+import math
 
 import ember._struct
 import ember.perturbation
@@ -929,10 +931,12 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
       update_residual  set_residual's rolling planes and rows + the IRS work
                        vector
       scree / RK, MG   the seven multigrid coarse buffers + the caller's
-                       rolling two-plane increment (the prolongation is
-                       injection, collapsed in place inside ``corr_all``)
+                       rolling two-plane increment, with a sixth slot per
+                       plane for the shared limiter's factor (the prolongation
+                       is injection, collapsed in place inside ``corr_all``)
       scree / RK, no MG  the caller's full-volume cell-shaped increment, which
-                       the multigrid-off kernels still materialise
+                       the multigrid-off kernels still materialise, + the
+                       shared limiter's row of factors
       smooth           the constant-coefficient kernel's rolling k-plane
                        buffer, or, with adaptive smoothing on, the nodal
                        sensor factors (3 directions) plus the accumulated
@@ -961,8 +965,8 @@ def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
         ni * nj * nk,  # update_timestep
         ni * njp * 5 * 2 + ni * 5 * 3 + ni * nj * nk * 5,  # update_residual
         ni * nj * nk * 4,  # smooth
-        mg + (ni - 1) * (nj - 1) * 5 * 2,  # scree/RK + multigrid
-        (ni - 1) * (nj - 1) * (nk - 1) * 5,  # scree/RK, no multigrid
+        mg + (ni - 1) * (nj - 1) * 6 * 2,  # scree/RK + multigrid
+        (ni - 1) * (nj - 1) * (nk - 1) * 5 + (ni - 1),  # scree/RK, no multigrid
     )
 
 
@@ -3198,6 +3202,18 @@ class Block(ember._struct.StructuredData):
     def mu_turb(self):
         r"""Turbulent viscosity :math:`\mu_\mathrm{turb}` [kg/m/s]."""
         return self._get_data_by_keys(("mu_turb",))
+
+    @property
+    def n_levels_max(self):
+        """Most multigrid levels this block's cell counts all divide into: the
+        power of two in their greatest common divisor; ``int``.
+
+        A fact about the shape alone. How many levels a march asks for, and the
+        most it may, are the solver's: each block runs the lesser of what is
+        asked and this.
+        """
+        g = math.gcd(*(n - 1 for n in self.shape))
+        return (g & -g).bit_length() - 1 if g else 0
 
     @property
     def Nb(self):

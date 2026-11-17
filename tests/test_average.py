@@ -24,6 +24,7 @@ Test cases:
 - test_mix_out_triangulated_vs_structured: Comparison of triangulated vs structured mixing calculations
 - test_mix_super: Supersonic mixing plane calculations
 - test_mix_radial: Radial mixing calculations
+- test_mix_out_conserves_flows_through_an_oblique_cut: Non-uniform flow through cuts facing any way
 - test_mix_out_k_axis_flip_invariance: Verify mixing is invariant to k-axis flip
 - test_mix_out_k_axis_flip_invariance_negative_vt: Verify k-axis flip invariance with negative Vt
 - test_mix_out_flip_invariance_beats_atol: Verify mix_out reproducibility beats its own atol
@@ -688,6 +689,75 @@ def test_mix_radial():
         np.testing.assert_allclose(
             mix.conserved[i], cut.conserved[..., i], atol=atol[i]
         )
+
+
+def _oblique_cut(chi_deg, n_span=17, n_pitch=25):
+    """A cut whose normal is `chi_deg` from the axis in the meridional plane,
+    0 an axial cut and 90 a radial one, with non-uniform flow through it.
+
+    The flow crosses the cut obliquely and unevenly, as at an impeller exit:
+    speed through the cut varying by a factor of three, a component along it
+    changing sign across the span, and swirl varying across the pitch.
+    """
+    chi = np.radians(chi_deg)
+    normal = np.array([np.cos(chi), np.sin(chi)])
+    along = np.array([-np.sin(chi), np.cos(chi)])
+    span = np.linspace(0.0, 1.0, n_span)[:, None, None]
+    pitch = np.linspace(0.0, 1.0, n_pitch)[None, None, :]
+    shape = (n_span, 2, n_pitch)
+
+    block = Block(shape=shape)
+    x = 0.1 + 0.02 * span * along[0] + np.zeros(shape)
+    r = 0.25 + 0.02 * span * along[1] + np.zeros(shape)
+    block.set_x(x)
+    block.set_r(r)
+    block.set_t(np.zeros(shape) + pitch * 2.0 * np.pi / 7.0)
+    block.set_fluid(ember.fluid.PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72))
+    block.set_P_T(
+        1.2e5 * (1.0 + 0.05 * np.cos(2.0 * np.pi * pitch)) + np.zeros(shape),
+        350.0 * (1.0 + 0.03 * span) + np.zeros(shape),
+    )
+    V_n = 50.0 + 100.0 * np.sin(np.pi * span) * (
+        1.0 + 0.3 * np.cos(2.0 * np.pi * pitch)
+    )
+    V_s = -30.0 + 50.0 * span + 0.0 * pitch
+    block.set_Vx(V_n * normal[0] + V_s * along[0])
+    block.set_Vr(V_n * normal[1] + V_s * along[1])
+    block.set_Vt(150.0 + 60.0 * pitch + 0.0 * span)
+    return block[:, 0, :]
+
+
+@pytest.mark.parametrize("chi_deg", [0.0, 30.0, 60.0, 90.0, 120.0])
+def test_mix_out_conserves_flows_through_an_oblique_cut(chi_deg):
+    """Through a cut facing any way in the meridional plane, the mixed-out
+    state carries the cut's own flows of mass, momentum and energy.
+
+    The Newton step must work in the frame of the cut's normal. Taken in the
+    frame of the flow's pitch angle instead, as it once was, it put the axial
+    momentum error into the momentum through a radial cut, and on a
+    non-uniform impeller exit the iterations wandered off and never settled.
+    An axial cut, where the two frames nearly coincide, could not show it.
+    """
+    from ember import fluxes as ember_fluxes
+
+    cut = _oblique_cut(chi_deg)
+    mix = average.mix_out(cut)
+
+    A = average.total_area_nd(cut)
+    flow = average.flow_conserved_nd(cut)
+    flow_mix = average._dot_conserved(
+        ember_fluxes.get_flux_nd(mix)[:2, :], A[:2], axes=()
+    )
+    # The scales mix_out converges to, one ten-thousandth of each flow's own
+    rho, V = float(mix.rho_nd), float(mix.V_nd)
+    scale = np.array(
+        [rho * V, rho * V**2, rho * V**2, rho * V**2 * cut.r_mid_nd, rho * V**3]
+    ) * np.linalg.norm(A[:2])
+    np.testing.assert_array_less(np.abs(flow - flow_mix), 1e-4 * scale)
+
+    # And the mixed flow leaves through the cut, at its normal on average
+    chi = np.arctan2(A[1], A[0])
+    assert float(mix.Vx) * np.cos(chi) + float(mix.Vr) * np.sin(chi) > 0.0
 
 
 def test_mix_out_k_axis_flip_invariance():

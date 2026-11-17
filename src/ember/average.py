@@ -552,6 +552,13 @@ def mix_out(block, AR=1.0):
         * 1e-4
     )
 
+    # The Newton step works in the frame of the cut's own normal, fixed, so
+    # one rotation serves every iteration. Not the flow's pitch angle: through
+    # a cut the flow crosses obliquely, as at a radial impeller exit, the
+    # Jacobian there is the flux through the wrong face and the steps wander
+    # off rather than converge.
+    rot_to, rot_from = util.rotation_matrices(np.arctan2(A[1], A[0]))
+
     # Iteratively adjust conserved variables to match total flow
     rf = 0.1
     max_iter = 10000
@@ -579,14 +586,12 @@ def mix_out(block, AR=1.0):
         elif niter - best_iter > n_stall:
             break
 
-        # Resolve to interface-aligned velocities. Beta moves every iteration
-        # as mix's state does, so the matrix can't be hoisted out of the loop
-        # -- but building both directions from it here, once, means the
-        # to/from pair below shares one sine and cosine rather than each
-        # re-deriving its own.
-        Beta = mix.Beta
-        rot_to, rot_from = util.rotation_matrices(np.radians(Beta))
+        # Resolve to velocities through and along the cut, the frame in which
+        # the Jacobian below is the flux through it. The momentum errors are
+        # turned into the same frame, so each correction lands on the
+        # component it belongs to.
         block_util.resolve_to_interface(mix, rot_to)
+        err_flux[1:3] = rot_to @ err_flux[1:3]
 
         # Calculate Jacobian of conserved/flux transformation (nondimensional)
         f2c = perturbation.flux_to_conserved(mix)

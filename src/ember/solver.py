@@ -184,9 +184,11 @@ restrict/prolong V-cycle across separate coarse grids. Both integrators honor
 two knobs:
 
 - :attr:`~Solver.n_levels` -- number of coarse levels; 0 disables
-  multigrid. Each block's cell counts must be an exact multiple of the coarsest
-  block size ``2**n_levels`` in every direction, or :meth:`Solver.run` raises before
-  marching.
+  multigrid. A block whose cell counts are not all multiples of the coarsest
+  block size ``2**n_levels`` runs with as many levels as they divide into,
+  :attr:`~ember.block.Block.n_levels_max`; :meth:`Solver.run` logs which.
+  :meth:`Solver.run_fmg`, which halves every block ``n_levels`` times, refuses
+  such a grid.
 - :attr:`~Solver.fac_mgrid` -- scaling on the coarse correction; 0 also
   disables multigrid.
 - :attr:`~Solver.expon_mgrid` -- base of the per-level geometric decay applied
@@ -528,6 +530,16 @@ class Solver(BaseSolver):
     mean|dU|))``, per conserved variable, so cells far above their block mean
     are pulled back towards ``dampin`` times it."""
 
+    damp_shared: bool = False
+    """Clip all five conserved increments of a cell by one shared factor.
+
+    The :attr:`dampin` limiter normally clips each conserved variable by its
+    own factor. Where one variable's increment is a far larger outlier than the
+    others' -- the energy at a node that the scheme is trying to reheat -- that
+    turns the update in conserved-variable space: the momentum change survives
+    and the energy change does not, and the node cools. With this set, every
+    variable of the cell is scaled by the factor of its largest outlier."""
+
     rf_inlet: float | None = 0.05
     """Characteristic under-relaxation
     (:attr:`~ember.patch.NonReflectingPatch.sigma`) on every
@@ -687,7 +699,14 @@ class Solver(BaseSolver):
 
 
 def scree_step(
-    grid, cfl, fac_mgrid=0.0, expon_mgrid=2.0, n_levels=0, sf_irs=0.0, dampin=0.0
+    grid,
+    cfl,
+    fac_mgrid=0.0,
+    expon_mgrid=2.0,
+    n_levels=0,
+    sf_irs=0.0,
+    dampin=0.0,
+    damp_shared=False,
 ):
     """Advance every block one Denton scree step in place."""
     # Preconditions: dt_vol_nd populated and cached P/T consistent with
@@ -703,6 +722,8 @@ def scree_step(
     for block in grid:
         ni, nj, nk = block.shape
         cell_shape = (ni - 1, nj - 1, nk - 1, 5)
+        # As deep as asked, or as the block's cell counts divide into
+        n_levels_block = min(n_levels_eff, block.n_levels_max)
         # block.store is sized to the nodal shape (shared with the RK path) but
         # the Denton residual history is cell-shaped, so carve a leading
         # cell-shaped view of it. It is a separate, persistent buffer from the
@@ -714,19 +735,19 @@ def scree_step(
         # flow buffers, and the kernels below reuse the same arena, so it must
         # be fully materialised first -- passing it as an argument guarantees
         # that ordering.
-        if n_levels_eff > 0:
+        if n_levels_block > 0:
             # Denton block-sum multigrid over the scheme-agnostic engine
             # (mg_restrict_levels), like advance_rk_stage_mg's coarse path at
             # alpha=1 but for the scree fine term: every level uses the
             # Denton-lagged q = 2*residual - store, and the correction is
             # injected into the fine cell increment, fused with its cell->node
             # scatter, so a rolling two-plane buffer serves. sf_irs > 0 picks
-            # the coarse-IRS kernel; the fine term arrives already smoothed by
-            # the caller. ONE carve: rbuf and coarse scratch reach one call.
+            # the coarse-IRS kernel. ONE carve: rbuf (sixth slot: the shared
+            # limiter's factor) and coarse scratch reach one call.
             rbuf, *mg_bufs = util.carve_view(
                 block.scratch,
-                (ni - 1, nj - 1, 5, 2),
-                *mg_coarse_shapes(ni, nj, nk, n_levels_eff),
+                (ni - 1, nj - 1, 6, 2),
+                *mg_coarse_shapes(ni, nj, nk, n_levels_block),
             )
             kernel = (
                 ember.fortran.scree_mg_irs
@@ -743,10 +764,11 @@ def scree_step(
                 fmgrid=fac_mgrid,
                 expon_mgrid=expon_mgrid,
                 sf_irs=sf_irs,
-                n_levels=n_levels_eff,
+                n_levels=n_levels_block,
                 rbuf=rbuf,
                 rfac=block.damp_rfac,
                 dampin=dampin,
+                damp_shared=int(damp_shared),
                 **dict(zip(MG_COARSE_NAMES, mg_bufs)),
             )
         else:
@@ -756,7 +778,9 @@ def scree_step(
             # increment straight onto cons -- bypassing the setters so the P/T
             # cache stays frozen. Untouched by fac_mgrid/n_levels. This path
             # still materialises the full-volume increment, as rk_plain does.
-            tmp = util.carve_view(block.scratch, cell_shape)
+            # drow is the shared limiter's per-cell factor along a row; one
+            # carve with tmp, as both reach one call.
+            tmp, drow = util.carve_view(block.scratch, cell_shape, (ni - 1,))
             ember.fortran.scree_plain(
                 cons=block.conserved_nd,
                 residual=block.residual_nd,
@@ -764,8 +788,10 @@ def scree_step(
                 dt_vol=block.dt_vol_nd,
                 cfl=cfl,
                 tmp=tmp,
+                drow=drow,
                 rfac=block.damp_rfac,
                 dampin=dampin,
+                damp_shared=int(damp_shared),
             )
 
 
@@ -820,7 +846,15 @@ def mg_coarse_shapes(ni, nj, nk, n_levels):
 
 
 def advance_rk_stage_mg(
-    grid, alpha, cfl, fac_mgrid, n_levels, expon_mgrid=2.0, sf_irs=0.0, dampin=0.0
+    grid,
+    alpha,
+    cfl,
+    fac_mgrid,
+    n_levels,
+    expon_mgrid=2.0,
+    sf_irs=0.0,
+    dampin=0.0,
+    damp_shared=False,
 ):
     r"""One Jameson RK stage, optionally with Denton block-sum multigrid.
 
@@ -858,7 +892,9 @@ def advance_rk_stage_mg(
     n_levels_eff = n_levels if fac_mgrid > 0.0 else 0
     for block in grid:
         ni, nj, nk = block.shape
-        if n_levels_eff > 0:
+        # As deep as asked, or as the block's cell counts divide into
+        n_levels_block = min(n_levels_eff, block.n_levels_max)
+        if n_levels_block > 0:
             # Multigrid-on RK wrappers over the scheme-agnostic engine
             # (mg_restrict_levels). sf_irs > 0 selects the coarse-IRS kernel,
             # otherwise the plain _noirs kernel, which enters no smoothing code
@@ -866,11 +902,11 @@ def advance_rk_stage_mg(
             # passed. mg_collapse_levels leaves the total in corr_all's finest
             # slot and the fine scatter injects it alongside the fine term, so
             # a rolling two-plane buffer serves in place of a full-volume
-            # increment. One carve, as in scree_step: both reach one call.
+            # increment. One carve, as in scree_step; rbuf's sixth slot too.
             rbuf, *mg_bufs = util.carve_view(
                 block.scratch,
-                (ni - 1, nj - 1, 5, 2),
-                *mg_coarse_shapes(ni, nj, nk, max(n_levels_eff, 0)),
+                (ni - 1, nj - 1, 6, 2),
+                *mg_coarse_shapes(ni, nj, nk, n_levels_block),
             )
             kernel = (
                 ember.fortran.rk_mg_irs if sf_irs > 0.0 else ember.fortran.rk_mg_noirs
@@ -886,15 +922,18 @@ def advance_rk_stage_mg(
                 fmgrid=fac_mgrid,
                 expon_mgrid=expon_mgrid,
                 sf_irs=sf_irs,
-                n_levels=n_levels_eff,
+                n_levels=n_levels_block,
                 rbuf=rbuf,
                 rfac=block.damp_rfac,
                 dampin=dampin,
+                damp_shared=int(damp_shared),
                 **dict(zip(MG_COARSE_NAMES, mg_bufs)),
             )
         else:
             # Multigrid off: plain Jameson RK fine-term stage, no coarse scratch.
-            tmp = util.carve_view(block.scratch, (ni - 1, nj - 1, nk - 1, 5))
+            tmp, drow = util.carve_view(
+                block.scratch, (ni - 1, nj - 1, nk - 1, 5), (ni - 1,)
+            )
             ember.fortran.rk_plain(
                 cons=block.conserved_nd,
                 snapshot=block.store,
@@ -903,8 +942,10 @@ def advance_rk_stage_mg(
                 alpha=alpha,
                 cfl=cfl,
                 tmp=tmp,
+                drow=drow,
                 rfac=block.damp_rfac,
                 dampin=dampin,
+                damp_shared=int(damp_shared),
             )
 
 
@@ -936,6 +977,7 @@ def rk_step(grid, conf):
             expon_mgrid=conf.expon_mgrid,
             sf_irs=conf.sf_resid,
             dampin=conf.dampin,
+            damp_shared=conf.damp_shared,
         )
         grid.update_cached_conserved()
         grid.apply_bconds()
@@ -1008,21 +1050,24 @@ def _apply_bcond_relaxation(grid, conf):
             patch._reflective = conf.mix_reflective
 
 
-def _validate_mg(grid, n_levels):
-    """Raise if any block cannot be evenly divided into the coarsest MG blocks.
+def _validate_mg(grid, n_levels, strict=False):
+    """Check ``n_levels`` against the grid, and say which blocks run shallower.
 
     Denton block-sum multigrid with ``n_levels`` coarse levels groups cells into
-    blocks of linear size up to ``2**n_levels``. We require exact division (no
-    runt edge blocks), so every cell dimension ``ni-1, nj-1, nk-1`` must be a
-    multiple of the coarsest block size. Since the sizes are powers of two,
-    divisibility by the coarsest implies it for every finer level, so one check
-    per dimension suffices. No-op when ``n_levels <= 0``.
+    blocks of linear size up to ``2**n_levels``, which must divide every cell
+    count exactly (no runt edge blocks). Each block marches with as many levels
+    as asked or as its cell counts divide into,
+    :attr:`~ember.block.Block.n_levels_max`, whichever is fewer: multigrid acts
+    within a block and nothing passes between blocks at the coarse levels, so a
+    shallower block converges more slowly but to the same answer. Those blocks
+    are logged. With `strict`, as for :func:`_run_fmg`, whose resampled chain
+    halves every block ``n_levels`` times, they are refused instead. No-op when
+    ``n_levels <= 0``.
 
     Also caps ``n_levels`` at :data:`ember.block.MAX_MG_LEVELS`, because the
     shared scratch arena is sized for that depth and a deeper hierarchy would
     carve past its end. Checked here rather than at allocation so a bad
-    configuration is refused before marching, alongside the divisibility rule
-    it belongs with.
+    configuration is refused before marching.
     """
     if n_levels <= 0:
         return
@@ -1036,14 +1081,20 @@ def _validate_mg(grid, n_levels):
         )
     b_coarse = 2**n_levels
     for i_block, block in enumerate(grid):
-        ni, nj, nk = block.shape
-        for name, n_cell in (("i", ni - 1), ("j", nj - 1), ("k", nk - 1)):
-            if n_cell % b_coarse != 0:
-                raise ValueError(
-                    f"Block {i_block} has {n_cell} cells in {name} but "
-                    f"multigrid n_levels={n_levels} needs a multiple of the "
-                    f"coarsest block size {b_coarse}."
-                )
+        if block.n_levels_max >= n_levels:
+            continue
+        cells = tuple(n - 1 for n in block.shape)
+        if strict:
+            raise ValueError(
+                f"Block {i_block} has {cells} cells but multigrid "
+                f"n_levels={n_levels} needs every count a multiple of the "
+                f"coarsest block size {b_coarse}."
+            )
+        logger.info(
+            f"Block {i_block} has {cells} cells, which divide into "
+            f"{block.n_levels_max} multigrid levels, not the {n_levels} asked "
+            f"for; it runs with {block.n_levels_max}."
+        )
 
 
 def _validate_throttle(grid):
@@ -1094,7 +1145,8 @@ def _run(grid, conf):
         ``accumulate_avg`` may never have populated).
     """
 
-    # Fail fast if the grid cannot be evenly blocked for multigrid.
+    # Fail fast on a depth the scratch cannot hold; say which blocks run
+    # shallower than asked.
     _validate_mg(grid, conf.n_levels)
     _validate_throttle(grid)
 
@@ -1186,6 +1238,7 @@ def _run(grid, conf):
                 n_levels=conf.n_levels,
                 sf_irs=conf.sf_resid,
                 dampin=conf.dampin,
+                damp_shared=conf.damp_shared,
             )
         else:
             rk_step(grid, conf)
@@ -1244,7 +1297,7 @@ def _run_fmg(grid, conf):
     hierarchy ``n_levels`` already names -- so the coarsest runs plain and the
     finest runs at full ``n_levels``, identical to :meth:`Solver.run` on the finest.
 
-    The single validation ``_validate_mg(grid, n_levels)`` is sufficient for the
+    The single validation ``_validate_mg(grid, n_levels, strict=True)`` is sufficient for the
     whole chain: level ``i`` holds ``N / 2**(n_levels - i)`` cells per dimension
     and its depth-``i`` march needs those divisible by ``2**i``, which reduces to
     ``N`` (the finest cell count) divisible by ``2**n_levels`` at every level.
@@ -1268,7 +1321,7 @@ def _run_fmg(grid, conf):
     list of ConvergenceHistory
         Per-level histories, coarsest first, finest last.
     """
-    _validate_mg(grid, conf.n_levels)
+    _validate_mg(grid, conf.n_levels, strict=True)
     if conf.n_levels <= 0:
         return [_run(grid, conf)]
 
