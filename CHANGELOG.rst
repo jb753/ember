@@ -5,12 +5,15 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
-Unreleased
-----------
+.. _v0.4.9:
 
-* Add ``relax`` to ``ember.elliptic.winslow_sweeps``: each sweep moves every
-  node but the wall nodes that fraction of the way, which damps the
-  node-to-node oscillation plain point-Jacobi leaves on skewed grids
+0.4.9 (2026-11-17)
+------------------
+
+* Add a relaxation factor to elliptic Winsolw sweeps to suppress instability
+* Instead of erroring when a block does not divide evenly into the specified
+  multigrid levels, warn and blocks to run with fewer levels than requested
+* Fix mixing out stalling on constant-radius cuts with swirl
 
 .. _v0.4.8:
 
