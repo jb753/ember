@@ -13,6 +13,10 @@ Test cases:
   cells round a circle, its wall nodes sliding round it, with singular,
   sliding and corner-patch rows besides; and on random stencils with pitch
   shifts
+- Winslow sweeps raise on a coordinate that is NaN or infinite, as given
+  or made so by the sweeps
+- Floors of zero on the lines out from the wall change nothing, and floors
+  above every cell hold each cell of those lines at least as long
 - The polish cost and its gradient match the same terms written out in
   numpy, on a perturbed grid with a folded cell and pitch shifts, and the
   gradient matches finite differences of the cost
@@ -468,3 +472,40 @@ def test_sweeps_raise_on_a_coordinate_made_not_finite():
     irregular = (nodes, ptr, col, np.full_like(w, 1e30), c)
     with pytest.raises(FloatingPointError, match="after the sweeps"):
         winslow_sweeps(X, g, s, 0.0, irregular, slide, corner, wall, 3, orth=1.0)
+
+
+def test_sweeps_unchanged_by_floors_of_zero():
+    X, g, s, irregular, slide, corner, wall = ring_case()
+    nodes, dy = ring_lines()
+    lines = (nodes, dy, np.zeros(nodes.shape[1]))
+    args = (X, g, s, 0.0, irregular, slide, corner, wall, 3)
+    out, _, _ = winslow_sweeps(*args, orth=1.0, orth_lines=lines)
+    floors = (np.zeros(len(nodes)), np.zeros(nodes.shape))
+    out_floors, _, _ = winslow_sweeps(*args, orth=1.0, orth_lines=lines, floors=floors)
+    np.testing.assert_array_equal(out_floors, out)
+
+
+def test_sweeps_hold_the_lines_out_from_the_wall_to_their_floors():
+    # Floors above every cell of the lines out: each cell, from the wall
+    # node to the node outside it and on through the lines, ends no shorter
+    X, g, s, irregular, slide, corner, wall = ring_case()
+    nodes, dy = ring_lines()
+    wn0, wn1 = wall[0], wall[1]
+    lines = (nodes, dy, np.zeros(nodes.shape[1]))
+    args = (X, g, s, 0.0, irregular, slide, corner, wall, 3)
+    chain = np.column_stack((wn0, wn1, nodes))[:-1]
+
+    def cells(Y):
+        return np.linalg.norm(np.diff(Y[chain], axis=1), axis=-1)
+
+    out, _, _ = winslow_sweeps(*args, orth=1.0, orth_lines=lines)
+    w_min = np.full(len(wn0), 0.25)
+    on_min = np.full(nodes.shape, 0.3)
+    floor = np.column_stack((w_min, on_min))[:-1]
+    assert np.all(cells(out) < floor)
+
+    floors = (w_min, on_min)
+    out_floors, _, _ = winslow_sweeps(*args, orth=1.0, orth_lines=lines, floors=floors)
+    assert np.all(cells(out_floors) >= floor * (1.0 - 1e-5))
+    # The wall nodes stay where they slid, on the wall
+    np.testing.assert_allclose(np.linalg.norm(out_floors[wn0], axis=1), 1.0, atol=1e-5)
