@@ -448,3 +448,23 @@ def test_polish_cost_refuses_node_numbers_out_of_range():
     ids[0, 0] = len(X)
     with pytest.raises(ValueError):
         polish_cost(X, ids, dy, la, lb, 1e-3)
+
+
+@pytest.mark.parametrize("bad", [np.nan, np.inf])
+def test_sweeps_raise_on_a_coordinate_not_finite(bad):
+    # On the node outside a wall node, whose nearest point on the wall line
+    # the sweeps step to: a NaN there once stepped it forever
+    X, g, s, irregular, slide, corner, wall = ring_case()
+    X = X.copy()
+    X[wall[1][0], 0] = bad
+    with pytest.raises(FloatingPointError, match="as given"):
+        winslow_sweeps(X, g, s, 0.0, irregular, slide, corner, wall, 3, orth=1.0)
+
+
+def test_sweeps_raise_on_a_coordinate_made_not_finite():
+    # A singular point weighted to infinity makes one in the first sweep
+    X, g, s, irregular, slide, corner, wall = ring_case()
+    nodes, ptr, col, w, c = irregular
+    irregular = (nodes, ptr, col, np.full_like(w, 1e30), c)
+    with pytest.raises(FloatingPointError, match="after the sweeps"):
+        winslow_sweeps(X, g, s, 0.0, irregular, slide, corner, wall, 3, orth=1.0)

@@ -169,6 +169,12 @@ def winslow_sweeps(
         Samples nearest each wall node and the node outside it, to start the
         next call from.
 
+    Raises
+    ------
+    FloatingPointError
+        If a coordinate is NaN or infinite as given, the sweeps then not
+        run, or after them.
+
     """
     f32 = np.float32
     i32 = np.int32
@@ -232,7 +238,7 @@ def winslow_sweeps(
         g = np.asarray(g)
         if g.size and (g.min() < 0 or g.max() >= n_node):
             raise ValueError(f"Node numbers must lie in [0, {n_node}).")
-    ember.fortran.winslow_sweeps(
+    status = ember.fortran.winslow_sweeps(
         Xf,
         np.empty_like(Xf),  # scratch for the relaxation
         stencil_g,
@@ -277,6 +283,9 @@ def winslow_sweeps(
         np.asfortranarray(np.broadcast_to(np.asarray(on_min, dtype=f32), on_n.shape)),
         m_min,
     )
+    if status:
+        when = ("as given", "after the sweeps")[status - 1]
+        raise FloatingPointError(f"Winslow sweeps: a coordinate is not finite {when}.")
     return Xf, seg0[:n_w], seg1[:n_w]
 
 

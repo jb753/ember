@@ -99,7 +99,7 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
         cp_node, cp_corner, cp_dy, cp_f, &
         wn0, wn1, dy0, dy1, line, s_line, floor_, seg0, seg1, &
         pitch, orth, slide_f, relax, n_sweep, m_irr, m_sld, m_cp, m_w, &
-        on_n, on_dy, on_w, m_on, w_min, on_min, m_min, &
+        on_n, on_dy, on_w, m_on, w_min, on_min, m_min, status, &
         n_node, n_reg, n_irr, n_irr_nb, n_sld, n_sld_nb, n_cp, n_w, n_line, n_on)
     ! Point-Jacobi sweeps of Winslow's equations, in place on X.
     !
@@ -151,6 +151,11 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
     !
     ! Xold is the caller's scratch for 6, holding X as each sweep found it;
     ! untouched when relax is one.
+    !
+    ! status is zero, or one if a coordinate is not finite, NaN or infinite,
+    ! as given, when X is left as given, or two if after the last sweep.
+    ! Checked only then, as a NaN, once in, stays in, and can step nothing
+    ! forever: the walk along the wall line is bounded.
 
     implicit none
 
@@ -162,6 +167,7 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
     real, intent(in) :: on_dy(n_w, n_on), on_w(n_on)
     integer, intent(in) :: m_min
     real, intent(in) :: w_min(n_w), on_min(n_w, n_on)
+    integer, intent(out) :: status
     real, intent(inout) :: X(n_node, 2), Xold(n_node, 2)
     integer, intent(in) :: sg(n_reg, 9), ss(n_reg, 9)
     integer, intent(in) :: irr(n_irr), irr_ptr(n_irr + 1), irr_col(n_irr_nb)
@@ -198,6 +204,11 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
     sense = sign(1.0d0, sense)
     ds_line = s_total / dble(max(n_line - 1, 1))
 
+    status = 0
+    if (.not. finite()) then
+        status = 1
+        return
+    end if
     do it = 1, n_sweep
 
         if (relax /= 1.0) Xold = X
@@ -406,8 +417,27 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
         end if
 
     end do
+    if (.not. finite()) status = 2
 
 contains
+
+    logical function finite()
+        ! Whether every coordinate is finite: one is NaN or infinite if and
+        ! only if its exponent bits are all set. Tested on the bits, as
+        ! -Ofast lets the compiler assume no real is NaN or infinite, and
+        ! drop a test on the values.
+        integer, parameter :: expo = int(z'7F800000')
+        integer :: ii, jj
+        finite = .true.
+        do jj = 1, 2
+            do ii = 1, n_node
+                if (iand(transfer(X(ii, jj), 0), expo) == expo) then
+                    finite = .false.
+                    return
+                end if
+            end do
+        end do
+    end function finite
 
     subroutine nearest_on_line(px, py, k, s)
         ! Arc length of the point on the line nearest (px, py), stepping from
@@ -421,15 +451,17 @@ contains
         m = n_line - 1
         k = modulo(k, m)
         d = dist2(k, px, py)
-        do
+        ! Once round the line at most each way, so no point, NaN included,
+        ! can step it forever
+        do j = 1, m
             dn = dist2(modulo(k + 1, m), px, py)
-            if (dn >= d) exit
+            if (.not. (dn < d)) exit
             k = modulo(k + 1, m)
             d = dn
         end do
-        do
+        do j = 1, m
             dn = dist2(modulo(k - 1, m), px, py)
-            if (dn >= d) exit
+            if (.not. (dn < d)) exit
             k = modulo(k - 1, m)
             d = dn
         end do
