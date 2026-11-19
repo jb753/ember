@@ -18,9 +18,10 @@ nothing is extrapolated from the interior. :meth:`OutletPatch.set_throttle`
 leaves all of that alone and only chooses the level, moving it each timestep
 until the patch passes a prescribed mass flow, so a characteristic can be swept
 by mass flow rather than by back pressure. A swirling exit flow still needs a
-radial-equilibrium adjustment, supplied by :func:`calc_radial_equilibrium`:
-prescribing the pitchwise mean at every span station holds the exit plane off
-radial equilibrium just as firmly as prescribing it node by node would.
+radial-equilibrium adjustment, supplied by
+:meth:`OutletPatch.calc_radial_equilibrium`: prescribing the pitchwise mean at
+every span station holds the exit plane off radial equilibrium just as firmly
+as prescribing it node by node would.
 
 Reversal means something particular to a condition written in characteristic
 variables. Reverse a span station and four of its five characteristics turn
@@ -50,60 +51,6 @@ import numpy as np
 
 from ember import average
 from ember.nonreflecting import NonReflectingPatch, replayable
-
-
-def calc_radial_equilibrium(patch):
-    r"""Spanwise static pressure profile in centrifugal radial equilibrium.
-
-    Swirling flow leaving a blade row carries a centrifugal radial pressure
-    gradient,
-
-    .. math::
-
-        \frac{dp}{dr} = \frac{\overline{\rho V_\theta}\;\overline{V_\theta}}{r}
-
-    where :math:`\overline{\Box}` is the pitch mean. This product-of-means form
-    matches the Multall ``EXBCONDS`` radial-equilibrium treatment. Flow
-    quantities are pitch-averaged over the first interior layer (the offset-1
-    slice) rather than the boundary face, so the profile is driven by the
-    interior rather than by whatever the boundary condition last wrote there.
-
-    Integrated from hub to tip and anchored to zero at the hub, so a patch that
-    adds this to a prescribed pressure enforces that pressure at the hub.
-
-    Parameters
-    ----------
-    patch : ember.patch.RevolutionPatch
-        Outflow patch to read the interior layer and pitch weights from.
-
-    Returns
-    -------
-    array
-        Nondimensional pressure offset at each span station, shape
-        ``(nspan,)``, zero at the hub. The caller broadcasts it over the patch
-        shape and adds it to its own prescribed pressure.
-
-    See Also
-    --------
-    ember.patch.OutletPatch.set_adjustment : Enables this on the outlet
-    """
-    b1 = patch.block_view_offset_1
-    w = patch.weight_pitch
-    pd = patch.pitch_dim
-    rhoVt_mean = np.sum(b1.rho_nd * b1.Vt_nd * w, axis=pd).squeeze()
-    Vt_mean = np.sum(b1.Vt_nd * w, axis=pd).squeeze()
-    r_nd = np.sum(b1.r_nd * w, axis=pd).squeeze()
-    # No NaN guard here: a diverged march can feed NaN into these means, but it
-    # should propagate through (into the pressure target, then the conserved
-    # state) and be caught by the solver's own Grid.check_nan() on its next
-    # pass, the same graceful path every other divergence takes. Raising here
-    # instead pre-empts that with a hard, uncaught crash.
-    dPdr_nd = rhoVt_mean * Vt_mean / r_nd
-    dr_nd = np.diff(r_nd)
-    P_re_span_nd = np.empty(len(r_nd))
-    P_re_span_nd[0] = 0.0
-    P_re_span_nd[1:] = np.cumsum(0.5 * (dPdr_nd[:-1] + dPdr_nd[1:]) * dr_nd)
-    return P_re_span_nd
 
 
 class OutletPatch(NonReflectingPatch):
@@ -539,6 +486,58 @@ class OutletPatch(NonReflectingPatch):
         self._target[..., 2] = 0.0
         self._target_set[2] = True
 
+    def calc_radial_equilibrium(self):
+        r"""Spanwise static pressure profile in centrifugal radial equilibrium.
+
+        Swirling flow leaving a blade row carries a centrifugal radial pressure
+        gradient,
+
+        .. math::
+
+            \frac{dp}{dr} = \frac{\overline{\rho V_\theta}\;\overline{V_\theta}}{r}
+
+        where :math:`\overline{\Box}` is the pitch mean. This product-of-means
+        form matches the Multall ``EXBCONDS`` radial-equilibrium treatment. Flow
+        quantities are pitch-averaged over the first interior layer (the
+        offset-1 slice) rather than the boundary face, so the profile is driven
+        by the interior rather than by whatever the boundary condition last
+        wrote there.
+
+        Integrated from hub to tip and anchored to zero at the hub, so adding
+        it to a prescribed pressure enforces that pressure at the hub. Computed
+        from the current flow on every call; this is the profile
+        :meth:`set_adjustment` relaxes toward each timestep.
+
+        Returns
+        -------
+        array
+            Nondimensional pressure offset at each span station, shape
+            ``(nspan,)``, zero at the hub. Multiply by ``fluid.P_ref`` for
+            pascals; broadcast over the patch shape to add it to a pressure.
+
+        See Also
+        --------
+        ember.patch.OutletPatch.set_adjustment : Enables this on the outlet
+        """
+        b1 = self.block_view_offset_1
+        w = self.weight_pitch
+        pd = self.pitch_dim
+        rhoVt_mean = np.sum(b1.rho_nd * b1.Vt_nd * w, axis=pd).squeeze()
+        Vt_mean = np.sum(b1.Vt_nd * w, axis=pd).squeeze()
+        r_nd = np.sum(b1.r_nd * w, axis=pd).squeeze()
+        # No NaN guard here: a diverged march can feed NaN into these means,
+        # but it should propagate through (into the pressure target, then the
+        # conserved state) and be caught by the solver's own Grid.check_nan()
+        # on its next pass, the same graceful path every other divergence
+        # takes. Raising here instead pre-empts that with a hard, uncaught
+        # crash.
+        dPdr_nd = rhoVt_mean * Vt_mean / r_nd
+        dr_nd = np.diff(r_nd)
+        P_re_span_nd = np.empty(len(r_nd))
+        P_re_span_nd[0] = 0.0
+        P_re_span_nd[1:] = np.cumsum(0.5 * (dPdr_nd[:-1] + dPdr_nd[1:]) * dr_nd)
+        return P_re_span_nd
+
     def update_ref_scales(self):
         r"""Re-derive the prescribed pressure and drop the spanwise adjustment.
 
@@ -604,7 +603,9 @@ class OutletPatch(NonReflectingPatch):
             return
 
         if self._adjustment["radial_equilibrium"]:
-            profile = self._span_bcast(calc_radial_equilibrium(self).astype(np.float32))
+            profile = self._span_bcast(
+                self.calc_radial_equilibrium().astype(np.float32)
+            )
         else:
             profile = np.zeros_like(self._P_level_nd)
 
@@ -689,7 +690,7 @@ class OutletPatch(NonReflectingPatch):
 
         Held apart from :attr:`P` because that is the imposed field rather than
         its level, and the two differ under :meth:`set_adjustment` --- see
-        :func:`calc_radial_equilibrium`, whose profile is anchored at the hub,
+        :meth:`calc_radial_equilibrium`, whose profile is anchored at the hub,
         so the level is the hub value and not the mean of :attr:`P`.
 
         See Also
