@@ -5,10 +5,10 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
-.. _v0.5.0:
+.. _v0.4.10:
 
-0.5.0
------
+0.4.10 (2026-11-19)
+-------------------
 
 * Add optional spacing floor to elliptic Winslow sweeps that enforces
   a minimum spacing on wall-normal grid lines
