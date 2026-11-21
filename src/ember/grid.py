@@ -1402,7 +1402,7 @@ class Grid(_LabelledList):
         for tgt_block, src_block in zip(self, src):
             ember.block_util.interp_from_grid(tgt_block, src_block)
 
-    def resample(self, factors):
+    def resample(self, factors, mult=1):
         """Resample all blocks, returning a new Grid at the new resolution.
 
         Each block keeps the nodes at its ends and patch boundaries, and shares
@@ -1412,10 +1412,21 @@ class Grid(_LabelledList):
         longer meet: so a block's critical indices are first carried across
         every such interface onto its neighbour, and on through the grid until
         none is new. See :func:`_resample_crit`.
+
+        Parameters
+        ----------
+        factors : float or tuple of 3 floats
+            Resampling factor, or one per index direction.
+        mult : int, optional
+            Give each segment a multiple of this many cells, the nearest to its
+            span times the factor and at least `mult`, so that multigrid can
+            halve every block however the factor divides; eight keeps three
+            levels on a grid whose segments are all multiples of eight. One,
+            the default, rounds to the nearest cell.
         """
         crit = _resample_crit(self)
         return Grid(
-            [ember.block_util.resample(b, factors, c) for b, c in zip(self, crit)]
+            [ember.block_util.resample(b, factors, c, mult) for b, c in zip(self, crit)]
         )
 
     @util.profile

@@ -1871,6 +1871,41 @@ class TestResample:
         assert np.isclose(x_resampled[mapping[0]], x[0])
         assert np.isclose(x_resampled[mapping[10]], x[10])
 
+    @pytest.mark.parametrize(
+        "factor, cells",
+        [
+            (1.3, [8, 24, 32]),
+            (1.6, [16, 24, 40]),
+            (0.5, [8, 8, 16]),
+            (0.25, [8, 8, 8]),
+            (2.0, [16, 32, 48]),
+        ],
+    )
+    def test_mult_rounds_each_segment_to_a_multiple(self, factor, cells):
+        """Each segment gets the multiple of mult nearest its span times the
+        factor, at least mult, however the factor divides it."""
+        x = np.arange(49, dtype=float)
+        i_crit = [0, 8, 24, 48]
+
+        x_new, mapping = util.resample(factor, x, i_crit, mult=8)
+
+        new_crit = [mapping[i] for i in i_crit]
+        assert np.diff(new_crit).tolist() == cells
+        np.testing.assert_allclose(x_new[new_crit], x[i_crit])
+
+    def test_mult_one_is_the_default(self):
+        x = np.linspace(0.0, 1.0, 23) ** 2
+        for factor in (0.6, 1.3, 2.0):
+            a, map_a = util.resample(factor, x, [0, 7, 22])
+            b, map_b = util.resample(factor, x, [0, 7, 22], mult=1)
+            np.testing.assert_array_equal(a, b)
+            assert map_a == map_b
+
+    @pytest.mark.parametrize("mult", [0, -8, 2.5])
+    def test_mult_must_be_a_positive_integer(self, mult):
+        with pytest.raises(ValueError, match="mult must be a positive integer"):
+            util.resample(2.0, np.arange(9.0), mult=mult)
+
 
 # ---------------------------------------------------------------------------
 # TestApplyGuessQuasi3D

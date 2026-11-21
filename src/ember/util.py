@@ -1133,7 +1133,7 @@ def matvec(A, b, out=None):
     return np.asfortranarray(result.astype(f32))
 
 
-def resample(factor, vector, i_crit=None):
+def resample(factor, vector, i_crit=None, mult=1):
     """Resampled a vector with specified factor, optionally preserving critical points.
 
     Creates a new vector by resampling with a given factor. The new length equals
@@ -1150,6 +1150,12 @@ def resample(factor, vector, i_crit=None):
     i_crit : array_like, optional
         Critical indices that must be preserved in the output.
         Must be sorted and within [0, len(vector)-1]. If None, uses [0, len(vector)-1].
+    mult : int, optional
+        Give each segment between critical indices a multiple of this many
+        cells, the nearest to its span times `factor` and at least `mult`, so
+        that a multigrid level can halve every segment however the factor
+        divides: eight keeps three levels. One, the default, rounds to the
+        nearest cell.
 
     Returns
     -------
@@ -1176,6 +1182,9 @@ def resample(factor, vector, i_crit=None):
     # Input validation
     if factor <= 0:
         raise ValueError("factor must be positive")
+    if int(mult) != mult or mult < 1:
+        raise ValueError(f"mult must be a positive integer, got {mult!r}")
+    mult = int(mult)
 
     vector = np.asarray(vector, dtype=np.float32)
     ni = len(vector)
@@ -1200,13 +1209,13 @@ def resample(factor, vector, i_crit=None):
     # Calculate spans between consecutive critical indices
     spans = np.diff(i_crit)
 
-    # Each segment gets its own span times the factor, rounded half up, at
-    # least one: a count of the segment alone, not of its place or the other
-    # segments, so two blocks cut into the same segments across a matched
-    # interface (see Grid.resample) agree whichever way their indices run.
-    # Largest remainder on a fixed total would not. The total can then be a
-    # cell or two off round((ni - 1) * factor) where segments do not divide.
-    seg_cells = np.maximum(np.floor(spans * factor + 0.5).astype(int), 1)
+    # Each segment gets its own span times the factor, rounded half up to a
+    # multiple of mult, at least mult: a count of the segment alone, not of its
+    # place or the other segments, so two blocks cut into the same segments
+    # across a matched interface (see Grid.resample) agree whichever way their
+    # indices run. Largest remainder on a fixed total would not. The total can
+    # be off round((ni - 1) * factor) where segments do not divide.
+    seg_cells = mult * np.maximum(np.floor(spans * factor / mult + 0.5).astype(int), 1)
 
     # Generate fractional indices for each segment
     fractional_indices = []

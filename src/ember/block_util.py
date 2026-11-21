@@ -407,7 +407,7 @@ def resolve_from_interface(block, rot_from):
     return _rotate_meridional(block, rot_from)
 
 
-def resample(block, factors, ijk_crit=None):
+def resample(block, factors, ijk_crit=None, mult=1):
     """Resample 3D block with vectorized interpolation while preserving patch connectivity.
 
     Creates a new block by resampling with given factor(s). Critical indices from
@@ -426,6 +426,9 @@ def resample(block, factors, ijk_crit=None):
         its own patch boundaries. :meth:`ember.grid.Grid.resample` passes those its
         neighbours impose across a matched interface, so that both sides of it
         are cut into the same segments and get the same nodes.
+    mult : int, optional
+        Give each segment between critical indices, in every direction, a
+        multiple of this many cells; see :func:`ember.util.resample`.
 
     Returns
     -------
@@ -452,7 +455,7 @@ def resample(block, factors, ijk_crit=None):
     # 2. Resample each direction with mappings
     ijk_new, ijk_mappings = zip(
         *[
-            util.resample(factors[dim], np.arange(old_shape[dim]), ijk_crit[dim])
+            util.resample(factors[dim], np.arange(old_shape[dim]), ijk_crit[dim], mult)
             for dim in range(3)
         ]
     )

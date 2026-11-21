@@ -21,6 +21,10 @@ public API without a deprecation period.
   grid lines (PCHIP, blended across each cell), not straight lines, so a
   stretched grid stays smoothly stretched and a curved wall is not faceted;
   flow variables are still interpolated linearly
+* Add ``mult`` to ``Grid.resample``, ``block_util.resample`` and
+  ``util.resample``: each segment between critical indices gets a multiple of
+  that many cells, so a grid whose segments are multiples of eight keeps
+  three multigrid levels at any factor
 
 .. _v0.4.10:
 

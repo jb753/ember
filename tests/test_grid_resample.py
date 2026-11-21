@@ -933,3 +933,49 @@ class TestResamplePartialInterface:
         np.testing.assert_allclose(
             np.asarray(a.t)[-1, :, :nk_b], np.asarray(b.t)[0], atol=1e-7
         )
+
+
+class TestResampleMult:
+    """With ``mult``, a multi-block grid stays multigrid-ready at any factor.
+
+    Two blocks joined face to face, every segment between their critical
+    indices a multiple of eight cells, as an OH-passage mesh's are. Resampled
+    by a factor that does not divide eight, each segment is still a multiple
+    of eight, so each block keeps its three multigrid levels, and the shared
+    face still meets node for node.
+    """
+
+    @staticmethod
+    def _pair():
+        shape = (17, 9, 25)
+        blocks = []
+        for x0 in (0.0, 1.0):
+            block = _make_state_block(shape)
+            block.set_x(block.x + x0)
+            blocks.append(block)
+        a, b = blocks
+        a.patches.append(InviscidPatch(i=0, j=(0, -1), k=(0, 8)))
+        a.patches.append(InviscidPatch(i=0, j=(0, -1), k=(8, -1)))
+        a.patches.append(PeriodicPatch(i=-1, j=(0, -1), k=(0, -1)))
+        b.patches.append(PeriodicPatch(i=0, j=(0, -1), k=(0, -1)))
+        return Grid([a, b])
+
+    @pytest.mark.parametrize("factor", [1.3, 0.7, 1.6, 0.4])
+    def test_segments_stay_multiples_of_eight(self, factor):
+        grid = self._pair().resample(factor, mult=8)
+
+        for block in grid:
+            for d in range(3):
+                crit = {0, block.shape[d] - 1} | {
+                    int(i) for patch in block.patches for i in patch.ijk_lim_abs[d]
+                }
+                assert all(span % 8 == 0 for span in np.diff(sorted(crit)))
+            assert block.n_levels_max >= 3
+
+        a, b = grid
+        np.testing.assert_allclose(a.t[-1], b.t[0], atol=1e-6)
+
+    def test_without_mult_the_counts_follow_the_factor(self):
+        a, _ = self._pair().resample(1.3)
+
+        assert a.shape == (22, 11, 32)
