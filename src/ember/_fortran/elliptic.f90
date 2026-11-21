@@ -99,7 +99,7 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
         cp_node, cp_corner, cp_dy, cp_f, &
         wn0, wn1, dy0, dy1, line, s_line, floor_, seg0, seg1, &
         pitch, orth, slide_f, relax, n_sweep, m_irr, m_sld, m_cp, m_w, &
-        on_n, on_dy, on_w, m_on, w_min, on_min, m_min, status, &
+        on_n, on_dy, on_w, m_on, w_min, on_min, w_max, on_max, m_min, status, &
         n_node, n_reg, n_irr, n_irr_nb, n_sld, n_sld_nb, n_cp, n_w, n_line, n_on)
     ! Point-Jacobi sweeps of Winslow's equations, in place on X.
     !
@@ -131,11 +131,12 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
     !      converge to the same grid. The wall nodes keep where 4 slid them,
     !      which is on the wall line.
     !   7. if m_min is not zero, every line out from a wall node, through the
-    !      node outside it and on through the m_on lines of on_n, held no
-    !      shorter cell by cell than w_min and on_min: line by line out, each
-    !      node lying nearer the node inside it than that pushed out along
-    !      the cell between them to it, so the line keeps its thickness where
-    !      the sweeps would draw it in.
+    !      node outside it and on through the m_on lines of on_n, held cell by
+    !      cell no shorter than w_min and on_min and no longer than w_max and
+    !      on_max: line by line out, each node nearer the node inside it than
+    !      the least pushed out, and further than the most pulled in, along
+    !      the cell between them, so the line keeps its thickness where the
+    !      sweeps would draw it in or spread it out.
     !
     ! As in ttm_stencil, the kernel knows nothing of blocks: it works through
     ! the node numbers and pitch shifts it is given, counted from zero. Rows
@@ -167,6 +168,7 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
     real, intent(in) :: on_dy(n_w, n_on), on_w(n_on)
     integer, intent(in) :: m_min
     real, intent(in) :: w_min(n_w), on_min(n_w, n_on)
+    real, intent(in) :: w_max(n_w), on_max(n_w, n_on)
     integer, intent(out) :: status
     real, intent(inout) :: X(n_node, 2), Xold(n_node, 2)
     integer, intent(in) :: sg(n_reg, 9), ss(n_reg, 9)
@@ -189,7 +191,7 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
     real :: xSE, ySE, xi_x, xi_y, eta_x, eta_y, a, b, c, r
     real :: xc, yc
     double precision :: px, py, fx, fy, gx, gy, tx, ty, tn, sense, ds_line
-    real :: ax, ay, bx, by, dist, ox, oy, f
+    real :: ax, ay, bx, by, dist, held, ox, oy, f
     integer :: it, n, i, q, half, k
 
     s_total = s_line(n_line)
@@ -384,7 +386,7 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
             X = Xold + relax * (X - Xold)
         end if
 
-        ! 7. The lines out from the wall no thinner than their floors.
+        ! 7. The lines out from the wall between their floors and ceilings.
         if (m_min /= 0) then
             do i = 1, m_w - 1
                 ax = X(wn0(i) + 1, 1)
@@ -392,9 +394,10 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
                 bx = X(wn1(i) + 1, 1)
                 by = X(wn1(i) + 1, 2) + dy1(i)
                 dist = sqrt((bx - ax)**2 + (by - ay)**2)
-                if (dist < w_min(i) .and. dist > 0.0) then
-                    bx = ax + (bx - ax) * (w_min(i) / dist)
-                    by = ay + (by - ay) * (w_min(i) / dist)
+                held = min(max(dist, w_min(i)), w_max(i))
+                if (held /= dist .and. dist > 0.0) then
+                    bx = ax + (bx - ax) * (held / dist)
+                    by = ay + (by - ay) * (held / dist)
                     X(wn1(i) + 1, 1) = bx
                     X(wn1(i) + 1, 2) = by - dy1(i)
                 end if
@@ -404,9 +407,10 @@ subroutine winslow_sweeps(X, Xold, sg, ss, &
                     bx = X(on_n(i, k) + 1, 1)
                     by = X(on_n(i, k) + 1, 2) + on_dy(i, k)
                     dist = sqrt((bx - ax)**2 + (by - ay)**2)
-                    if (dist < on_min(i, k) .and. dist > 0.0) then
-                        bx = ax + (bx - ax) * (on_min(i, k) / dist)
-                        by = ay + (by - ay) * (on_min(i, k) / dist)
+                    held = min(max(dist, on_min(i, k)), on_max(i, k))
+                    if (held /= dist .and. dist > 0.0) then
+                        bx = ax + (bx - ax) * (held / dist)
+                        by = ay + (by - ay) * (held / dist)
                         X(on_n(i, k) + 1, 1) = bx
                         X(on_n(i, k) + 1, 2) = by - on_dy(i, k)
                     end if

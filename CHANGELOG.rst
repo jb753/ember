@@ -29,6 +29,9 @@ public API without a deprecation period.
   mixing plane where one row's span is cut, as at the top of a blade with a
   tip gap, and the other's is not: spanwise critical indices are now carried
   across mixing planes too
+* Add ``ceilings`` to ``elliptic.winslow_sweeps``: the most length of each
+  cell of the lines out from a wall, as ``floors`` is the least, each sweep
+  pulling in a node further than that from the one inside it
 
 .. _v0.4.10:
 
