@@ -17,6 +17,10 @@ public API without a deprecation period.
   indices are now carried across each interface, and each segment between
   them gets ``round(span * factor)`` cells, so a block's total can differ
   from ``round((n - 1) * factor)`` where its segments do not divide
+* ``Grid.resample`` places new coordinates on monotone cubics through the old
+  grid lines (PCHIP, blended across each cell), not straight lines, so a
+  stretched grid stays smoothly stretched and a curved wall is not faceted;
+  flow variables are still interpolated linearly
 
 .. _v0.4.10:
 

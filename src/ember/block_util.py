@@ -459,12 +459,20 @@ def resample(block, factors, ijk_crit=None):
 
     new_shape = tuple(len(coords) for coords in ijk_new)
 
-    # 3. Interpolate all variables in a single Fortran call
-    data_new = ember.fortran.map_coordinates_3d(
-        block._data,
-        ijk_new[0].astype(np.float32),
-        ijk_new[1].astype(np.float32),
-        ijk_new[2].astype(np.float32),
+    # 3. Interpolate all variables trilinearly in a single Fortran call, then
+    # the coordinates again by monotone cubics, so a stretched grid stays
+    # smoothly stretched and a curved wall is not faceted. The cubics run one
+    # segment between critical indices at a time, so a block meeting only part
+    # of a line sees the same curve. Coordinates are the first data columns.
+    ijk_f32 = [c.astype(np.float32) for c in ijk_new]
+    data_new = ember.fortran.map_coordinates_3d(block._data, *ijk_f32)
+    segments = [_segment_bounds(ijk_crit[d], old_shape[d]) for d in range(3)]
+    slopes = np.empty(old_shape + (6,), dtype=np.float32, order="F")
+    data_new[..., :3] = ember.fortran.pchip_resample_3d(
+        block._data[..., :3],
+        *ijk_f32,
+        *(bound for seg in segments for bound in seg),
+        slopes,
     )
 
     # Get all old patch limits before creating new block
@@ -509,6 +517,23 @@ def resample(block, factors, ijk_crit=None):
         new_patch.attach_to_block_resampled(new_block, old_patch)
 
     return new_block
+
+
+def _segment_bounds(crit, n):
+    """First and last node of the segment holding each interval, one-based.
+
+    Entry ``m`` is for the interval from node ``m`` to the next, between the
+    critical indices `crit` (zero-based, sorted, including both ends); the
+    last entry repeats the one before. A line of one node is its own segment.
+    """
+    lo = np.ones(n, dtype=np.int32)
+    hi = np.ones(n, dtype=np.int32)
+    for a, b in zip(crit[:-1], crit[1:]):
+        lo[a:b] = a + 1
+        hi[a:b] = b + 1
+    if n > 1:
+        lo[-1], hi[-1] = lo[-2], hi[-2]
+    return lo, hi
 
 
 def _patch_crit(block, src):
