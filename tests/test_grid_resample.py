@@ -767,3 +767,43 @@ class TestInterpFromArrays:
         Grid([tgt]).interp_from_arrays([self._arrays((4, 4, 4), T=400.0)])
 
         np.testing.assert_allclose(tgt.T, 400.0, rtol=1e-4)
+
+
+class TestResampleMatchedInterface:
+    """Blocks joined face to face must still meet node for node once resampled.
+
+    Two blocks, A then B in ``i``, share a whole ``k``-running face. A's other
+    ``i`` face is split at ``k = 3`` by two patches, as an O block's outer face
+    is split where it meets the blocks round it, so A's ``k`` direction has a
+    critical index there that B's has not. Each block allocates its ``k`` cells
+    by its own critical indices, so unless the index is carried across the
+    interface, wherever a segment's share of cells is not whole A places the
+    shared face's nodes differently from B. With ``flip``, B's ``k`` runs the
+    other way, so the index must land at B's ``k = 5``.
+    """
+
+    @staticmethod
+    def _pair(flip):
+        shape = (5, 3, 9)
+        blocks = []
+        for x0 in (0.0, 1.0):
+            block = _make_state_block(shape)
+            block.set_x(block.x + x0)
+            blocks.append(block)
+        a, b = blocks
+        if flip:
+            b.set_t(b.t[:, :, ::-1].copy())
+        a.patches.append(InviscidPatch(i=0, j=(0, -1), k=(0, 3)))
+        a.patches.append(InviscidPatch(i=0, j=(0, -1), k=(3, -1)))
+        a.patches.append(PeriodicPatch(i=-1, j=(0, -1), k=(0, -1)))
+        b.patches.append(PeriodicPatch(i=0, j=(0, -1), k=(0, -1)))
+        return Grid([a, b])
+
+    @pytest.mark.parametrize("flip", [False, True])
+    @pytest.mark.parametrize("factor", [2.0, 0.5, 1.5])
+    def test_shared_face_nodes_coincide(self, factor, flip):
+        a, b = self._pair(flip).resample(factor)
+
+        t_b = b.t[0][:, ::-1] if flip else b.t[0]
+        assert a.shape[1:] == b.shape[1:]
+        np.testing.assert_allclose(a.t[-1], t_b, atol=1e-6)

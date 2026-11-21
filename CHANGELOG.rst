@@ -12,6 +12,11 @@ public API without a deprecation period.
 
 * Move ``ember.outlet.calc_radial_equilibrium(patch)`` to the method
   ``OutletPatch.calc_radial_equilibrium()``; the free function is removed
+* Fix ``Grid.resample`` leaving nodes unmatched across periodic and cusp
+  interfaces between blocks, at any factor but a whole number: critical
+  indices are now carried across each interface, and each segment between
+  them gets ``round(span * factor)`` cells, so a block's total can differ
+  from ``round((n - 1) * factor)`` where its segments do not divide
 
 .. _v0.4.10:
 

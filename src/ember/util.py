@@ -1200,46 +1200,13 @@ def resample(factor, vector, i_crit=None):
     # Calculate spans between consecutive critical indices
     spans = np.diff(i_crit)
 
-    # Allocate per-segment cell counts by largest remainder (Hare quota):
-    # floor each segment's ideal count, then give the leftover cells to the
-    # largest fractional remainders. This makes the segments sum exactly to the
-    # target total; rounding each independently can overshoot by a node and
-    # break the multigrid invariant n_coarse == (n_fine - 1) // 2 + 1.
-    # Segments are clamped to >= 1 cell so the critical-index mapping stays
-    # strictly increasing.
-    total_cells = int(np.round((ni - 1) * factor))
-    seg_float = spans * factor
-    seg_cells = np.floor(seg_float).astype(int)
-    seg_cells = np.maximum(seg_cells, 1)
-    remainder = seg_float - np.floor(seg_float)
-    deficit = total_cells - seg_cells.sum()
-    if deficit > 0:
-        # Award extras to segments with largest fractional remainder.
-        order = np.argsort(-remainder, kind="stable")
-        seg_cells[order[:deficit]] += 1
-    elif deficit < 0:
-        # Trim from segments with smallest remainder, but never below 1.
-        # Sweep repeatedly: a single pass removes at most one cell per
-        # segment, so when the surplus exceeds the number of trimmable
-        # segments it must keep sweeping the large segments down. A sweep
-        # that trims nothing means every segment is already at 1 -- the
-        # target genuinely cannot be met without collapsing a segment.
-        order = np.argsort(remainder, kind="stable")
-        while deficit != 0:
-            trimmed = False
-            for idx in order:
-                if deficit == 0:
-                    break
-                if seg_cells[idx] > 1:
-                    seg_cells[idx] -= 1
-                    deficit += 1
-                    trimmed = True
-            if not trimmed:
-                raise ValueError(
-                    f"resample: cannot allocate {total_cells} cells across "
-                    f"{len(spans)} segments without collapsing a segment "
-                    f"(spans={spans.tolist()}, factor={factor})"
-                )
+    # Each segment gets its own span times the factor, rounded half up, at
+    # least one: a count of the segment alone, not of its place or the other
+    # segments, so two blocks cut into the same segments across a matched
+    # interface (see Grid.resample) agree whichever way their indices run.
+    # Largest remainder on a fixed total would not. The total can then be a
+    # cell or two off round((ni - 1) * factor) where segments do not divide.
+    seg_cells = np.maximum(np.floor(spans * factor + 0.5).astype(int), 1)
 
     # Generate fractional indices for each segment
     fractional_indices = []

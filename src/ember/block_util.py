@@ -407,7 +407,7 @@ def resolve_from_interface(block, rot_from):
     return _rotate_meridional(block, rot_from)
 
 
-def resample(block, factors):
+def resample(block, factors, ijk_crit=None):
     """Resample 3D block with vectorized interpolation while preserving patch connectivity.
 
     Creates a new block by resampling with given factor(s). Critical indices from
@@ -421,6 +421,11 @@ def resample(block, factors):
     factors : float or tuple of 3 floats
         Resampling factor(s). Values > 1 increase resolution, < 1 decrease resolution.
         If scalar, same factor applied to all three dimensions.
+    ijk_crit : sequence of 3 iterables of int, optional
+        Further critical indices in each direction, beyond the block's ends and
+        its own patch boundaries. :meth:`ember.grid.Grid.resample` passes those its
+        neighbours impose across a matched interface, so that both sides of it
+        are cut into the same segments and get the same nodes.
 
     Returns
     -------
@@ -434,10 +439,12 @@ def resample(block, factors):
     old_shape = block.shape
 
     # 1. Collect critical indices using list comprehension
+    extra = ijk_crit if ijk_crit is not None else ([], [], [])
     ijk_crit = [
         np.unique(
             [0, old_shape[dim] - 1]
             + [idx for patch in block.patches for idx in patch.ijk_lim_abs[dim]]
+            + [int(idx) for idx in extra[dim]]
         )
         for dim in range(3)
     ]

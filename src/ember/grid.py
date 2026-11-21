@@ -1403,8 +1403,20 @@ class Grid(_LabelledList):
             ember.block_util.interp_from_grid(tgt_block, src_block)
 
     def resample(self, factors):
-        """Resample all blocks, returning a new Grid at the new resolution."""
-        return Grid([ember.block_util.resample(b, factors) for b in self])
+        """Resample all blocks, returning a new Grid at the new resolution.
+
+        Each block keeps the nodes at its ends and patch boundaries, and shares
+        the rest out between the segments those cut it into. Two blocks that
+        meet node for node across a periodic or cusp interface must be cut into
+        the same segments along it, or the shares differ and the nodes no
+        longer meet: so a block's critical indices are first carried across
+        every such interface onto its neighbour, and on through the grid until
+        none is new. See :func:`_resample_crit`.
+        """
+        crit = _resample_crit(self)
+        return Grid(
+            [ember.block_util.resample(b, factors, c) for b, c in zip(self, crit)]
+        )
 
     @util.profile
     def smooth(self, sf4, sf2, adaptive=False, sf2_T=None):
@@ -2168,7 +2180,9 @@ class GridConnectivity:
         self._pairs_computed = False
         self._communicator = None
 
-    def _compute_pairs(self, rtol=1e-5):
+    def _compute_pairs(self, rtol=1e-5, strict=True):
+        # With ``strict``, a patch with no partner is an error; without, it is
+        # left out, for a caller that only wants whatever pairs there are.
         # Collect patches of the specified type from all blocks
         patches = []
         blocks = []
@@ -2252,7 +2266,7 @@ class GridConnectivity:
                     found_match = True
                     break
 
-            if not found_match:
+            if not found_match and strict:
                 raise ValueError(
                     f"Unmatched: {patch} bid, pid={patch_indices[idx_self]})\n"
                     "Check:\n"
@@ -2345,6 +2359,65 @@ class GridConnectivity:
             self._pairs = self._compute_pairs(rtol)
             self._pairs_computed = True
         return self._pairs
+
+
+def _resample_crit(grid):
+    """Critical indices each block of `grid` must keep when resampled.
+
+    A block's own are its ends and its patch boundaries, which
+    :func:`ember.block_util.resample` finds for itself. Returned here, per
+    block and direction, are those it must keep besides: wherever a periodic or
+    cusp patch joins it node for node to another block, each critical index of
+    either inside the patch is carried across to the other, along the
+    direction the pair's transform maps it to, and so on through the grid
+    until none is new. Both sides of every such interface are then cut into
+    the same segments, which the resampling shares the nodes out between.
+
+    An index carried across lands on a node, so keeping it costs nothing but
+    the freedom to share that block's nodes out more evenly. Patches without
+    a partner carry nothing: resampling never needed the grid to pair, and
+    still does not. The pairs are found afresh rather than taken from the
+    cache, which would fix them for the solver too.
+    """
+    own = [
+        [
+            {0, block.shape[d] - 1}
+            | {int(i) for patch in block.patches for i in patch.ijk_lim_abs[d]}
+            for d in range(3)
+        ]
+        for block in grid
+    ]
+    crit = [[set(s) for s in per_block] for per_block in own]
+
+    pairs = {}
+    for conn in (grid.connectivity.periodic, grid.connectivity.cusp):
+        pairs.update(conn._compute_pairs(strict=False))
+
+    changed = True
+    while changed:
+        changed = False
+        for (bid, pid), ((obid, opid), (perm, flip)) in pairs.items():
+            lim = grid[bid].patches[pid].ijk_lim_abs
+            olim = grid[obid].patches[opid].ijk_lim_abs
+            for d in range(3):
+                lo, hi = int(lim[d][0]), int(lim[d][1])
+                if lo == hi:
+                    continue
+                # Axis d of this patch runs along axis perm[d] of the other,
+                # backwards if d is flipped.
+                e = perm[d]
+                olo, ohi = int(olim[e][0]), int(olim[e][1])
+                for c in list(crit[bid][d]):
+                    if not lo < c < hi:
+                        continue
+                    oc = ohi - (c - lo) if d in flip else olo + (c - lo)
+                    if oc not in crit[obid][e]:
+                        crit[obid][e].add(oc)
+                        changed = True
+
+    return [
+        [sorted(crit[b][d] - own[b][d]) for d in range(3)] for b in range(len(grid))
+    ]
 
 
 def _calculate_wdist_row(grid, limit_pitch=np.inf, ignore_inviscid=False):
