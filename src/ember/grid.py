@@ -2384,6 +2384,11 @@ def _resample_crit(grid):
     until none is new. Both sides of every such interface are then cut into
     the same segments, which the resampling shares the nodes out between.
 
+    A mixing plane matches its two sides span for span but not pitchwise, so
+    across one only the spanwise indices are carried: a row with a tip gap
+    cuts its span at the top of the blade, and the rows either side of it
+    must be cut there too, or their spanwise nodes part.
+
     An index carried across lands on a node, so keeping it costs nothing but
     the freedom to share that block's nodes out more evenly. Patches without
     a partner carry nothing: resampling never needed the grid to pair, and
@@ -2400,28 +2405,37 @@ def _resample_crit(grid):
     ]
     crit = [[set(s) for s in per_block] for per_block in own]
 
-    pairs = {}
+    # Each link: this patch, the other, and per carried axis (d, e, reversed),
+    # axis d of this patch running along axis e of the other.
+    links = []
     for conn in (grid.connectivity.periodic, grid.connectivity.cusp):
-        pairs.update(conn._compute_pairs(strict=False))
+        for (bid, pid), ((obid, opid), (perm, flip)) in conn._compute_pairs(
+            strict=False
+        ).items():
+            axes = [(d, perm[d], d in flip) for d in range(3)]
+            links.append((bid, pid, obid, opid, axes))
+    for (bid, pid), ((obid, opid), flipped) in grid.connectivity.mixing._compute_pairs(
+        strict=False
+    ).items():
+        d = grid[bid].patches[pid].span_dim
+        e = grid[obid].patches[opid].span_dim
+        links.append((bid, pid, obid, opid, [(d, e, bool(flipped))]))
 
     changed = True
     while changed:
         changed = False
-        for (bid, pid), ((obid, opid), (perm, flip)) in pairs.items():
+        for bid, pid, obid, opid, axes in links:
             lim = grid[bid].patches[pid].ijk_lim_abs
             olim = grid[obid].patches[opid].ijk_lim_abs
-            for d in range(3):
+            for d, e, reverse in axes:
                 lo, hi = int(lim[d][0]), int(lim[d][1])
                 if lo == hi:
                     continue
-                # Axis d of this patch runs along axis perm[d] of the other,
-                # backwards if d is flipped.
-                e = perm[d]
                 olo, ohi = int(olim[e][0]), int(olim[e][1])
                 for c in list(crit[bid][d]):
                     if not lo < c < hi:
                         continue
-                    oc = ohi - (c - lo) if d in flip else olo + (c - lo)
+                    oc = ohi - (c - lo) if reverse else olo + (c - lo)
                     if oc not in crit[obid][e]:
                         crit[obid][e].add(oc)
                         changed = True

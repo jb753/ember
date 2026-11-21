@@ -25,6 +25,10 @@ public API without a deprecation period.
   ``util.resample``: each segment between critical indices gets a multiple of
   that many cells, so a grid whose segments are multiples of eight keeps
   three multigrid levels at any factor
+* Fix ``Grid.resample`` parting the spanwise nodes of the two sides of a
+  mixing plane where one row's span is cut, as at the top of a blade with a
+  tip gap, and the other's is not: spanwise critical indices are now carried
+  across mixing planes too
 
 .. _v0.4.10:
 

@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 from ember.grid import Grid
 from ember.block import Block
-from ember.patch import CoolingPatch, InviscidPatch, PeriodicPatch
+from ember.patch import CoolingPatch, InviscidPatch, MixingPatch, PeriodicPatch
 from ember.fluid import PerfectFluid
 from ember import util
 
@@ -979,3 +979,41 @@ class TestResampleMult:
         a, _ = self._pair().resample(1.3)
 
         assert a.shape == (22, 11, 32)
+
+
+class TestResampleMixingPlane:
+    """The two sides of a mixing plane keep the same spanwise nodes.
+
+    A mixing plane matches its sides span for span, though not pitchwise. A's
+    span is cut at ``j = 12`` by a patch over its top, as a row with a tip
+    gap's is at the top of the blade, and B's is not. Unless the cut is
+    carried across the plane, each side shares its spanwise nodes out over
+    different segments, and they part.
+    """
+
+    @staticmethod
+    def _pair():
+        nj = 17
+        r = 0.5 + _geometric(nj, 1.15)
+        blocks = []
+        for x_lim, nk in (((0.0, 1.0), 9), ((1.0, 2.0), 13)):
+            block = Block(shape=(5, nj, nk))
+            x = np.linspace(*x_lim, 5)
+            t = np.linspace(0.0, 2 * np.pi, nk)
+            xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
+            block.set_x(xv)
+            block.set_r(rv)
+            block.set_t(tv)
+            blocks.append(block)
+        a, b = blocks
+        a.patches.append(InviscidPatch(i=(0, -1), j=(12, -1), k=0))
+        a.patches.append(MixingPatch(i=-1))
+        b.patches.append(MixingPatch(i=0))
+        return Grid([a, b])
+
+    @pytest.mark.parametrize("factor, mult", [(1.3, 1), (0.5, 8), (1.6, 8)])
+    def test_span_nodes_meet_across_the_plane(self, factor, mult):
+        a, b = self._pair().resample(factor, mult=mult)
+
+        assert a.shape[1] == b.shape[1]
+        np.testing.assert_allclose(a.r[-1, :, 0], b.r[0, :, 0], atol=1e-6)
