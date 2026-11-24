@@ -9,7 +9,8 @@ subroutine marching_cubes_edges( &
     ! each one reads the triangle list out of tritable. A vertex sits on a
     ! cell edge, between two nodes of the grid, so it is reported as the pair
     ! of nodes it lies between and the fraction of the way along that the
-    ! signed distance vanishes.
+    ! signed distance vanishes. Each pair runs from the lower node to the
+    ! higher, so cells sharing an edge report it identically.
     !
     ! Interpolating the data itself is left to the caller, which keeps this
     ! free of the number of variables, of the bulk data array, and of the
@@ -49,7 +50,7 @@ subroutine marching_cubes_edges( &
     double precision, intent(inout) :: frac(ntri, 3)
 
     integer :: c, n, v, e, t, row
-    integer :: ijk_cell(3), lo(3), hi(3)
+    integer :: ijk_cell(3), lo(3), hi(3), swap(3)
     double precision :: d_lo, d_hi
 
     do c = 1, ncut
@@ -67,6 +68,15 @@ subroutine marching_cubes_edges( &
 
                 lo = ijk_cell + edge_ijk(e, 1, :)
                 hi = ijk_cell + edge_ijk(e, 2, :)
+
+                ! Four of the twelve edges run against the index direction.
+                ! Turn them round, so the neighbouring cell sharing the edge
+                ! gives the same pair and the same fraction to the last bit.
+                if (any(hi < lo)) then
+                    swap = lo
+                    lo = hi
+                    hi = swap
+                end if
 
                 d_lo = dist(lo(1) + 1, lo(2) + 1, lo(3) + 1)
                 d_hi = dist(hi(1) + 1, hi(2) + 1, hi(3) + 1)

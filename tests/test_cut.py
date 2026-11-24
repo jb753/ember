@@ -214,7 +214,9 @@ class TestMarchingCubes:
 
         result = _marching_cubes(data, dist)
         assert result is not None
-        assert result.shape[1:] == (3, 1)  # triangles with 3 vertices, 1 variable
+        verts, faces = result
+        assert faces.shape[1] == 3  # triangles with 3 vertices
+        assert verts.shape[1] == 1  # 1 variable
 
     def test_multiple_variables(self):
         """Test marching cubes with multiple data variables."""
@@ -229,7 +231,7 @@ class TestMarchingCubes:
 
         result = _marching_cubes(data, dist)
         assert result is not None
-        assert result.shape[2] == 3  # Should preserve all 3 variables
+        assert result[0].shape[1] == 3  # Should preserve all 3 variables
 
 
 class TestUnstructured:
@@ -446,7 +448,9 @@ class TestMarchingCubesEdgeCases:
         # Should handle zero distance gracefully
         result = _marching_cubes(data, dist)
         if result is not None:
-            assert result.shape[1:] == (3, 1)
+            verts, faces = result
+            assert faces.shape[1] == 3
+            assert verts.shape[1] == 1
 
     def test_minimum_size_data(self):
         """Test with minimum possible data size."""
@@ -456,7 +460,9 @@ class TestMarchingCubesEdgeCases:
 
         result = _marching_cubes(data, dist)
         if result is not None:
-            assert result.shape[1:] == (3, 1)
+            verts, faces = result
+            assert faces.shape[1] == 3
+            assert verts.shape[1] == 1
 
     def test_interpolation_accuracy(self):
         """Test that linear interpolation is accurate."""
@@ -475,7 +481,7 @@ class TestMarchingCubesEdgeCases:
         if result is not None:
             # All interpolated values should be 0.3 (linear interpolation)
             expected_value = 0.3
-            np.testing.assert_allclose(result[..., 0], expected_value, atol=1e-10)
+            np.testing.assert_allclose(result[0][..., 0], expected_value, atol=1e-10)
 
 
 class TestUnstructuredIntegration:
@@ -2385,9 +2391,10 @@ class TestMarchingCubesKernel:
     def test_matches_the_python_loop(self):
         """The kernel reproduces the loop it replaced, triangle for triangle.
 
-        Order matters as much as content: the triangles come back as a soup
-        with no other index, so the kernel has to emit them in the order the
-        cells were walked in, which is what the caller's offsets arrange.
+        The triangles are compared with their vertices gathered back onto
+        them, in the order the cells were walked in, which is what the
+        caller's offsets arrange. The loop interpolates some edges from the
+        other end, so a vertex can differ from it by round-off.
         """
         rng = np.random.default_rng(0)
 
@@ -2414,21 +2421,31 @@ class TestMarchingCubesKernel:
                 data = rng.normal(0.0, 1.0, shape + (4,))
 
                 expected = _marching_cubes_loop(data, dist)
-                actual = _marching_cubes(data, dist)
+                result = _marching_cubes(data, dist)
 
                 if expected is None:
-                    assert actual is None, (shape, trial)
+                    assert result is None, (shape, trial)
                     continue
 
-                assert actual is not None, (shape, trial)
+                assert result is not None, (shape, trial)
+                verts, faces = result
+                actual = verts[faces]
                 assert actual.shape == expected.shape, (shape, trial)
                 assert actual.dtype == expected.dtype, (shape, trial)
                 # equal_nan, because a block carries NaN for any variable
                 # that has not been set, and those ride through the cut
-                assert np.array_equal(actual, expected, equal_nan=True), (
-                    shape,
-                    trial,
+                np.testing.assert_allclose(
+                    actual,
+                    expected,
+                    rtol=1e-12,
+                    atol=1e-12,
+                    equal_nan=True,
+                    err_msg=str((shape, trial)),
                 )
+
+                # Each cut edge is one vertex, shared by every face on it
+                assert verts.shape[0] == np.unique(faces).size, (shape, trial)
+                assert verts.shape[0] <= faces.size, (shape, trial)
 
     def test_matches_on_a_real_block_cut(self, simple_block):
         """And on the distance field an actual cut produces."""
@@ -2439,10 +2456,15 @@ class TestMarchingCubesKernel:
         data = simple_block._data
 
         expected = _marching_cubes_loop(data, dist)
-        actual = _marching_cubes(data, dist)
+        verts, faces = _marching_cubes(data, dist)
 
         assert expected is not None
-        assert np.array_equal(actual, expected, equal_nan=True)
+        np.testing.assert_allclose(
+            verts[faces], expected, rtol=1e-6, atol=1e-6, equal_nan=True
+        )
+
+        # A surface across many cells shares most of its vertices
+        assert verts.shape[0] < faces.size / 2
 
     def test_cube_index_matches_the_numpy_version(self):
         """The corner sign patterns match the slicing version they replaced."""

@@ -35,8 +35,10 @@ public API without a deprecation period.
 * Add ``ember.unstructured.UnstructuredBlock``, flow data at the vertices of
   a triangulated surface with its faces as ``faces``, an ``(n_face, 3)``
   index array, and their area vectors as ``dA``. ``cut.unstructured`` and
-  ``cut.triangulate_to_unstructured`` return one, and the averages, fluxes
-  and ``block_util.to_tm3`` take one. This replaces the ``(ntri, 3)`` Block
+  ``cut.triangulate_to_unstructured`` return one, storing each vertex once
+  however many faces share it (about a quarter of the memory for a
+  marching cubes cut), and the averages, fluxes and ``block_util.to_tm3``
+  take one. This replaces the ``(ntri, 3)`` Block
   with a ``triangulated`` flag: ``Block.triangulated``,
   ``Block.set_triangulated``, ``Block.dA_tri`` and ``Block.dA_tri_nd`` are
   removed, and cuts pickled before this load as plain Blocks

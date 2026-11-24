@@ -377,39 +377,42 @@ def _marching_cubes(data, dist):
 
     Returns
     -------
-    triangles: (ntri, 3, nvar) array
-        The unstructured cut is composed of `ntri` triangles, each with 3
-        vertices, holding values for each of the `nvar` data variables.
+    verts: (n_vert, nvar) array
+        Data variables at each vertex of the cut, one vertex per cut edge
+        however many triangles share it.
+    faces: (n_face, 3) int32 array
+        Indices into `verts` of the three vertices of each triangle.
 
+    Returns None if nothing is cut.
     """
 
     # Which of the 256 corner sign patterns each cell has, and so how many
     # triangles it contributes
     icube = _cube_index(dist)
-    ntri_cell = _NTRITABLE[icube]
+    n_face_cell = _NTRITABLE[icube]
 
     # Where each cell's triangles start in the output. Counting in C order
     # walks the cells i first, which is the order the triangles come back in.
-    ntri_flat = ntri_cell.ravel(order="C")
-    offsets = np.cumsum(ntri_flat) - ntri_flat
-    ntri = int(ntri_flat.sum())
+    n_face_flat = n_face_cell.ravel(order="C")
+    offsets = np.cumsum(n_face_flat) - n_face_flat
+    n_face = int(n_face_flat.sum())
 
     # Nothing is cut
-    if ntri == 0:
+    if n_face == 0:
         return None
 
     # Only the cells that contribute a triangle reach the kernel, which for a
     # cut of a 3D block is a couple of percent of them
-    cells = np.argwhere(ntri_cell > 0)
+    cells = np.argwhere(n_face_cell > 0)
 
-    ijk_lo = np.zeros((ntri, 3, 3), dtype=np.int32, order="F")
-    ijk_hi = np.zeros((ntri, 3, 3), dtype=np.int32, order="F")
-    frac = np.zeros((ntri, 3), order="F")
+    ijk_lo = np.zeros((n_face, 3, 3), dtype=np.int32, order="F")
+    ijk_hi = np.zeros((n_face, 3, 3), dtype=np.int32, order="F")
+    frac = np.zeros((n_face, 3), order="F")
 
     ember.fortran.marching_cubes_edges(
         dist,
         cells,
-        offsets.reshape(ntri_cell.shape)[tuple(cells.T)],
+        offsets.reshape(n_face_cell.shape)[tuple(cells.T)],
         icube[tuple(cells.T)],
         _TRITABLE,
         _EDGE_IJK,
@@ -418,13 +421,27 @@ def _marching_cubes(data, dist):
         frac,
     )
 
+    # One vertex per cut edge, however many triangles share it. The kernel
+    # gives each edge as its pair of nodes, lower first, so the pair is the
+    # same from every cell around the edge and keys it.
+    ijk_lo = ijk_lo.reshape(-1, 3)
+    ijk_hi = ijk_hi.reshape(-1, 3)
+    lo = np.ravel_multi_index(ijk_lo.T, dist.shape).astype(np.int64)
+    hi = np.ravel_multi_index(ijk_hi.T, dist.shape).astype(np.int64)
+    _, first, inverse = np.unique(
+        lo * dist.size + hi, return_index=True, return_inverse=True
+    )
+    faces = inverse.reshape(n_face, 3).astype(np.int32)
+    ijk_lo, ijk_hi = ijk_lo[first], ijk_hi[first]
+    frac = frac.reshape(-1)[first]
+
     # Interpolate every variable onto the vertices the kernel located. Done
     # here rather than in the kernel so that the data keeps whatever precision
     # it arrived in, and never has to be handed over in bulk.
-    data_lo = data[ijk_lo[..., 0], ijk_lo[..., 1], ijk_lo[..., 2]]
-    data_hi = data[ijk_hi[..., 0], ijk_hi[..., 1], ijk_hi[..., 2]]
+    data_lo = data[ijk_lo[:, 0], ijk_lo[:, 1], ijk_lo[:, 2]]
+    data_hi = data[ijk_hi[:, 0], ijk_hi[:, 1], ijk_hi[:, 2]]
 
-    return data_lo + (data_hi - data_lo) * frac[..., np.newaxis]
+    return data_lo + (data_hi - data_lo) * frac[:, np.newaxis], faces
 
 
 def signed_distance(xr, xr_query):
@@ -591,7 +608,9 @@ def unstructured(grid, xr_cut):
     xr_cut = _extend_ends(np.asarray(xr_cut, dtype=float), CUT_EXTEND)
 
     # Loop over blocks
-    triangles = []
+    verts = []
+    faces = []
+    n_vert = 0
     last_block = None
     for block in grid:
         # Reject the blocks the curve does not reach before building any
@@ -614,21 +633,22 @@ def unstructured(grid, xr_cut):
             continue
 
         # Get triangles for this block
-        triangles_block = _marching_cubes(block._data, dist)
+        cut_block = _marching_cubes(block._data, dist)
 
-        # Add triangles to the list
-        if triangles_block is not None:
-            triangles.append(triangles_block)
+        # Add them to the list, numbering this block's vertices after those
+        # of the blocks before. Vertices on an interface between blocks are
+        # kept once per block.
+        if cut_block is not None:
+            verts.append(cut_block[0])
+            faces.append(cut_block[1] + n_vert)
+            n_vert += cut_block[0].shape[0]
             last_block = block
 
-    # Join all blocks into one array
-    if triangles:
-        triangles = np.concatenate(triangles)  # Shape (n_face, 3, nvar)
-        n_face, _, nvar = triangles.shape
-
-        out = _like(last_block, 3 * n_face)
-        out._data[:] = triangles.reshape(-1, nvar)
-        out.set_faces(np.arange(3 * n_face).reshape(n_face, 3))
+    # Join all blocks into one
+    if verts:
+        out = _like(last_block, n_vert)
+        out._data[:] = np.concatenate(verts)
+        out.set_faces(np.concatenate(faces))
 
         return out
 
