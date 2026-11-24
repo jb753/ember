@@ -642,12 +642,12 @@ def unstructured(grid, xr_cut):
         if not _cut_reaches_block(xr_cut, block):
             continue
 
-        # Scaled from the nondimensional coordinates rather than read from
-        # block.xrt, which also copies the circumferential component
-        xr_coords = block.xrt_nd[..., :2] * block.L_ref
-
-        # Evaluate signed distance for all points in the block
-        dist = _cut_distance(xr_cut, xr_coords)
+        # Signed distance for all points in the block. Only its sign and the
+        # fraction along each edge where it vanishes are used, neither of
+        # which a uniform scaling changes, so it is measured in the block's
+        # nondimensional coordinates, a view of its data, rather than in
+        # scaled copies of them.
+        dist = _cut_distance(xr_cut / block.L_ref, block.xrt_nd[..., :2])
 
         # Get triangles for this block, or None if the cut misses it
         cut_block = _marching_cubes(block._data, dist)
@@ -766,6 +766,7 @@ def structured_meridional(grid, xr_cut):
     if isinstance(grid, Block):
         grid = [grid]
 
+    xr_cut = np.asarray(xr_cut, dtype=float)
     cut_blocks = []
 
     for block in grid:
@@ -774,12 +775,9 @@ def structured_meridional(grid, xr_cut):
         if not _cut_reaches_block(xr_cut, block):
             continue
 
-        # Get meridional coordinates, scaled from the nondimensional ones
-        # rather than read from block.xrt, which also copies theta
-        xr_coords = block.xrt_nd[..., :2] * block.L_ref
-
-        # Get signed distance
-        dist = _cut_distance(xr_cut, xr_coords)
+        # Signed distance, in nondimensional coordinates, as in unstructured()
+        # above
+        dist = _cut_distance(xr_cut / block.L_ref, block.xrt_nd[..., :2])
 
         # Check for intersection
         if np.all(dist >= 0) or np.all(dist <= 0):
