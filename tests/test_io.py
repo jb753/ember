@@ -817,7 +817,7 @@ def _make_tri_block():
 def test_to_tm3_roundtrip(tmp_path):
     """to_tm3 writes a readable binary file with correct vertex and triangle counts."""
     tri = _make_tri_block()
-    ntri = tri.shape[0]
+    ntri = tri.n_face
     values = np.ones(tri.shape, dtype=np.float32)
     path = tmp_path / "out.tm3"
     to_tm3(tri, str(path), Ma=values)
@@ -831,12 +831,12 @@ def test_to_tm3_roundtrip(tmp_path):
     ntris_file = raw[2 + 24 + 1]
     assert nsteps == 1
     assert nsurfaces == 1
-    assert nverts == ntri * 3
+    assert nverts == tri.n_vert
     assert ntris_file == ntri
 
 
-def test_to_tm3_requires_triangulated(tmp_path):
-    """to_tm3 raises ValueError on a non-triangulated block."""
+def test_to_tm3_requires_unstructured(tmp_path):
+    """to_tm3 raises ValueError on a structured block."""
     b = Block(shape=(3, 4, 5))
     _xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.2], (3, 4, 5))
     b.set_x(_xrt[..., 0])
@@ -844,7 +844,7 @@ def test_to_tm3_requires_triangulated(tmp_path):
     b.set_t(_xrt[..., 2])
     fluid = PerfectFluid(cp=1005.0, gamma=1.4, mu=1e-5, Pr=0.72)
     b.set_fluid(fluid)
-    with pytest.raises(ValueError, match="triangulated"):
+    with pytest.raises(ValueError, match="UnstructuredBlock"):
         to_tm3(b, str(tmp_path / "out.tm3"), Ma=np.ones(b.shape))
 
 
@@ -861,7 +861,7 @@ def test_to_tm3_requires_one_kwarg(tmp_path):
 def test_to_tm3_shape_mismatch(tmp_path):
     """to_tm3 raises ValueError when property array shape does not match block."""
     tri = _make_tri_block()
-    wrong = np.ones((tri.shape[0] + 1, tri.shape[1]))
+    wrong = np.ones(tri.n_vert + 1)
     with pytest.raises(ValueError, match="shape"):
         to_tm3(tri, str(tmp_path / "out.tm3"), Ma=wrong)
 

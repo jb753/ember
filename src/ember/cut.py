@@ -2,7 +2,8 @@
 
 This module implements the marching cubes algorithm for extracting isosurfaces from 3D
 structured grids, along with utilities for creating both structured meridional cuts and
-unstructured triangulated cuts. The marching cubes implementation uses a precomputed lookup
+unstructured triangulated cuts, returned as
+:class:`~ember.unstructured.UnstructuredBlock`. The marching cubes implementation uses a precomputed lookup
 table (TRITABLE) to determine how to triangulate the cell edges an isosurface intersects.
 Key functionality includes extracting
 unstructured triangular cuts using signed distance fields, creating structured 2D meridional
@@ -28,6 +29,7 @@ import ember.fortran
 import ember.grid
 from ember import util
 from ember.block import Block
+from ember.unstructured import _like
 
 _TRITABLE = np.array(
     [
@@ -572,7 +574,7 @@ def unstructured(grid, xr_cut):
 
     Returns
     -------
-    cut : Block, shape (ntri, 3) or None
+    cut : UnstructuredBlock or None
         Unstructured triangulated cut, or None if the curve does not
         intersect any block.
     """
@@ -621,11 +623,12 @@ def unstructured(grid, xr_cut):
 
     # Join all blocks into one array
     if triangles:
-        triangles = np.concatenate(triangles)  # Shape (ntri, 3, nvar)
+        triangles = np.concatenate(triangles)  # Shape (n_face, 3, nvar)
+        n_face, _, nvar = triangles.shape
 
-        out = last_block.empty(shape=triangles.shape[:-1])  # Shape (ntri, 3)
-        out._data[:] = triangles
-        out.set_triangulated(True)
+        out = _like(last_block, 3 * n_face)
+        out._data[:] = triangles.reshape(-1, nvar)
+        out.set_faces(np.arange(3 * n_face).reshape(n_face, 3))
 
         return out
 
@@ -790,7 +793,7 @@ def interpolate_to_structured(
 
     Parameters
     ----------
-    unstructured_block : Block, shape (ntri, 3)
+    unstructured_block : UnstructuredBlock
         Unstructured triangulated cut, for example from :func:`unstructured`.
     interp_shape : tuple of int
         Target structured grid shape ``(ni, nj)``.
@@ -815,10 +818,14 @@ def interpolate_to_structured(
     """
     ni, nj = interp_shape
 
-    # Flatten triangle vertices to a point cloud, shape (ntri*3, nvar).
-    triangle_data = unstructured_block._data
-    _, _, nvar = triangle_data.shape
-    points = triangle_data.reshape(-1, nvar)
+    # Gather the vertices onto the corners of each face, as a point cloud of
+    # shape (n_face*3, nvar). The periodic wrap below moves whole faces by
+    # whole pitches, so a vertex shared by faces either side of the seam takes
+    # a different theta in each and cannot be wrapped once for all of them.
+    faces = unstructured_block.faces
+    n_face = faces.shape[0]
+    nvar = unstructured_block._data.shape[-1]
+    points = unstructured_block._data[faces].reshape(-1, nvar)
     xr = points[:, :2].astype(np.float64)
     t_src = points[:, 2].astype(np.float64)
     variables = points[:, 3:]
@@ -934,11 +941,10 @@ def interpolate_to_structured(
     # rather than re-triangulating the cloud. Reshape the per-vertex unfolded
     # coords and variables back into triangles, tiling +/- one period in the
     # periodic case so the seam stays continuous (mirrors the src_pts tiling).
-    ntri_src = triangle_data.shape[0]
     nvar_var = variables.shape[1]
-    tri_zeta = zeta_src.reshape(ntri_src, 3)
-    tri_tn = tn_src.reshape(ntri_src, 3)
-    tri_var = variables.reshape(ntri_src, 3, nvar_var)
+    tri_zeta = zeta_src.reshape(n_face, 3)
+    tri_tn = tn_src.reshape(n_face, 3)
+    tri_var = variables.reshape(n_face, 3, nvar_var)
     if periodic:
         tri_xy = np.concatenate(
             [np.stack([tri_zeta, tri_tn + d], axis=-1) for d in (-1.0, 0.0, 1.0)]
@@ -1024,7 +1030,7 @@ def _pitchwise_fluid(zeta_t, tri_zeta, tri_tn, tol=1e-3):
     ----------
     zeta_t : ndarray, shape (ni,)
         Arc-length coordinate of each pitchwise line.
-    tri_zeta, tri_tn : ndarray, shape (ntri, 3)
+    tri_zeta, tri_tn : ndarray, shape (n_face, 3)
         Vertex arc length and theta, in pitches, of each triangle.
     tol : float
         Uncovered arcs narrower than this, in pitches, are round-off between
@@ -1124,8 +1130,8 @@ def _periodic_gaps(lo, hi, tol):
 def triangulate_to_unstructured(block):
     """Convert a structured 2D cut into a triangulated unstructured cut.
 
-    Splits every structured quad face into two triangles, producing an
-    unstructured block with ``ntri = 2 (ni - 1) (nj - 1)`` triangles.
+    Every node becomes a vertex, and every structured quad face is split into
+    two triangles, giving ``n_face = 2 (ni - 1) (nj - 1)`` faces.
 
     Parameters
     ----------
@@ -1134,8 +1140,8 @@ def triangulate_to_unstructured(block):
 
     Returns
     -------
-    cut : Block, shape (ntri, 3)
-        Unstructured block with triangle-vertex data.
+    cut : UnstructuredBlock
+        Unstructured block with ``n_vert = ni * nj`` vertices.
     """
     # Only work on 2D cuts
     assert block.ndim == 2
@@ -1149,38 +1155,23 @@ def triangulate_to_unstructured(block):
     #
 
     ni, nj = block.shape
-    ntri = (ni - 1) * (nj - 1) * 2
+    nvar = block._data.shape[-1]
 
-    # Create index arrays for vectorized access
-    i_indices, j_indices = np.meshgrid(range(ni - 1), range(nj - 1), indexing="ij")
-    i_flat = i_indices.ravel()
-    j_flat = j_indices.ravel()
+    # Vertices in Fortran order, so node (i, j) is vertex i + ni * j
+    out = _like(block, ni * nj)
+    out._data[:] = block._data.reshape(ni * nj, nvar, order="F")
 
-    # Preallocate output data
-    out = block.empty(shape=(ntri, 3))
+    # Corner vertices of every quad, i varying slowest
+    i, j = np.meshgrid(np.arange(ni - 1), np.arange(nj - 1), indexing="ij")
+    v00 = (i + ni * j).ravel()
+    v01 = v00 + ni
+    v11 = v00 + ni + 1
+    v10 = v00 + 1
 
-    # Extract vertex data for all quads at once
-    # Triangle A vertices: (i,j), (i,j+1), (i+1,j+1)
-    v1_A = block._data[i_flat, j_flat, :]  # Shape: (nquads, nvar)
-    v2_A = block._data[i_flat, j_flat + 1, :]
-    v3_A = block._data[i_flat + 1, j_flat + 1, :]
-
-    # Triangle B vertices: (i,j), (i+1,j+1), (i+1,j)
-    v1_B = block._data[i_flat, j_flat, :]
-    v2_B = block._data[i_flat + 1, j_flat + 1, :]
-    v3_B = block._data[i_flat + 1, j_flat, :]
-
-    # Assign triangle data - interleave A and B triangles
-
-    # Triangle A data
-    out._data[0::2, 0, :] = v1_A  # First vertex of triangle A
-    out._data[0::2, 1, :] = v2_A  # Second vertex of triangle A
-    out._data[0::2, 2, :] = v3_A  # Third vertex of triangle A
-
-    # Triangle B data
-    out._data[1::2, 0, :] = v1_B  # First vertex of triangle B
-    out._data[1::2, 1, :] = v2_B  # Second vertex of triangle B
-    out._data[1::2, 2, :] = v3_B  # Third vertex of triangle B
-
-    out.set_triangulated(True)
+    # Triangle A is (i,j), (i,j+1), (i+1,j+1); B is (i,j), (i+1,j+1), (i+1,j).
+    # Interleave A and B quad by quad.
+    faces = np.empty((2 * v00.size, 3), dtype=np.int32)
+    faces[0::2] = np.column_stack([v00, v01, v11])
+    faces[1::2] = np.column_stack([v00, v11, v10])
+    out.set_faces(faces)
     return out

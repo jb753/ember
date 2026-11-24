@@ -30,7 +30,6 @@ Test cases:
 - test_structured_data_cannot_be_instantiated_directly: StructuredData abstract behavior
 - test_structured_data_with_empty_data_keys: Empty data keys validation
 - test_structured_data_defaults_inheritance: Defaults inheritance behavior
-- test_triangulated_flag_handling: Triangulated flag validation
 - test_memory_layout_validation: Memory layout requirements
 - test_property_access_edge_cases: Property access with different shapes
 - test_slicing_behavior_edge_cases: Slicing behavior edge cases
@@ -668,26 +667,6 @@ def test_structured_data_defaults_inheritance():
     # Defaults should be accessible via _get_metadata_by_key
     assert obj._get_metadata_by_key("custom_param") == 42
     assert obj._get_metadata_by_key("string_param") == "default"
-
-
-def test_triangulated_flag_handling():
-    """Test triangulated flag validation."""
-
-    # Valid triangulated data (shape[1] == 3)
-    obj1 = MockStructuredData(shape=(5, 3))
-    obj1.set_triangulated(True)
-    assert obj1.triangulated
-
-    # Test default (False)
-    obj2 = MockStructuredData(shape=(3, 3))
-    assert not obj2.triangulated
-
-    # Invalid triangulated data (shape[1] != 3)
-    with pytest.raises(
-        ValueError, match="Triangulated data requires shape\\[1\\] == 3"
-    ):
-        obj3 = MockStructuredData(shape=(3, 4))
-        obj3.set_triangulated(True)
 
 
 def test_memory_layout_validation():

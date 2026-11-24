@@ -1124,11 +1124,11 @@ class TestMemoryUsage:
         assert len(cache_usage) > 0
 
     def test_metadata_contains_expected_keys(self, mixing_grid):
-        """Metadata dict contains at least fluid, patches, triangulated."""
+        """Metadata dict contains at least fluid and patches."""
         block = mixing_grid[0]
         _, metadata_usage, _ = block.memory_usage()
 
-        for key in ("fluid", "patches", "triangulated"):
+        for key in ("fluid", "patches"):
             assert key in metadata_usage, f"Expected '{key}' in metadata_usage"
 
 

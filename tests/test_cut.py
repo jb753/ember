@@ -29,8 +29,8 @@ Test cases:
 - test_data_preservation: Data values are preserved through cutting
 - test_triangle_validity: Generated triangles are valid
 - test_block_inheritance: Result inherits properties from source block
-- test_unstructured_sets_triangulated_flag: Verify unstructured() sets triangulated flag
-- test_unstructured_multiblock_triangulated_flag: Verify triangulated flag for multi-block
+- test_unstructured_sets_triangulated_flag: Verify unstructured() returns an UnstructuredBlock
+- test_unstructured_multiblock_triangulated_flag: Same, for multi-block
 - test_large_grid_handling: Unstructured function with larger grid
 - test_horizontal_cut: Structured meridional cut with horizontal line
 - test_vertical_cut: Structured meridional cut with vertical line
@@ -54,8 +54,8 @@ Test cases:
 - test_triangulate_larger_grid: Triangulation on larger 2D grid
 - test_triangulate_invalid_input: Triangulate with invalid inputs
 - test_triangulate_minimal_grid: Triangulation on minimal 2x2 grid
-- test_triangulate_sets_triangulated_property: Verify triangulated property is set correctly
-- test_triangulate_shape_calculation: Verify shape follows (ni-1)*(nj-1)*2 formula
+- test_triangulate_sets_triangulated_property: Verify the result is an UnstructuredBlock
+- test_triangulate_shape_calculation: Verify n_face follows the (ni-1)*(nj-1)*2 formula
 """
 
 import numpy as np
@@ -65,6 +65,7 @@ import ember.grid
 import ember.block
 import ember.fluid
 from ember import util
+from ember.unstructured import UnstructuredBlock
 from ember.cut import (
     _marching_cubes,
     _TRITABLE,
@@ -245,8 +246,8 @@ class TestUnstructured:
 
         if result is not None:
             # Check result shape
-            assert result.ndim == 2
-            assert result.shape[1] == 3  # 3 vertices per triangle
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3  # 3 vertices per triangle
             # Check that we have valid data (ignoring possible NaN in unused components)
             valid_data = result._data[..., :8]  # First 8 components should be valid
             assert not np.any(np.isnan(valid_data))
@@ -261,8 +262,8 @@ class TestUnstructured:
         result = unstructured(grid, xr_cut)
 
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
             valid_data = result._data[..., :8]
             assert not np.any(np.isnan(valid_data))
 
@@ -276,8 +277,8 @@ class TestUnstructured:
         result = unstructured(grid, xr_cut)
 
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
 
     def test_no_intersection(self, simple_block):
         """Test case where cut line doesn't intersect the grid."""
@@ -290,7 +291,7 @@ class TestUnstructured:
         # May return None or empty result when no intersection
         if result is not None:
             # If not None, should be empty or very small
-            assert result.shape[0] == 0 or result.shape[0] < 5
+            assert result.n_face < 5
 
     def test_multi_block_cut(self, multi_block_grid):
         """Test unstructured cut across multiple blocks."""
@@ -300,8 +301,8 @@ class TestUnstructured:
         result = unstructured(multi_block_grid, xr_cut)
 
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
             # Should have triangles from potentially both blocks
             valid_data = result._data[..., :8]
             assert not np.any(np.isnan(valid_data))
@@ -316,8 +317,8 @@ class TestUnstructured:
         result = unstructured(grid, xr_cut)
         # May or may not return triangles depending on numerical precision
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
             valid_data = result._data[..., :8]
             assert not np.any(np.isnan(valid_data))
 
@@ -334,12 +335,12 @@ class TestUnstructured:
 
         # Both should either be None or have similar structure
         if result1 is None:
-            assert result2 is None or result2.shape[0] == 0
+            assert result2 is None or result2.n_face == 0
         elif result2 is None:
-            assert result1.shape[0] == 0
+            assert result1.n_face == 0
         else:
             # If both have results, they should have similar number of triangles
-            assert abs(result1.shape[0] - result2.shape[0]) <= 2
+            assert abs(result1.n_face - result2.n_face) <= 2
 
     def test_data_interpolation(self, simple_block):
         """Test that data is correctly interpolated at cut surface."""
@@ -401,7 +402,7 @@ class TestUnstructuredEdgeCases:
         try:
             result = unstructured(grid, xr_cut)
             if result is not None:
-                assert result.ndim == 2
+                assert isinstance(result, UnstructuredBlock)
         except (ValueError, IndexError, AssertionError):
             # Acceptable for degenerate input
             pass
@@ -513,7 +514,7 @@ class TestUnstructuredIntegration:
 
         if result is not None:
             # Each triangle should have 3 vertices
-            assert result.shape[1] == 3
+            assert result.faces.shape[1] == 3
 
             # All valid data should be finite
             valid_data = result._data[..., :8]
@@ -535,14 +536,14 @@ class TestUnstructuredIntegration:
             assert hasattr(result, "_data")
             assert hasattr(result, "shape")
             # Check that it has the expected number of variables (9 total, 8 valid)
-            assert result._data.shape[2] == simple_block.nvar
+            assert result._data.shape[1] == simple_block.nvar
 
 
 class TestUnstructuredTriangulatedProperty:
-    """Test that unstructured cuts set the triangulated property."""
+    """Test that unstructured cuts return an UnstructuredBlock."""
 
     def test_unstructured_sets_triangulated_flag(self):
-        """Test that unstructured() sets triangulated=True on output from 3D block."""
+        """Test that unstructured() returns an UnstructuredBlock from a 3D block."""
         # Create 3D block
         shape = (4, 5, 6)
         block = ember.block.Block(shape=shape)
@@ -574,28 +575,16 @@ class TestUnstructuredTriangulatedProperty:
         # Verify result is not None
         assert result is not None, "Unstructured cut should produce a result"
 
-        # Verify the triangulated property is set to True
-        assert hasattr(result, "triangulated"), (
-            "Result should have 'triangulated' property"
-        )
-        assert result.triangulated is True, (
-            "Unstructured cut output should have triangulated=True"
-        )
-
-        # Verify shape is (ntri, 3) for triangulated data
-        assert result.ndim == 2, (
-            f"Expected ndim=2 for triangulated output, got {result.ndim}"
-        )
-        assert result.shape[1] == 3, (
-            f"Expected 3 vertices per triangle, got {result.shape[1]}"
-        )
+        # Verify the result is an unstructured block of triangles
+        assert isinstance(result, UnstructuredBlock)
+        assert result.faces.shape[1] == 3
 
         # Verify data has finite values
         valid_data = result._data[..., :8]
         assert np.all(np.isfinite(valid_data)), "Triangulated data should be finite"
 
     def test_unstructured_multiblock_triangulated_flag(self):
-        """Test that unstructured() sets triangulated flag for multi-block grids."""
+        """Test that unstructured() returns an UnstructuredBlock for multi-block grids."""
         # Create two 3D blocks
         shape = (3, 4, 5)
 
@@ -630,17 +619,9 @@ class TestUnstructuredTriangulatedProperty:
 
         result = unstructured(grid, xr_cut)
 
-        # Verify triangulated flag is set
-        assert hasattr(result, "triangulated"), (
-            "Multi-block result should have 'triangulated' property"
-        )
-        assert result.triangulated is True, (
-            "Multi-block unstructured output should have triangulated=True"
-        )
-
-        # Verify shape
-        assert result.ndim == 2
-        assert result.shape[1] == 3
+        # Verify the result is an unstructured block of triangles
+        assert isinstance(result, UnstructuredBlock)
+        assert result.faces.shape[1] == 3
 
         # Verify data is finite
         valid_data = result._data[..., :8]
@@ -676,8 +657,8 @@ class TestUnstructuredPerformance:
         result = unstructured(grid, xr_cut)
 
         if result is not None:
-            assert result.shape[1] == 3
-            assert result._data.shape[2] == block.nvar
+            assert result.faces.shape[1] == 3
+            assert result._data.shape[1] == block.nvar
             valid_data = result._data[..., :8]
             assert np.all(np.isfinite(valid_data))
 
@@ -794,7 +775,7 @@ class TestNonIntersectionBehavior:
             # Check if result is None or effectively empty
             if result is not None:
                 # If not None, should have no triangles or all NaN data
-                if result.shape[0] > 0:
+                if result.n_face > 0:
                     # Check if all interpolated coordinates are outside the domain
                     coords = result._data[..., :3]  # x, r, t coordinates
                     x_coords, r_coords = coords[..., 0], coords[..., 1]
@@ -809,10 +790,7 @@ class TestNonIntersectionBehavior:
                     coords_in_domain = np.logical_and(x_in_bounds, r_in_bounds)
 
                     # Most coordinates should be outside domain for non-intersecting cut
-                    assert (
-                        np.sum(coords_in_domain)
-                        <= result.shape[0] * result.shape[1] * 0.1
-                    )
+                    assert np.sum(coords_in_domain) <= result.n_vert * 0.1
 
     def test_structured_meridional_no_intersection_definitive(self, simple_block):
         """Test structured_meridional with cuts that definitely don't intersect."""
@@ -887,7 +865,7 @@ class TestNonIntersectionBehavior:
             # Boundary cuts may or may not return results depending on numerics
             # Both functions should handle these gracefully
             if result_unstr is not None:
-                assert result_unstr.shape[1] == 3
+                assert result_unstr.faces.shape[1] == 3
             if result_struct is not None:
                 assert len(result_struct) >= 0
 
@@ -1077,7 +1055,7 @@ class TestInterpolateToStructured:
         xr_cut = np.array([[0.3, 0.8], [0.7, 1.2]])
         unstr_result = unstructured(grid, xr_cut)
 
-        if unstr_result is not None and unstr_result.shape[0] > 0:
+        if unstr_result is not None and unstr_result.n_face > 0:
             # Test with very small interpolation grid
             structured_result = interpolate_to_structured(
                 unstr_result, (2, 2), periodic=False
@@ -1475,8 +1453,8 @@ class TestTriangulate:
 
         # Check output shape - (ni-1)*(nj-1)*2 triangles, 3 vertices each
         expected_ntri = (shape[0] - 1) * (shape[1] - 1) * 2
-        assert result.shape == (expected_ntri, 3)
-        assert result._data.shape == (expected_ntri, 3, block.nvar)
+        assert result.n_face == expected_ntri
+        assert result._data.shape == (shape[0] * shape[1], block.nvar)
 
         # Check that all data is finite (no NaN in coordinates/variables)
         valid_data = result._data[..., :8]  # Exclude potential NaN component
@@ -1542,8 +1520,13 @@ class TestTriangulate:
 
         result = triangulate_to_unstructured(block)
 
-        # Should have (2-1)*(2-1)*2 = 2 triangles
-        assert result.shape == (2, 3)
+        # Should have (2-1)*(2-1)*2 = 2 triangles on the 4 nodes
+        assert result.n_face == 2
+        assert result.n_vert == 4
+
+        # The two triangles share the diagonal (i,j)-(i+1,j+1)
+        shared = set(result.faces[0]) & set(result.faces[1])
+        assert len(shared) == 2
 
         # Check that vertices have correct coordinates
         coords = result._data[..., :2]  # x, r coordinates
@@ -1580,8 +1563,8 @@ class TestTriangulate:
 
         # Check triangle count: (5-1)*(4-1)*2 = 24 triangles
         expected_ntri = (shape[0] - 1) * (shape[1] - 1) * 2
-        assert result.shape == (expected_ntri, 3)
-        assert result._data.shape == (expected_ntri, 3, block.nvar)
+        assert result.n_face == expected_ntri
+        assert result._data.shape == (shape[0] * shape[1], block.nvar)
 
         # All data should be finite
         valid_data = result._data[..., :8]
@@ -1614,8 +1597,8 @@ class TestTriangulate:
         result = triangulate_to_unstructured(block)
 
         # Should have exactly 2 triangles for 2x2 grid
-        assert result.shape == (2, 3)
-        assert result._data.shape == (2, 3, block.nvar)
+        assert result.n_face == 2
+        assert result._data.shape == (4, block.nvar)
 
     def test_triangulate_sets_triangulated_property(self):
         """Test that triangulate_to_unstructured sets the triangulated property correctly."""
@@ -1638,40 +1621,16 @@ class TestTriangulate:
         conserved[..., 4] = 300000.0  # rhoe
         block.set_conserved(conserved)
 
-        # Verify original block is not triangulated
-        assert not hasattr(block, "triangulated") or block.triangulated is False
-
         # Triangulate the block
         result = triangulate_to_unstructured(block)
+        assert isinstance(result, UnstructuredBlock)
 
-        # Verify the triangulated property is set to True
-        assert hasattr(result, "triangulated"), (
-            "Result should have 'triangulated' property"
-        )
-        assert result.triangulated is True, "triangulated property should be True"
-
-        # Verify the shape is correct: (ntri, 3) where ntri = (ni-1)*(nj-1)*2
+        # n_face = (ni-1)*(nj-1)*2 on the ni*nj nodes
         expected_ntri = (shape[0] - 1) * (shape[1] - 1) * 2
-        assert result.shape == (expected_ntri, 3), (
-            f"Expected shape ({expected_ntri}, 3), got {result.shape}"
-        )
-
-        # Verify ndim is 2 (triangles x vertices)
-        assert result.ndim == 2, (
-            f"Expected ndim=2 for triangulated data, got {result.ndim}"
-        )
-
-        # Verify the data array has correct shape
-        assert result._data.shape == (expected_ntri, 3, block.nvar), (
-            f"Expected _data shape ({expected_ntri}, 3, {block.nvar}), "
-            f"got {result._data.shape}"
-        )
-
-        # Verify ni and nj are set correctly on triangulated output
-        assert result.ni == expected_ntri, (
-            f"Expected ni={expected_ntri}, got {result.ni}"
-        )
-        assert result.nj == 3, f"Expected nj=3 (vertices per triangle), got {result.nj}"
+        assert result.n_face == expected_ntri
+        assert result.faces.shape == (expected_ntri, 3)
+        assert result.shape == (shape[0] * shape[1],)
+        assert result._data.shape == (shape[0] * shape[1], block.nvar)
 
         # Verify all data is finite
         valid_data = result._data[..., :8]
@@ -1703,15 +1662,10 @@ class TestTriangulate:
             # Expected number of triangles
             expected_ntri = (input_shape[0] - 1) * (input_shape[1] - 1) * 2
 
-            # Verify shape
-            assert result.shape == (expected_ntri, 3), (
-                f"For input shape {input_shape}, expected output shape "
-                f"({expected_ntri}, 3), got {result.shape}"
-            )
-
-            # Verify triangulated property
-            assert result.triangulated is True, (
-                f"For input shape {input_shape}, triangulated should be True"
+            # Verify face count
+            assert result.n_face == expected_ntri, (
+                f"For input shape {input_shape}, expected {expected_ntri} faces, "
+                f"got {result.n_face}"
             )
 
 
@@ -1727,9 +1681,8 @@ class TestSingleBlockAcceptance:
 
         # Should work and return valid result or None
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
-            assert result.triangulated is True
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
 
     def test_unstructured_single_block_equivalence(self, simple_block):
         """Test that single Block gives same result as Grid with one Block."""
@@ -1759,9 +1712,8 @@ class TestSingleBlockAcceptance:
         result = unstructured(simple_block, xr_cut)
 
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
-            assert result.triangulated is True
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
 
     def test_unstructured_diagonal_cut_single_block(self, simple_block):
         """Test unstructured with diagonal cut on single Block."""
@@ -1770,8 +1722,8 @@ class TestSingleBlockAcceptance:
         result = unstructured(simple_block, xr_cut)
 
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
 
     def test_structured_meridional_single_block(self, simple_block):
         """Test that structured_meridional() accepts a single Block."""
@@ -1842,7 +1794,7 @@ class TestSingleBlockAcceptance:
         # Should return None or empty result
         if result is not None:
             # If not None, should be empty or have very few triangles
-            assert result.shape[0] == 0 or result.shape[0] < 5
+            assert result.n_face < 5
 
     def test_structured_meridional_no_intersection_single_block(self, simple_block):
         """Test structured with non-intersecting cut on single Block."""

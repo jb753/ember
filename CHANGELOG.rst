@@ -32,6 +32,15 @@ public API without a deprecation period.
 * Add ``ceilings`` to ``elliptic.winslow_sweeps``: the most length of each
   cell of the lines out from a wall, as ``floors`` is the least, each sweep
   pulling in a node further than that from the one inside it
+* Add ``ember.unstructured.UnstructuredBlock``, flow data at the vertices of
+  a triangulated surface with its faces as ``faces``, an ``(n_face, 3)``
+  index array, and their area vectors as ``dA``. ``cut.unstructured`` and
+  ``cut.triangulate_to_unstructured`` return one, and the averages, fluxes
+  and ``block_util.to_tm3`` take one. This replaces the ``(ntri, 3)`` Block
+  with a ``triangulated`` flag: ``Block.triangulated``,
+  ``Block.set_triangulated``, ``Block.dA_tri`` and ``Block.dA_tri_nd`` are
+  removed, and cuts pickled before this load as plain Blocks
+* Fix ``average.mass_average`` raising on an unstructured cut
 
 .. _v0.4.10:
 

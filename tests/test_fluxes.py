@@ -235,18 +235,14 @@ def test_flux_1d(uniform_flow_block_1d):
 
 
 def test_flux_triangulated_shape(uniform_flow_block_2d):
-    """Test that block.flux has correct shape (ntri, 3, 5) for triangulated cuts."""
+    """Test that block.flux has correct shape (n_face, 3, 5) for triangulated cuts."""
     from ember.cut import triangulate_to_unstructured
+    from ember.unstructured import UnstructuredBlock
 
     # Create triangulated block from 2D structured block
     tri_block = triangulate_to_unstructured(uniform_flow_block_2d)
-
-    # Verify block is triangulated and has expected shape
-    assert tri_block.triangulated, "Block should be triangulated"
-    ntri = tri_block.shape[0]
-    assert tri_block.shape == (ntri, 3), (
-        f"Triangulated block shape should be (ntri, 3), got {tri_block.shape}"
-    )
+    assert isinstance(tri_block, UnstructuredBlock)
+    ntri = tri_block.n_face
 
     # Test flux property has correct shape (ntri, 3, 5)
     flux = ember.fluxes.get_flux(tri_block)

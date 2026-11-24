@@ -52,6 +52,7 @@ import ember.collections
 import ember.fortran
 from ember import util
 from ember.block import Block
+from ember.unstructured import UnstructuredBlock
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,10 @@ def concatenate(*blocks, axis=0):
     """
     if len(blocks) == 0:
         raise ValueError("At least 1 block required for concatenation")
+    elif any(isinstance(b, UnstructuredBlock) for b in blocks):
+        raise TypeError(
+            "Cannot concatenate an UnstructuredBlock: its faces index its own vertices."
+        )
     elif len(blocks) == 1:
         return blocks[0].copy()
 
@@ -824,12 +829,12 @@ def wall_yplus(block, wall_law="fit"):
 
 
 def to_tm3(block, filename, clip_quantile=0.01, **kwargs):
-    """Write a triangulated cut to a tm3 binary file.
+    """Write an unstructured cut to a tm3 binary file.
 
     Parameters
     ----------
-    block : Block
-        Triangulated block with shape ``(ntri, 3)``.
+    block : UnstructuredBlock
+        Unstructured triangulated cut.
     filename : str or path-like
         Output file path.
     clip_quantile : float, optional
@@ -837,20 +842,18 @@ def to_tm3(block, filename, clip_quantile=0.01, **kwargs):
         to [q, 1-q] percentiles so that extreme outliers do not dominate
         the colour scale. Default is 0.01 (1%). Set to 0 to use the
         full min/max range.
-    **kwargs : array_like, shape (ntri, 3)
+    **kwargs : array_like, shape (n_vert,)
         Exactly one keyword argument: the key is used as the property name
         in the file, the value is the per-vertex scalar array.
 
     Raises
     ------
     ValueError
-        If the block is not triangulated, kwargs count != 1, or the value
+        If the block is not unstructured, kwargs count != 1, or the value
         shape does not match the block shape.
     """
-    if not block.triangulated:
-        raise ValueError("to_tm3 requires a triangulated block")
-    if len(block.shape) != 2 or block.shape[1] != 3:
-        raise ValueError(f"to_tm3 requires shape (ntri, 3), got {block.shape}")
+    if not isinstance(block, UnstructuredBlock):
+        raise ValueError("to_tm3 requires an UnstructuredBlock")
     if len(kwargs) != 1:
         raise ValueError(
             f"to_tm3 requires exactly one keyword argument (property name=array), "
@@ -864,15 +867,12 @@ def to_tm3(block, filename, clip_quantile=0.01, **kwargs):
             f"Property array shape {values.shape} does not match block shape {block.shape}"
         )
 
-    ntri = block.shape[0]
-    nverts = ntri * 3
+    n_face = block.n_face
+    n_vert = block.n_vert
 
-    # Cartesian vertex coordinates, shape (ntri, 3, 3): [tri, node, xyz]
-    xyz = np.stack([block.x, block.y, block.z], axis=-1)  # (ntri, 3, 3)
-    nodes = xyz.reshape(-1, 3).astype(np.float32)  # (nverts, 3)
-
-    # Each triangle's vertices are consecutive — no shared vertices
-    indices = np.arange(nverts, dtype=np.int32).reshape(ntri, 3)
+    # Cartesian vertex coordinates, shape (n_vert, 3)
+    nodes = np.stack([block.x, block.y, block.z], axis=-1).astype(np.float32)
+    indices = block.faces
 
     # Bounding geometry
     rmax = np.sqrt((nodes**2).sum(axis=1)).max()
@@ -891,8 +891,8 @@ def to_tm3(block, filename, clip_quantile=0.01, **kwargs):
         f.write(np.int32(1).tobytes())  # nsteps
         f.write(np.int32(1).tobytes())  # nsurfaces
         f.write(np.array(surface_name, dtype="S96").tobytes())  # surface name
-        f.write(np.int32(nverts).tobytes())  # nverts
-        f.write(np.int32(ntri).tobytes())  # ntris
+        f.write(np.int32(n_vert).tobytes())  # nverts
+        f.write(np.int32(n_face).tobytes())  # ntris
         f.write(np.int32(1).tobytes())  # nprops
         f.write(np.float32(rmax).tobytes())  # rmax
         f.write(xrange_.tobytes())  # xrange

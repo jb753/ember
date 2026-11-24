@@ -1,7 +1,7 @@
 r"""Storage and manipulation of flow field data for a single structured grid block.
 
 This module defines the :class:`Block`, our fundamental data structure for representing flow fields on structured grids with any number of dimensions. The class stores coordinates and conserved quantities, and provides properties for derived quantities such as velocity, stagnation pressure, and Mach number. There is also a store for scalar metadata related to
-the entire field, such as reference frame angular velocity. All data flows are managed through setter methods that ensure validity and consistency of the flow field. The class also stores boundary patches to specify simulation boundary conditions in :py:attr:`Block.patches`.
+the entire field, such as reference frame angular velocity. All data flows are managed through setter methods that ensure validity and consistency of the flow field. The class also stores boundary patches to specify simulation boundary conditions in :py:attr:`Block.patches <ember.block.Block.patches>`.
 
 Initialisation
 ==============
@@ -13,7 +13,7 @@ The only required argument to the :class:`Block` constructor is the shape of the
 
 To begin with, an array is allocated to store the raw data only. Storage
 for derived quantities is then allocated lazily on first access, and cached for
-subsequent calls to save memory. Data and metadata are stored after initialisation using :ref:`block-setters`, and the raw and derived quantities are accessed via attributes such as :attr:`Block.x`, :attr:`Block.P`, and :attr:`Block.Ma`.
+subsequent calls to save memory. Data and metadata are stored after initialisation using :ref:`block-setters`, and the raw and derived quantities are accessed via attributes such as :attr:`Block.x <ember.block.Block.x>`, :attr:`Block.P <ember.block.Block.P>`, and :attr:`Block.Ma <ember.block.Block.Ma>`.
 
 Indexing and slicing
 ====================
@@ -38,11 +38,11 @@ the conserved quantities at grid nodes and delegates every thermodynamic
 relation to a :mod:`ember.fluid` equation of state attached by
 :meth:`Block.set_fluid()`. The block works in terms of density and internal energy, and the fluid performs calculations to convert from other thermodynamic properties as needed.
 
-Reading a thermodynamic property such as static pressure :attr:`Block.P` first extracts internal energy :attr:`Block.u` from the conserved quantities :attr:`Block.conserved` by subtracting kinetic energy.
+Reading a thermodynamic property such as static pressure :attr:`Block.P <ember.block.Block.P>` first extracts internal energy :attr:`Block.u <ember.block.Block.u>` from the conserved quantities :attr:`Block.conserved <ember.block.Block.conserved>` by subtracting kinetic energy.
 Then, density and internal energy are passed to :py:meth:`ember.fluid.PerfectFluid.get_P` which evaluates the equation of state to calculate pressure. The result is stored in a cache array for repeated use, that is cleared if the underlying conserved data changes. Temperature, entropy, and so on follow this same pattern.
 
 Writing a thermodynamic state is the reverse of reading out a derived property, although by the two-property rule the set methods must take two arguments.
-:py:meth:`Block.set_P_T` passes pressure
+:py:meth:`Block.set_P_T <ember.block.Block.set_P_T>` passes pressure
 and temperature to :py:meth:`ember.fluid.PerfectFluid.set_P_T`, which inverts the equation of state to find the corresponding density and internal energy.
 :class:`Block` then saves density directly, and updates total energy to reflect the new thermodynamic state while preserving the velocity field.
 
@@ -64,21 +64,21 @@ Three derived thermodynamic scales are then formed:
 :math:`p_\mathrm{ref} = \rho_\mathrm{ref} V_\mathrm{ref}^2`,
 :math:`u_\mathrm{ref} = V_\mathrm{ref}^2`, and
 :math:`T_\mathrm{ref} = V_\mathrm{ref}^2 / R_\mathrm{ref}`.
-All six are accessible via the attached fluid at :py:attr:`Block.fluid`.
+All six are accessible via the attached fluid at :py:attr:`Block.fluid <ember.block.Block.fluid>`.
 
 Spatial coordinates are normalised by a separate reference length
-:math:`L_\mathrm{ref}` [m], set via :py:meth:`Block.set_L_ref` and accessible
-as :py:attr:`Block.L_ref`.  It defaults to 1.0, leaving supposedly
+:math:`L_\mathrm{ref}` [m], set via :py:meth:`Block.set_L_ref <ember.block.Block.set_L_ref>` and accessible
+as :py:attr:`Block.L_ref <ember.block.Block.L_ref>`.  It defaults to 1.0, leaving supposedly
 non-dimensional coordinates in SI units, and is independent of the fluid.
 
-At rest, a :class:`Block` stores the raw data in non-dimensional form. Calls to, for example, :meth:`Block.set_P_T` and :meth:`Block.set_Vx` divide their dimensional input by the appropriate reference scale before storage. :meth:`Block.set_rho_u_Vxrt_nd` is the one exception to this rule as indicated by its `_nd` suffix: it takes non-dimensional inputs and stores them directly without rescaling.
+At rest, a :class:`Block` stores the raw data in non-dimensional form. Calls to, for example, :meth:`Block.set_P_T <ember.block.Block.set_P_T>` and :meth:`Block.set_Vx <ember.block.Block.set_Vx>` divide their dimensional input by the appropriate reference scale before storage. :meth:`Block.set_rho_u_Vxrt_nd <ember.block.Block.set_rho_u_Vxrt_nd>` is the one exception to this rule as indicated by its `_nd` suffix: it takes non-dimensional inputs and stores them directly without rescaling.
 Calls to
-:meth:`Block.set_L_ref` and :meth:`Block.set_fluid` rescale the raw data in
+:meth:`Block.set_L_ref <ember.block.Block.set_L_ref>` and :meth:`Block.set_fluid <ember.block.Block.set_fluid>` rescale the raw data in
 place to maintain the same dimensional values if the reference scales change.
 This keeps the non-dimensional storage completely transparent to the
 user.
 
-Non-dimensional versions of dimensional properties such as :attr:`Block.P_nd` and :attr:`Block.Vx_nd` have an `_nd` suffix to distinguish them from the dimensional versions. The same suffix also applies to setters which take non-dimensional inputs like :meth:`Block.set_P_rho_nd`.
+Non-dimensional versions of dimensional properties such as :attr:`Block.P_nd <ember.block.Block.P_nd>` and :attr:`Block.Vx_nd <ember.block.Block.Vx_nd>` have an `_nd` suffix to distinguish them from the dimensional versions. The same suffix also applies to setters which take non-dimensional inputs like :meth:`Block.set_P_rho_nd <ember.block.Block.set_P_rho_nd>`.
 
 Array methods
 =============
@@ -100,8 +100,8 @@ Views and copies:
    Block.view
 
 A frozen block is read-only: its setters raise and its backing array is marked
-read-only, so views of it are read-only too. :attr:`Block.frozen` reports
-whether a block is in that state, and :meth:`Block.copy` returns a writeable
+read-only, so views of it are read-only too. :attr:`Block.frozen <ember.block.Block.frozen>` reports
+whether a block is in that state, and :meth:`Block.copy <ember.block.Block.copy>` returns a writeable
 one again.
 
 Reshaping and reordering (a zero-copy view where the layout allows, otherwise a copy):
@@ -123,7 +123,7 @@ Reduction over a spatial axis:
 Cache:
 
 Methods that bypass the usual lazy, per-property cache invalidation -- see
-:meth:`Block.update_cached_conserved` and :meth:`Block.update_primitive` for
+:meth:`Block.update_cached_conserved <ember.block.Block.update_cached_conserved>` and :meth:`Block.update_primitive <ember.block.Block.update_primitive>` for
 when each is needed.
 
 .. autosummary::
@@ -209,7 +209,6 @@ values are preserved when the reference scales change.
    Block.set_Nb
    Block.set_Omega
    Block.set_rpm
-   Block.set_triangulated
 
 Miscellaneous:
 
@@ -224,7 +223,7 @@ Properties
 ==========
 
 Raw and derived quantities are read back via properties. Nodal arrays have
-shape matching :attr:`Block.shape`; cell and face quantities are one node
+shape matching :attr:`Block.shape <ember.block.Block.shape>`; cell and face quantities are one node
 shorter along the relevant axis or axes.
 
 Geometry:
@@ -232,7 +231,6 @@ Geometry:
 .. autosummary::
 
    Block.dA_quad
-   Block.dA_tri
    Block.dAi
    Block.dAj
    Block.dAk
@@ -275,7 +273,7 @@ Kinematics:
 Thermodynamic state:
 
 Pure equation-of-state outputs and transport properties, evaluated from
-:attr:`Block.rho` and :attr:`Block.u` alone -- see :ref:`block-equations-of-state`.
+:attr:`Block.rho <ember.block.Block.rho>` and :attr:`Block.u <ember.block.Block.u>` alone -- see :ref:`block-equations-of-state`.
 
 .. autosummary::
 
@@ -360,7 +358,6 @@ Metadata:
    Block.patches
    Block.pitch
    Block.rpm
-   Block.triangulated
 
 Miscellaneous:
 
@@ -391,7 +388,6 @@ directly and are not usually needed by end users.
    Block.conserved_nd
    Block.cp_nd
    Block.dA_quad_nd
-   Block.dA_tri_nd
    Block.dAi_nd
    Block.dAj_nd
    Block.dAk_nd
@@ -472,7 +468,7 @@ Indexing and slicing return a view over a sub-region::
     print(b2[0, :].x)  # [0.  0.1]
     print(b2[:, 1].x)  # [0.1 0.3 0.5]
 
-:py:meth:`Block.copy` decouples the backing array so mutations do not propagate::
+:py:meth:`Block.copy <ember.block.Block.copy>` decouples the backing array so mutations do not propagate::
 
     # example: copy
     from ember.block import Block
@@ -594,7 +590,7 @@ def _handle_output(result, out=None):
 
 
 def _get_da_tri(xrt, out=None):
-    r"""Area vectors of triangular faces, backing :attr:`Block.dA_tri`.
+    r"""Area vectors of triangular faces, backing :attr:`UnstructuredBlock.dA <ember.unstructured.UnstructuredBlock.dA>`.
 
     For a triangle with vertices :math:`A, B, C` in pseudo-Cartesian space
     :math:`(x, r, r\theta)`:
@@ -605,14 +601,14 @@ def _get_da_tri(xrt, out=None):
 
     Parameters
     ----------
-    xrt : Array, shape (ntri, 3, 3)
+    xrt : Array, shape (n_face, 3, 3)
         Polar coordinates :math:`(x, r, \theta)` at the three vertices of each triangle.
     out : Array, optional
-        Output array to store results. Must have shape (ntri, 3).
+        Output array to store results. Must have shape (n_face, 3).
 
     Returns
     -------
-    dA : Array, shape (ntri, 3)
+    dA : Array, shape (n_face, 3)
         Face area vectors in pseudo-Cartesian components :math:`(x, r, r\theta)`.
     """
     xrrt = pol_to_pseudocart(xrt)
@@ -623,7 +619,7 @@ def _get_da_tri(xrt, out=None):
 
 
 def _get_dai(xrt, out=None):
-    r"""Area vectors of constant-i faces, backing :attr:`Block.dAi_nd`.
+    r"""Area vectors of constant-i faces, backing :attr:`Block.dAi_nd <ember.block.Block.dAi_nd>`.
 
     Each face is bounded by the four nodes
     :math:`(i,j,k),\,(i,j,k{+}1),\,(i,j{+}1,k{+}1),\,(i,j{+}1,k)`,
@@ -665,7 +661,7 @@ def _get_dai(xrt, out=None):
 
 
 def _get_daj(xrt, out=None):
-    r"""Area vectors of constant-j faces, backing :attr:`Block.dAj_nd`.
+    r"""Area vectors of constant-j faces, backing :attr:`Block.dAj_nd <ember.block.Block.dAj_nd>`.
 
     Each face is bounded by the four nodes
     :math:`(i,j,k),\,(i{+}1,j,k),\,(i{+}1,j,k{+}1),\,(i,j,k{+}1)`,
@@ -706,7 +702,7 @@ def _get_daj(xrt, out=None):
 
 
 def _get_dak(xrt, out=None):
-    r"""Area vectors of constant-k faces, backing :attr:`Block.dAk_nd`.
+    r"""Area vectors of constant-k faces, backing :attr:`Block.dAk_nd <ember.block.Block.dAk_nd>`.
 
     Each face is bounded by the four nodes
     :math:`(i,j,k),\,(i,j{+}1,k),\,(i{+}1,j{+}1,k),\,(i{+}1,j,k)`,
@@ -750,7 +746,7 @@ def _get_dak(xrt, out=None):
 
 
 def _get_da_quad(xrt, out=None):
-    r"""Area vectors of quadrilateral faces on a 2D cut, backing :attr:`Block.dA_quad`.
+    r"""Area vectors of quadrilateral faces on a 2D cut, backing :attr:`Block.dA_quad <ember.block.Block.dA_quad>`.
 
     Delegates to :func:`_get_dak` with a dummy third dimension added and then
     removed.  The four nodes of each face are
@@ -780,7 +776,7 @@ def _get_da_quad(xrt, out=None):
 
 
 def _get_vol(xrt, dAi, dAj, dAk, out=None):
-    r"""Cell volumes via the divergence theorem, backing :attr:`Block.vol_nd`.
+    r"""Cell volumes via the divergence theorem, backing :attr:`Block.vol_nd <ember.block.Block.vol_nd>`.
 
     With the vector field :math:`\mathbf{F} = (x,\, r/2,\, r\theta)`,
     :math:`\nabla\cdot\mathbf{F} = 3` in cylindrical coordinates, so
@@ -858,7 +854,7 @@ def _get_vol(xrt, dAi, dAj, dAk, out=None):
 class _MaskedBlock:
     """Proxy that confines any :class:`Block` setter to the masked nodes.
 
-    Returned by :meth:`Block.masked`. Forwarding a ``set_*`` call runs the
+    Returned by :meth:`Block.masked <ember.block.Block.masked>`. Forwarding a ``set_*`` call runs the
     underlying setter on the *whole* block, then restores every node outside the
     mask from a snapshot, so only nodes where the mask is True are changed.
     Non-setter attribute access is forwarded to the wrapped block unchanged.
@@ -918,7 +914,7 @@ def _viscous_face_shapes(ni, nj, nk):
 def _scratch_len(shape, n_levels=MAX_MG_LEVELS):
     """Elements the shared scratch arena needs, sized by its worst phase.
 
-    :attr:`Block.scratch` backs every throwaway buffer in the step. Its
+    :attr:`Block.scratch <ember.block.Block.scratch>` backs every throwaway buffer in the step. Its
     consumers fall into phases that never overlap, so the arena holds the SUM
     of what is live within a phase and the MAX across phases:
 
@@ -979,7 +975,7 @@ def _carve_viscous(block):
     ``(mu, kappa, cp)`` both viscous kernels read. This is the only place the
     viscous phase's arena layout is written down, and every caller that needs
     any part of it comes through here -- ``grid.update_sources``, the
-    :attr:`Block.tau_q_faces` accessor, and the tests and bench arms that drive
+    :attr:`Block.tau_q_faces <ember.block.Block.tau_q_faces>` accessor, and the tests and bench arms that drive
     ``set_visc_force`` directly. Being deterministic, separate calls agree.
 
     All of them reach the same ``set_visc_force`` call, so they must not
@@ -1045,10 +1041,6 @@ class _PointBlock(ember._struct.StructuredData):
 
         # Initialize cache storage for cached properties
         self._store = {}
-
-        # If we are a single point, unset triangulated flag
-        if self.ndim == 0:
-            self.set_triangulated(False)
 
     def _update_ref_scales(self):
         """Re-derive anything held against the old reference scales.
@@ -1369,7 +1361,7 @@ class _PointBlock(ember._struct.StructuredData):
         computational fluid dynamics calculations, are the primary data stored
         in the block. Other variables like pressure and temperature are
         computed from the conserved variables via the equation of state in
-        :py:attr:`Block.fluid`.
+        :py:attr:`Block.fluid <ember.block.Block.fluid>`.
 
         Parameters
         ----------
@@ -1399,7 +1391,7 @@ class _PointBlock(ember._struct.StructuredData):
     def set_fac_lam(self, fac_lam):
         """Store the prescribed laminar fraction.
 
-        See :py:attr:`Block.fac_lam` for more details.
+        See :py:attr:`Block.fac_lam <ember.block.Block.fac_lam>` for more details.
 
         Parameters
         ----------
@@ -1522,11 +1514,11 @@ class _PointBlock(ember._struct.StructuredData):
         """Set reference length scale preserving existing dimensional values.
 
         The underlying block data is stored in a nondimensional form for
-        reasons of numerical precision. For example, :py:attr:`Block.r` is
+        reasons of numerical precision. For example, :py:attr:`Block.r <ember.block.Block.r>` is
         actually stored as radius normalised by the reference length scale
-        with the raw value accessible as :py:attr:`Block.r_nd`.
+        with the raw value accessible as :py:attr:`Block.r_nd <ember.block.Block.r_nd>`.
 
-        Note that the :py:attr:`Block.fluid` instance specifies additional reference scales needed to make thermodynamic properties non-dimensional.
+        Note that the :py:attr:`Block.fluid <ember.block.Block.fluid>` instance specifies additional reference scales needed to make thermodynamic properties non-dimensional.
 
         This method sets a new reference length, rescaling stored
         nondimensional coordinates and angular momentum so that dimensional
@@ -1588,7 +1580,7 @@ class _PointBlock(ember._struct.StructuredData):
     def set_mu_turb(self, mu_turb):
         """Store turbulent viscosity.
 
-        See :py:attr:`Block.mu_turb` for more details.
+        See :py:attr:`Block.mu_turb <ember.block.Block.mu_turb>` for more details.
 
         Parameters
         ----------
@@ -1855,18 +1847,6 @@ class _PointBlock(ember._struct.StructuredData):
             *self.fluid.set_T_s(T / self.fluid.T_ref, s / self.fluid.Rgas_ref)
         )
 
-    def set_triangulated(self, value):
-        """Set whether the data represents triangulated (unstructured) cut data.
-
-        Parameters
-        ----------
-        value : bool
-            True if the block holds triangulated (unstructured) data with shape
-            ``(ntri, 3)``; False for a structured quadrilateral mesh.
-
-        """
-        super().set_triangulated(value)
-
     def set_V_Alpha_Beta(self, V, Alpha, Beta):
         r"""Set the velocity vector from speed, yaw angle, and pitch angle.
 
@@ -2024,7 +2004,7 @@ class _PointBlock(ember._struct.StructuredData):
     def set_wdist(self, wdist):
         """Store distance to nearest wall.
 
-        See :py:attr:`Block.wdist` for more details.
+        See :py:attr:`Block.wdist <ember.block.Block.wdist>` for more details.
 
         Parameters
         ----------
@@ -2342,31 +2322,6 @@ class _PointBlock(ember._struct.StructuredData):
         self._fill_transport_nd(cp=out)
         return out
 
-    @derived_array
-    def dA_tri(self):
-        r"""Face area vectors for a 2D unstructured cut :math:`\delta\!A` [m^2], shape ``(ntri, 3)``.
-
-        See :attr:`dA_tri_nd` for the nondimensional form and the geometry
-        reference.
-        """
-        return self.dA_tri_nd * self.L_ref**2
-
-    @derived_array
-    def dA_tri_nd(self):
-        r"""Face area vectors for a 2D unstructured cut :math:`\delta\!A / L_\mathrm{ref}^2` [-], shape ``(ntri, 3)``.
-
-        Components on the trailing axis, as for :attr:`dA_tri`.
-
-        See :ref:`face-areas` for the calculation.
-        """
-        if len(self.shape) != 2 or self.shape[1] != 3:
-            raise AssertionError(
-                f"dA_tri requires triangular block with shape (ntri, 3), "
-                f"got shape {self.shape}"
-            )
-        assert self.triangulated, "dA_tri requires triangulated=True"
-        return _get_da_tri(self._xrt_nd)
-
     @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
     def dhdP_rho_nd(self, out):
         r"""Nondimensional derivative of enthalpy wrt. pressure at constant density :math:`(\partial h/\partial p)_\rho \, \rho_\mathrm{ref}` [-]."""
@@ -2665,6 +2620,20 @@ class _PointBlock(ember._struct.StructuredData):
     def r(self):
         r"""Radial coordinate :math:`r` [m], nodal array."""
         return self.r_nd * self.L_ref
+
+    @cached_object
+    def r_mid_nd(self):
+        r"""Midspan nondimensional radius, :math:`\tfrac12(\min r_\mathrm{nd} + \max r_\mathrm{nd})` [-].
+
+        Derived from the block's own coordinates (a representative radius for
+        this block), not a user-set reference scale -- hence ``_mid`` rather than
+        the ``_ref`` suffix carried by the arbitrary fluid/length scales. Used to
+        rescale the angular-momentum (``rhorVt``) residual by a radius so its
+        magnitude is comparable to the linear-momentum residuals.
+
+        Cached once: the block geometry is fixed for the lifetime of a solve.
+        """
+        return 0.5 * (self.r_nd.min() + self.r_nd.max())
 
     @derived_array
     def r_nd(self):
@@ -3182,7 +3151,7 @@ class Block(_PointBlock):
     def __init__(self, shape=()):
         """Allocate a structured grid block.
 
-        This is the primary data container for flow fields. It stores coordinates and conserved variables, and provides properties for derived variables such as velocity, pressure and Mach number. All data flows are managed through setter methods that ensure validity and consistency of the flow field. The class also stores boundary patches to specify simulation boundary conditions in :py:attr:`Block.patches`.
+        This is the primary data container for flow fields. It stores coordinates and conserved variables, and provides properties for derived variables such as velocity, pressure and Mach number. All data flows are managed through setter methods that ensure validity and consistency of the flow field. The class also stores boundary patches to specify simulation boundary conditions in :py:attr:`Block.patches <ember.block.Block.patches>`.
 
         The setters fall into two complementary families: thermodynamic setters
         such as :py:meth:`set_P_T` store pressure and temperature
@@ -3559,7 +3528,6 @@ class Block(_PointBlock):
         See :ref:`face-areas` for the calculation.
         """
         assert self.ndim == 2, "dA_quad is only defined for a two-dimensional cut."
-        assert not self.triangulated, "dA_quad requires triangulated=False"
         return _get_da_quad(self._xrt_nd)
 
     @derived_array
@@ -3918,20 +3886,6 @@ class Block(_PointBlock):
     def patches(self):
         """Boundary conditions for the block."""
         return self._get_metadata_by_key("patches")
-
-    @cached_object
-    def r_mid_nd(self):
-        r"""Midspan nondimensional radius, :math:`\tfrac12(\min r_\mathrm{nd} + \max r_\mathrm{nd})` [-].
-
-        Derived from the block's own coordinates (a representative radius for
-        this block), not a user-set reference scale -- hence ``_mid`` rather than
-        the ``_ref`` suffix carried by the arbitrary fluid/length scales. Used to
-        rescale the angular-momentum (``rhorVt``) residual by a radius so its
-        magnitude is comparable to the linear-momentum residuals.
-
-        Cached once: the block geometry is fixed for the lifetime of a solve.
-        """
-        return 0.5 * (self.r_nd.min() + self.r_nd.max())
 
     @cached_array()
     def residual_nd(self, out):

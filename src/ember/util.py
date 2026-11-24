@@ -700,7 +700,7 @@ def unwrap_meridional(xr_curve, xr_query):
 
     Query points are projected onto the curve and their perpendicular offset
     discarded, so points lying near it rather than exactly on it --- the
-    triangulated output of :func:`ember.cut.unstructured`, say, or a blade
+    vertices of an unstructured cut from :func:`ember.cut.unstructured`, say, or a blade
     surface --- are handled without special-casing. A point beyond either end
     clamps to that end.
 

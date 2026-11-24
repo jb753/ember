@@ -101,7 +101,7 @@ cut_unstr = ember.cut.unstructured(block, xr_cut)
 
 mdot_unstr = ember.average.flow_mass(cut_unstr)
 print(
-    f"Unstructured cut: {cut_unstr.shape[0]} triangles, "
+    f"Unstructured cut: {cut_unstr.n_face} triangles, "
     f"mass flow {abs(mdot_unstr):.4f} kg/s"
 )
 
@@ -126,12 +126,12 @@ axs[0].plot(Zs, Ys, "k-", lw=0.3)  # Grid lines along each direction
 axs[0].plot(Zs.T, Ys.T, "k-", lw=0.3)
 axs[0].set_title("Structured cut (quadrilaterals)")
 
-# Unstructured: triangle mesh (each row of the block is one triangle)
+# Unstructured: triangle mesh, vertices joined by the cut's faces
 Zu, Yu = np.asarray(cut_unstr.z), np.asarray(cut_unstr.y)
-triang = mtri.Triangulation(Zu.ravel(), Yu.ravel(), np.arange(Zu.size).reshape(-1, 3))
+triang = mtri.Triangulation(Zu, Yu, cut_unstr.faces)
 axs[1].tripcolor(
     triang,
-    facecolors=np.asarray(cut_unstr.Vt).mean(axis=1),
+    facecolors=np.asarray(cut_unstr.Vt)[cut_unstr.faces].mean(axis=1),
     edgecolors="k",
     linewidth=0.3,
     **levels,

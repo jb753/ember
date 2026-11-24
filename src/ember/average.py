@@ -19,13 +19,14 @@ from ember import block_util
 from ember import perturbation
 from ember import fluxes as ember_fluxes
 from ember import set_iterative
+from ember.unstructured import UnstructuredBlock
 
 
-def _get_axes(axes, triangulated):
+def _get_axes(axes, block):
     """Helper to validate axes argument."""
-    if triangulated:
+    if isinstance(block, UnstructuredBlock):
         if axes is not None:
-            raise ValueError("For triangulated grids, axes must be None.")
+            raise ValueError("For unstructured blocks, axes must be None.")
         axes = (0,)
     else:
         axes = (0, 1) if axes is None else axes
@@ -37,13 +38,13 @@ def _get_axes(axes, triangulated):
 
 
 def _get_dA(block):
-    """Return face area array, dispatching to dA_tri or dA_quad based on block.triangulated."""
-    return block.dA_tri if block.triangulated else block.dA_quad
+    """Return face area array, dispatching on structured or unstructured block."""
+    return block.dA if isinstance(block, UnstructuredBlock) else block.dA_quad
 
 
 def _get_dA_nd(block):
     """Nondimensional counterpart of :func:`_get_dA`."""
-    return block.dA_tri_nd if block.triangulated else block.dA_quad_nd
+    return block.dA_nd if isinstance(block, UnstructuredBlock) else block.dA_quad_nd
 
 
 def _dot_conserved(flux, dA, axes):
@@ -61,7 +62,7 @@ def _dot_conserved(flux, dA, axes):
 def _integrate_scalar(scalar_face, dA_face, axes):
     """Helper function to integrate scalar over faces.
 
-    Agnostic to quadrilateral vs triangulated faces."""
+    Agnostic to quadrilateral vs triangular faces."""
     assert scalar_face.ndim == dA_face.ndim - 1
     assert dA_face.shape[-1] == 3
     assert scalar_face.shape == dA_face.shape[:-1]
@@ -71,7 +72,7 @@ def _integrate_scalar(scalar_face, dA_face, axes):
 def _integrate_vector(vector_face, dA_face, axes):
     """Helper function to integrate vector flux over faces.
 
-    Agnostic to quadrilateral vs triangulated faces."""
+    Agnostic to quadrilateral vs triangular faces."""
     return np.sum(util.dot(vector_face, dA_face), axis=axes)
 
 
@@ -103,11 +104,11 @@ def _node_to_face_2d(nodal_data):
     )
 
 
-def _node_to_face(nodal_data, triangulated):
+def _node_to_face(nodal_data, block):
     """Distribute nodal data to faces."""
-    if triangulated:
-        # Average over triangle vertices
-        return np.mean(nodal_data, axis=1)
+    if isinstance(block, UnstructuredBlock):
+        # Average over each face's vertices
+        return block._to_faces(nodal_data)
     else:
         # Use 2D node_to_face distribution
         return _node_to_face_2d(nodal_data)
@@ -124,11 +125,11 @@ def flow_mass(block, axes=None):
 
     Parameters
     ----------
-    block : Block, shape (ni, nj) or (ntri, 3)
-        2D structured or triangulated block.
+    block : Block, shape (ni, nj), or UnstructuredBlock
+        2D structured block or unstructured surface.
     axes : tuple of int, default (0, 1)
         For structured grids, axes over which to sum the mass flow;
-        for triangulated grids, should be None to sum over all faces.
+        for unstructured blocks, should be None to sum over all faces.
 
     Returns
     -------
@@ -138,7 +139,7 @@ def flow_mass(block, axes=None):
     """
 
     mass_flux_face = ember_fluxes.get_mass_flux(block)
-    axes = _get_axes(axes, block.triangulated)
+    axes = _get_axes(axes, block)
     return _integrate_vector(mass_flux_face, _get_dA(block), axes)
 
 
@@ -167,11 +168,11 @@ def flow_conserved(block, axes=None):
 
     Parameters
     ----------
-    block : Block, shape (ni, nj) or (ntri, 3)
-        2D structured or triangulated block.
+    block : Block, shape (ni, nj), or UnstructuredBlock
+        2D structured block or unstructured surface.
     axes : tuple of int, default (0, 1)
         For structured grids, axes over which to sum the flows;
-        for triangulated grids, should be None to sum over all faces.
+        for unstructured blocks, should be None to sum over all faces.
 
     Returns
     -------
@@ -191,7 +192,7 @@ def flow_conserved_nd(block, axes=None):
     run its Newton iteration without any reference-scale bookkeeping, since
     the Jacobian from :mod:`ember.perturbation` is nondimensional too.
     """
-    axes = _get_axes(axes, block.triangulated)
+    axes = _get_axes(axes, block)
     return _dot_conserved(ember_fluxes.get_flux_nd(block), _get_dA_nd(block), axes)
 
 
@@ -207,13 +208,13 @@ def mass_average(scalar_node, block, axes=None):
 
     Parameters
     ----------
-    scalar_node : Array, shape (ni, nj) or (ntri, 3)
+    scalar_node : Array, shape (ni, nj) or (n_vert,)
         Scalar field values at grid nodes
-    block : Block, shape (ni, nj) or (ntri, 3)
-        2D structured or triangulated block
+    block : Block, shape (ni, nj), or UnstructuredBlock
+        2D structured block or unstructured surface
     axes : tuple of int, default (0, 1)
         For structured grids, axes over which to average;
-        for triangulated grids, should be None to average over all faces
+        for unstructured blocks, should be None to average over all faces
 
     Returns
     -------
@@ -225,11 +226,9 @@ def mass_average(scalar_node, block, axes=None):
     ValueError
         If the net mass flux through the block is zero
     """
-    axes = _get_axes(axes, block.triangulated)
+    axes = _get_axes(axes, block)
     mass_flux_vector = ember_fluxes.get_mass_flux(block)  # Shape (..., 3)
-    scalar_face = _node_to_face(
-        scalar_node, block.triangulated
-    )  # Shape (...,) - scalar at faces
+    scalar_face = _node_to_face(scalar_node, block)  # Shape (...,) - scalar at faces
 
     # Calculate scalar mass flow through each face: phi * (rho V . dA)
     mass_flow_scalar = util.dot(
@@ -240,7 +239,7 @@ def mass_average(scalar_node, block, axes=None):
     )  # Shape (...,) - scalar-weighted mass flow
 
     numerator = np.sum(scalar_mass_flow, axis=axes)
-    denominator = flow_mass(block, axes)
+    denominator = np.sum(mass_flow_scalar, axis=axes)
 
     # Check for zero net mass flux. `np.any` because a partial reduction --
     # `axes=(1,)` to average over the pitch and keep the span, say -- leaves an
@@ -299,11 +298,11 @@ def mass_band(block, lo, hi, axis=0):
     Raises
     ------
     ValueError
-        If `block` is triangulated or not 2D, if `axis` is not 0 or 1, if the
+        If `block` is unstructured or not 2D, if `axis` is not 0 or 1, if the
         fractions are out of order or out of range, or if the net mass flux
         through the block is zero.
     """
-    if block.triangulated or block.ndim != 2:
+    if isinstance(block, UnstructuredBlock) or block.ndim != 2:
         raise ValueError("mass_band requires a structured 2D block.")
     if axis not in (0, 1):
         raise ValueError(f"axis must be 0 or 1, got {axis}.")
@@ -400,21 +399,21 @@ def area_average(scalar_node, block, axes=None):
 
     Parameters
     ----------
-    scalar_node : Array, shape (ni, nj) or (ntri, 3)
+    scalar_node : Array, shape (ni, nj) or (n_vert,)
         Scalar field values at grid nodes
-    block : Block, shape (ni, nj) or (ntri, 3)
-        2D structured or triangulated block
+    block : Block, shape (ni, nj), or UnstructuredBlock
+        2D structured block or unstructured surface
     axes : tuple of int, default (0, 1)
         For structured grids, axes over which to average;
-        for triangulated grids, should be None to average over all faces
+        for unstructured blocks, should be None to average over all faces
 
     Returns
     -------
     avg_scalar : float
         Area-weighted average value
     """
-    axes = _get_axes(axes, block.triangulated)
-    scalar_face = _node_to_face(scalar_node, block.triangulated)
+    axes = _get_axes(axes, block)
+    scalar_face = _node_to_face(scalar_node, block)
     numerator = _integrate_scalar(scalar_face, _get_dA(block), axes)
     denominator = _integrate_scalar(np.ones_like(scalar_face), _get_dA(block), axes)
     return numerator / denominator
@@ -431,8 +430,8 @@ def total_area(block):
 
     Parameters
     ----------
-    block : Block, shape (ni, nj) or (ntri, 3)
-        2D structured or triangulated block
+    block : Block, shape (ni, nj), or UnstructuredBlock
+        2D structured block or unstructured surface
 
     Returns
     -------
@@ -447,8 +446,8 @@ def total_area_nd(block):
 
     Total vector area divided by :math:`L_\mathrm{ref}^2`.
     """
-    assert block.ndim == 2
-    axes = _get_axes(None, block.triangulated)
+    assert isinstance(block, UnstructuredBlock) or block.ndim == 2
+    axes = _get_axes(None, block)
     return np.sum(_get_dA_nd(block), axis=axes)
 
 
@@ -482,8 +481,8 @@ def mix_out(block, AR=1.0):
 
     Parameters
     ----------
-    block : Block, shape (ni, nj) or (ntri, 3)
-        2D block, can be structured or triangulated.
+    block : Block, shape (ni, nj), or UnstructuredBlock
+        2D structured block or unstructured surface.
     AR : float, default 1.0
         Area ratio for the isentropic contraction applied after mixing out.
         ``AR=1`` retains the constant-area mix-out; ``AR<1`` contracts the
@@ -529,7 +528,8 @@ def mix_out(block, AR=1.0):
     # ND storage. This skips set_conserved's density/finite validation, which
     # a mean of valid input data cannot trip, and the loop's own mix.rho check
     # still guards against Newton-step divergence below.
-    mix.conserved_nd[...] = block.conserved_nd.mean(axis=(0, 1))
+    cons_nd = block.conserved_nd
+    mix.conserved_nd[...] = cons_nd.mean(axis=tuple(range(cons_nd.ndim - 1)))
     mix.update_cached_conserved()
 
     # Get absolute tolerance for flows, on the same ND scale as the flows
