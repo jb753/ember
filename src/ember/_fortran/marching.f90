@@ -1,15 +1,29 @@
 ! Triangle topology for a marching cubes cut
 
 subroutine marching_cubes( &
-    dist, vert_ijk, tritable, edge_ijk, lo, hi, frac, n_face, &
-    ni, nj, nk, cap)
+    a, b, na, nb, c0, vert_ijk, tritable, edge_ijk, lo, hi, frac, n_face, &
+    ic_row, i_cut, ni, nj, nk, cap)
     ! Locate every triangle vertex a marching cubes cut produces, in one pass.
     !
-    ! Each cell's corner sign pattern is found from the signed distance at its
-    ! eight corners, one bit per corner set where the distance is negative.
-    ! Zero and all-ones are the uncut cells; any other pattern indexes the
-    ! triangle table, whose triangles are written out as the cell is reached.
-    ! Cells are walked i fastest, the order the field is stored in.
+    ! The cut is the zero level of the signed distance d = na a + nb b - c0,
+    ! worked out at each node as it is needed rather than read from a field.
+    ! A straight cut passes the meridional coordinates as a and b, with the
+    ! unit normal to its line and the line's offset, so no distance field is
+    ! ever built; any other passes a distance field already worked out as a,
+    ! with na = 1 and nb = c0 = 0, which reproduce it exactly.
+    !
+    ! Each cell's corner sign pattern has one bit per corner, set where the
+    ! distance is negative. Zero and all-ones are the uncut cells; any other
+    ! pattern indexes the triangle table, whose triangles are written out as
+    ! the cell is reached. Cells are walked i fastest, as the field is stored.
+    !
+    ! Each row of cells along i is done in three loops. The first finds every
+    ! pattern in the row, a corner at a time so that each corner's offset is
+    ! fixed across the loop over i, which reads the field contiguously and
+    ! has no branch to stop it vectorising, and counts the cut cells. A row
+    ! with none, as most are, stops there. Otherwise the second lists the cut
+    ! cells without branching on each, which would mispredict, and the third
+    ! visits just those.
     !
     ! A vertex sits on a cell edge, between two nodes of the grid, so it is
     ! reported as the pair of nodes it lies between, as zero-based indices
@@ -32,10 +46,10 @@ subroutine marching_cubes( &
 
     integer, intent(in) :: ni, nj, nk, cap
 
-    ! Signed distance at every node, zero on the cut, in the single precision
-    ! of the coordinates it is measured from, as is everything worked out
-    ! from it here
-    real, intent(in) :: dist(ni, nj, nk)
+    ! The two fields and the coefficients the distance is formed from, in the
+    ! single precision of the coordinates, as is everything worked out here
+    real, intent(in) :: a(ni, nj, nk), b(ni, nj, nk)
+    real, intent(in) :: na, nb, c0
 
     ! Zero-based (i, j, k) offset of each of the 8 corners of a cell, which
     ! fixes the order of the bits in the pattern
@@ -54,7 +68,12 @@ subroutine marching_cubes( &
     ! Triangles the cut makes, written or not
     integer, intent(out) :: n_face
 
-    integer :: i, j, k, c, ic, bit, row, n, v, e, t
+    ! Room for the patterns of one row of cells, and for the i of each cell
+    ! in it that the cut crosses, supplied by the caller
+    integer, intent(inout) :: ic_row(ni - 1), i_cut(ni - 1)
+
+    integer :: i, j, k, c, ic, bit, row, n, v, e, t, n_cut, m
+    integer :: oi, oj, ok
     integer :: ilo(3), ihi(3), swap(3)
     real :: d_lo, d_hi
 
@@ -62,18 +81,37 @@ subroutine marching_cubes( &
 
     do k = 1, nk - 1
         do j = 1, nj - 1
-            do i = 1, ni - 1
-                ic = 0
-                bit = 1
-                do c = 1, 8
-                    if (dist(i + vert_ijk(c, 1), &
-                             j + vert_ijk(c, 2), &
-                             k + vert_ijk(c, 3)) < 0.0) ic = ic + bit
-                    bit = bit * 2
+            ! One bit per corner, set where the distance is negative
+            ic_row = 0
+            bit = 1
+            do c = 1, 8
+                oi = vert_ijk(c, 1)
+                oj = j + vert_ijk(c, 2)
+                ok = k + vert_ijk(c, 3)
+                do i = 1, ni - 1
+                    ic_row(i) = ic_row(i) + merge(bit, 0, &
+                        na * a(i + oi, oj, ok) + nb * b(i + oi, oj, ok) - c0 < 0.0)
                 end do
+                bit = bit * 2
+            end do
 
-                ! All corners on one side: the cut misses this cell
-                if (ic == 0 .or. ic == 255) cycle
+            ! Cells with corners on both sides of the cut
+            n_cut = 0
+            do i = 1, ni - 1
+                n_cut = n_cut + merge(1, 0, ic_row(i) /= 0 .and. ic_row(i) /= 255)
+            end do
+            if (n_cut == 0) cycle
+
+            ! List them. Every i is stored and only a cut one kept.
+            n_cut = 0
+            do i = 1, ni - 1
+                i_cut(n_cut + 1) = i
+                n_cut = n_cut + merge(1, 0, ic_row(i) /= 0 .and. ic_row(i) /= 255)
+            end do
+
+            do m = 1, n_cut
+                i = i_cut(m)
+                ic = ic_row(i)
 
                 row = ic + 1
                 do n = 1, 16, 3
@@ -103,14 +141,22 @@ subroutine marching_cubes( &
                             ihi = swap
                         end if
 
-                        d_lo = dist(ilo(1) + 1, ilo(2) + 1, ilo(3) + 1)
-                        d_hi = dist(ihi(1) + 1, ihi(2) + 1, ihi(3) + 1)
+                        d_lo = na * a(ilo(1) + 1, ilo(2) + 1, ilo(3) + 1) &
+                             + nb * b(ilo(1) + 1, ilo(2) + 1, ilo(3) + 1) - c0
+                        d_hi = na * a(ihi(1) + 1, ihi(2) + 1, ihi(3) + 1) &
+                             + nb * b(ihi(1) + 1, ihi(2) + 1, ihi(3) + 1) - c0
 
-                        ! The cut crosses this edge, so exactly one end is
-                        ! negative and the two distances cannot be equal.
-                        ! That also puts the fraction in [0, 1] without it
-                        ! having to be clamped.
-                        frac(v, t) = -d_lo / (d_hi - d_lo)
+                        ! The cut crosses this edge, so one end is negative
+                        ! and the fraction lies in [0, 1]. Formed from two
+                        ! terms, the distance here can round differently from
+                        ! the vectorised pattern loop's, so a node within
+                        ! round-off of the cut can lose its sign: clamp, and
+                        ! take the midpoint of an edge whose ends then agree.
+                        if (d_hi == d_lo) then
+                            frac(v, t) = 0.5
+                        else
+                            frac(v, t) = min(max(-d_lo / (d_hi - d_lo), 0.0), 1.0)
+                        end if
 
                         lo(v, t) = ilo(1) + ni * (ilo(2) + nj * ilo(3))
                         hi(v, t) = ihi(1) + ni * (ihi(2) + nj * ihi(3))

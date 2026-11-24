@@ -355,16 +355,23 @@ _VERT_IJK = np.array(
 _EDGE_IJK = np.array([_eijk(0, 0, 0, e) for e in range(12)], dtype=np.int32)
 
 
-def _marching_cubes(data, dist):
+def _marching_cubes(data, a, b=None, coeffs=(1.0, 0.0, 0.0)):
     """Take an unstructured cut of 3D data using a signed distance field.
+
+    The kernel forms the distance ``na * a + nb * b - c0`` at each node as it
+    goes. With only `a` given, that is `a` itself, a distance field already
+    worked out; a straight cut instead passes the meridional coordinates and
+    its line's coefficients, and no field is ever built.
 
     Parameters
     ----------
     data: (ni, nj, nk, nvar) array
         Data variables arranged on a three-dimensional structured grid
         following ember convention with components in last axis.
-    dist: (ni, nj, nk) array
-        The signed distance field at each grid point, `dist=0` sets the cut location.
+    a, b: (ni, nj, nk) array
+        Fields the signed distance is formed from, zero on the cut.
+    coeffs: tuple of float
+        ``(na, nb, c0)``. The default makes the distance `a`.
 
     Returns
     -------
@@ -376,20 +383,36 @@ def _marching_cubes(data, dist):
 
     Returns None if nothing is cut.
     """
-    dist = np.asfortranarray(dist, dtype=np.float32)
+    a = np.asfortranarray(a, dtype=np.float32)
+    b = a if b is None else np.asfortranarray(b, dtype=np.float32)
+    na, nb, c0 = coeffs
 
     # Room for one triangle per cell, which a cut through a 3D block, crossing
     # a few percent of its cells, comes nowhere near. Pages of an empty array
     # are only mapped in when written, so the room left over costs nothing.
     # A cut that does make more is counted in full, and then run again with
     # room for all of it.
-    cap = max(int(np.prod(np.subtract(dist.shape, 1))), 1)
+    cap = max(int(np.prod(np.subtract(a.shape, 1))), 1)
+    ic_row = np.empty(a.shape[0] - 1, dtype=np.int32)
+    i_cut = np.empty_like(ic_row)
     while True:
         lo = np.empty((3, cap), dtype=np.int32, order="F")
         hi = np.empty((3, cap), dtype=np.int32, order="F")
         frac = np.empty((3, cap), dtype=np.float32, order="F")
         n_face = ember.fortran.marching_cubes(
-            dist, _VERT_IJK, _TRITABLE, _EDGE_IJK, lo, hi, frac
+            a,
+            b,
+            na,
+            nb,
+            c0,
+            _VERT_IJK,
+            _TRITABLE,
+            _EDGE_IJK,
+            lo,
+            hi,
+            frac,
+            ic_row,
+            i_cut,
         )
         if n_face <= cap:
             break
@@ -407,7 +430,7 @@ def _marching_cubes(data, dist):
     hi = hi[:, :n_face].T.ravel()
     frac = frac[:, :n_face].T.ravel()
     _, first, inverse = np.unique(
-        lo.astype(np.int64) * dist.size + hi, return_index=True, return_inverse=True
+        lo.astype(np.int64) * a.size + hi, return_index=True, return_inverse=True
     )
     faces = inverse.reshape(n_face, 3).astype(np.int32)
 
@@ -468,6 +491,19 @@ def signed_distance(xr, xr_query):
     return d.reshape(shape, order="F")
 
 
+def _line_normal(xr_cut):
+    """Unit normal and offset of the line through a single segment.
+
+    Returns ``(nx, nr, c)`` such that ``nx * x + nr * r - c`` is the signed
+    distance from the line, with the sign :func:`signed_distance` gives.
+    """
+    (x0, r0), (x1, r1) = np.asarray(xr_cut, dtype=np.float64)
+    bx, br = x1 - x0, r1 - r0
+    length = np.sqrt(max(bx * bx + br * br, 1e-9))
+    nx, nr = -br / length, bx / length
+    return nx, nr, x0 * nx + r0 * nr
+
+
 def _line_distance(xr_cut, xr_query):
     """Signed distance from the line through a single segment, past both ends.
 
@@ -477,17 +513,11 @@ def _line_distance(xr_cut, xr_query):
     rather than the kernel's search over segments. In single precision, as
     the coordinates are.
     """
-    (x0, r0), (x1, r1) = np.asarray(xr_cut, dtype=np.float64)
-    bx, br = x1 - x0, r1 - r0
-    length = np.sqrt(max(bx * bx + br * br, 1e-9))
-
-    # The normal (-br, bx) gives the sign signed_distance does. Folding the
-    # origin into one constant leaves two products and a sum per point.
-    nx, nr = -br / length, bx / length
+    nx, nr, c = (np.float32(v) for v in _line_normal(xr_cut))
     xr_query = np.asarray(xr_query, dtype=np.float32)
-    d = xr_query[..., 0] * np.float32(nx)
-    d += xr_query[..., 1] * np.float32(nr)
-    d -= np.float32(x0 * nx + r0 * nr)
+    d = xr_query[..., 0] * nx
+    d += xr_query[..., 1] * nr
+    d -= c
     return d
 
 
@@ -642,15 +672,21 @@ def unstructured(grid, xr_cut):
         if not _cut_reaches_block(xr_cut, block):
             continue
 
-        # Signed distance for all points in the block. Only its sign and the
-        # fraction along each edge where it vanishes are used, neither of
+        # The cut is the zero level of a signed distance. Only its sign and
+        # the fraction along each edge where it vanishes are used, neither of
         # which a uniform scaling changes, so it is measured in the block's
         # nondimensional coordinates, a view of its data, rather than in
-        # scaled copies of them.
-        dist = _cut_distance(xr_cut / block.L_ref, block.xrt_nd[..., :2])
+        # scaled copies of them. A straight cut's distance is linear in them,
+        # so the kernel forms it node by node and no field is built.
+        xr_cut_nd = xr_cut / block.L_ref
+        x_nd, r_nd = block.xrt_nd[..., 0], block.xrt_nd[..., 1]
+        if len(xr_cut) == 2:
+            args = (x_nd, r_nd, _line_normal(xr_cut_nd))
+        else:
+            args = (signed_distance(xr_cut_nd, block.xrt_nd[..., :2]),)
 
         # Get triangles for this block, or None if the cut misses it
-        cut_block = _marching_cubes(block._data, dist)
+        cut_block = _marching_cubes(block._data, *args)
 
         # Add them to the list, numbering this block's vertices after those
         # of the blocks before. Vertices on an interface between blocks are

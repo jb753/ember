@@ -79,6 +79,7 @@ from ember.cut import (
     _first_j_crossing,
     _pitchwise_fluid,
     _line_distance,
+    _line_normal,
 )
 
 
@@ -2404,6 +2405,20 @@ class TestStraightCut:
 
         np.testing.assert_allclose(cut.x, 0.5, atol=1e-6)
         np.testing.assert_allclose([cut.r.min(), cut.r.max()], [0.5, 1.5], atol=1e-6)
+
+    def test_kernel_line_matches_a_distance_field(self):
+        """Forming a line's distance in the kernel cuts as the field would."""
+        block = TestCutScreen._block_spanning([0.0, 1.0], [0.5, 1.5], (9, 8, 7))
+        xr_cut = np.array([[0.13, 0.37], [0.71, 1.66]])
+        x, r = block.xrt_nd[..., 0], block.xrt_nd[..., 1]
+
+        verts, faces = _marching_cubes(block._data, x, r, _line_normal(xr_cut))
+        verts_f, faces_f = _marching_cubes(
+            block._data, _line_distance(xr_cut, block.xrt_nd[..., :2])
+        )
+
+        np.testing.assert_array_equal(faces, faces_f)
+        np.testing.assert_allclose(verts, verts_f, rtol=1e-5, atol=1e-6)
 
     def test_screen_follows_the_line(self):
         """The screen takes a block the line crosses, wherever the segment is."""
