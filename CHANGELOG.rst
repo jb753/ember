@@ -43,6 +43,9 @@ public API without a deprecation period.
   ``Block.set_triangulated``, ``Block.dA_tri`` and ``Block.dA_tri_nd`` are
   removed, and cuts pickled before this load as plain Blocks
 * Fix ``average.mass_average`` raising on an unstructured cut
+* ``cut.interpolate_to_structured`` carries the coordinates, conserved
+  variables and metadata of the cut, but not solver fields such as the wall
+  distance; ``average.mix_out`` no longer shares the cut's patches
 
 .. _v0.4.10:
 

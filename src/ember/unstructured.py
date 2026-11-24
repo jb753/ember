@@ -131,27 +131,23 @@ class UnstructuredBlock(ember.block._PointBlock):
         faces.flags.writeable = False
         self._set_metadata_by_key("faces", faces)
 
-    def empty(self, shape=()):
-        """Create an uninitialised structured block with the same metadata.
+    def empty(self):
+        """Create an uninitialised block on the same mesh.
 
-        The result is a plain :class:`~ember.block.Block` of the given
-        shape, without faces: this is how a mixed-out state or a resampled
-        structured cut is made from an unstructured one.
-
-        Parameters
-        ----------
-        shape : tuple, optional
-            Shape of the new block. Defaults to scalar.
+        Returns a fresh :class:`UnstructuredBlock` with the same vertices,
+        faces and metadata and all data set to NaN, as
+        :func:`numpy.empty_like` keeps the type and shape of its argument.
+        A block of another shape is made with the :class:`~ember.block.Block`
+        constructor and setters.
 
         Returns
         -------
-        out : Block
-            A new uninitialised block with the fluid, length scale, rotation,
-            blade count and label of this one.
+        out : UnstructuredBlock
+            A new uninitialised block sharing this one's faces and metadata.
 
         """
-        out = ember.block.Block(shape=shape)
-        out._metadata.update({k: v for k, v in self._metadata.items() if k != "faces"})
+        out = UnstructuredBlock(self.n_vert)
+        out._metadata = self._metadata.copy()
         out._versions = self._versions.copy()
         return out
 

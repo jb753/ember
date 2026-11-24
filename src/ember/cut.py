@@ -834,21 +834,23 @@ def interpolate_to_structured(
     Returns
     -------
     cut : Block, shape (ni, nj)
-        Structured block with data interpolated onto the line-conforming grid.
+        Structured block with the coordinates and conserved variables
+        interpolated onto the line-conforming grid, and the fluid, length
+        scale, rotation, blade count and label of the cut. Solver fields such
+        as the wall distance are not carried over.
     """
     ni, nj = interp_shape
 
     # Gather the vertices onto the corners of each face, as a point cloud of
-    # shape (n_face*3, nvar). The periodic wrap below moves whole faces by
-    # whole pitches, so a vertex shared by faces either side of the seam takes
-    # a different theta in each and cannot be wrapped once for all of them.
+    # n_face*3 points. The periodic wrap below moves whole faces by whole
+    # pitches, so a vertex shared by faces either side of the seam takes a
+    # different theta in each and cannot be wrapped once for all of them.
     faces = unstructured_block.faces
     n_face = faces.shape[0]
-    nvar = unstructured_block._data.shape[-1]
-    points = unstructured_block._data[faces].reshape(-1, nvar)
-    xr = points[:, :2].astype(np.float64)
-    t_src = points[:, 2].astype(np.float64)
-    variables = points[:, 3:]
+    xrt = np.asarray(unstructured_block.xrt, dtype=np.float64)[faces].reshape(-1, 3)
+    xr = xrt[:, :2]
+    t_src = xrt[:, 2]
+    variables = np.asarray(unstructured_block.conserved)[faces].reshape(-1, 5)
 
     # Project the whole cloud onto the meridional line's principal direction
     # with a single SVD. The first right-singular vector is the line's dominant
@@ -984,16 +986,18 @@ def interpolate_to_structured(
     near = src_vars[idx.ravel()]
     interp = np.where(np.isnan(interp), near, interp)
 
-    # Assemble the structured output block.
-    output_data = np.full((ni, nj, nvar), np.nan)
-    output_data[..., 0] = x_t[:, None]
-    output_data[..., 1] = r_t[:, None]
-    output_data[..., 2] = theta_out
-    output_data[..., 3:] = interp.reshape(ni, nj, -1)
-
-    result_block = unstructured_block.empty(shape=(ni, nj))
-    result_block._data = output_data
-    return result_block
+    # Assemble the structured output block, with the metadata of the cut
+    result = Block(shape=(ni, nj))
+    result.set_fluid(unstructured_block.fluid)
+    result.set_L_ref(unstructured_block.L_ref)
+    result.set_Omega(unstructured_block.Omega)
+    result.set_Nb(unstructured_block.Nb)
+    result.set_label(unstructured_block.label)
+    result.set_x(np.broadcast_to(x_t[:, None], (ni, nj)))
+    result.set_r(np.broadcast_to(r_t[:, None], (ni, nj)))
+    result.set_t(theta_out)
+    result.set_conserved(interp.reshape(ni, nj, 5))
+    return result
 
 
 N_REF_BIN = 1000

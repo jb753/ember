@@ -19,6 +19,7 @@ from ember import block_util
 from ember import perturbation
 from ember import fluxes as ember_fluxes
 from ember import set_iterative
+from ember.block import Block
 from ember.unstructured import UnstructuredBlock
 
 
@@ -513,8 +514,14 @@ def mix_out(block, AR=1.0):
     A = A[:2]  # Drop theta component
     A_ref = np.linalg.norm(A)
 
-    # Allocate a scalar block for the mixed-out state
-    mix = block.empty()
+    # Allocate a scalar block for the mixed-out state, with the metadata of
+    # the cut
+    mix = Block()
+    mix.set_fluid(block.fluid)
+    mix.set_L_ref(block.L_ref)
+    mix.set_Omega(block.Omega)
+    mix.set_Nb(block.Nb)
+    mix.set_label(block.label)
 
     # Mixed out coordinates
     rmix = np.sqrt(np.mean(np.array([block.r.min(), block.r.max()]) ** 2))

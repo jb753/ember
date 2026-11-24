@@ -9,7 +9,8 @@ Test cases:
 - test_dA_follows_new_faces: replacing the faces changes the area vectors
 - test_reorders_raise: indexing, flip, reshape and the like raise
 - test_concatenate_raises: block concatenation rejects unstructured blocks
-- test_empty_returns_block: empty() gives a structured Block without faces
+- test_empty_keeps_mesh: empty() gives a fresh block on the same mesh
+- test_mix_out_and_regrid_carry_metadata: results are Blocks with the cut's metadata
 - test_copy_freeze_pickle_keep_faces: faces survive copy, freeze and pickle
 - test_shared_vertices: triangulating a structured cut stores each node once
 - test_matches_structured: integrals and averages agree with the structured cut
@@ -21,6 +22,7 @@ import numpy as np
 import pytest
 
 import ember.average
+import ember.cut
 import ember.block_util
 import ember.fluid
 from ember import util
@@ -108,14 +110,35 @@ def test_concatenate_raises(tri):
         ember.block_util.concatenate(tri, tri)
 
 
-def test_empty_returns_block(tri):
-    out = tri.empty(shape=(2, 3))
-    assert type(out) is Block
-    assert out.shape == (2, 3)
-    assert "faces" not in out._metadata
+def test_empty_keeps_mesh(tri):
+    out = tri.empty()
+    assert type(out) is UnstructuredBlock
+    assert out.n_vert == tri.n_vert
+    np.testing.assert_array_equal(out.faces, tri.faces)
     assert out.fluid is tri.fluid
     assert out.Nb == tri.Nb
-    assert len(out.patches) == 0
+    assert np.all(np.isnan(out._data[:, 0]))  # fresh coordinates
+    # No other shape: a block of another shape has no faces to index
+    with pytest.raises(TypeError):
+        tri.empty(shape=(2, 3))
+
+
+def test_mix_out_and_regrid_carry_metadata(tri):
+    tri.set_Omega(10.0)
+    tri.set_label("cut")
+    for out in (
+        ember.average.mix_out(tri),
+        ember.cut.interpolate_to_structured(tri, (4, 5), periodic=False),
+    ):
+        assert type(out) is Block
+        assert out.fluid is tri.fluid
+        assert (out.L_ref, out.Omega, out.Nb, out.label) == (
+            tri.L_ref,
+            tri.Omega,
+            tri.Nb,
+            "cut",
+        )
+        assert len(out.patches) == 0
 
 
 def test_copy_freeze_pickle_keep_faces(tri):
