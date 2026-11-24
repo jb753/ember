@@ -1006,30 +1006,15 @@ def _carve_viscous(block):
     return tuple(bufs[:6]), bufs[6], bufs[7], bufs[8], tuple(bufs[9:])
 
 
-class Block(ember._struct.StructuredData):
-    def __init__(self, shape=()):
-        """Allocate a structured grid block.
+class _PointBlock(ember._struct.StructuredData):
+    """Flow state at a set of points, with no topology.
 
-        This is the primary data container for flow fields. It stores coordinates and conserved variables, and provides properties for derived variables such as velocity, pressure and Mach number. All data flows are managed through setter methods that ensure validity and consistency of the flow field. The class also stores boundary patches to specify simulation boundary conditions in :py:attr:`Block.patches`.
-
-        The setters fall into two complementary families: thermodynamic setters
-        such as :py:meth:`set_P_T` store pressure and temperature
-        while preserving the velocity field, and kinematic
-        setters like :py:meth:`set_Vx` store
-        the velocity while preserving thermodynamic
-        state. The setters may be
-        called in either order to build up a complete flow field.
-
-        Parameters
-        ----------
-        shape : tuple of int, optional
-            Number of nodes in each dimension `(ni, nj, nk, ...)`. Any number of
-            dimensions is supported. Defaults to `()`, giving a scalar block with
-            no grid dimensions.
-
-        """
-
-        super().__init__(shape)
+    Holds everything that is evaluated point by point: the stored
+    coordinates and conserved variables, the setters that fill them, the
+    derived thermodynamic and kinematic properties, and the fluid, length
+    scale and rotation metadata. :class:`Block` adds the structured grid
+    topology on top of this. Not part of the public API.
+    """
 
     def __post_init__(self):
         """Initialize the block with dummy values."""
@@ -1058,17 +1043,21 @@ class Block(ember._struct.StructuredData):
         # kernels read a zero from any block that never called set_fac_lam.
         self._set_data_by_keys(("fac_lam",), 0.0, store_init=False)
 
-        # Initialize patch collection (only if not already present from deserialization)
-        if "patches" not in self._metadata:
-            patch_collection = ember.collections.BlockPatchCollection(self)
-            self._set_metadata_by_key("patches", patch_collection)
-
         # Initialize cache storage for cached properties
         self._store = {}
 
         # If we are a single point, unset triangulated flag
         if self.ndim == 0:
             self.set_triangulated(False)
+
+    def _update_ref_scales(self):
+        """Re-derive anything held against the old reference scales.
+
+        Called by :meth:`set_fluid` and :meth:`set_L_ref` after the scales
+        change. Nothing to do for bare point data; :class:`Block` overrides
+        this to update its patches.
+        """
+        pass  # end method
 
     def _update_rhoe_nd(self, rho_nd, u_nd):
         """Update rhoe from nondim rho and u without touching rho or momentum."""
@@ -1087,50 +1076,6 @@ class Block(ember._struct.StructuredData):
         halfVsq_nd = 0.5 * (Vx_nd**2 + Vr_nd**2 + Vt_nd**2)
         e_nd = u_nd + halfVsq_nd
         self._set_data_by_keys(("rhoe",), rho_nd * e_nd, store_init=True)
-
-    def _get_face_wall_arrays(self, non_wall_patches=None):
-        """Get face wall indicator arrays (iwall, jwall, kwall).
-
-        Parameters
-        ----------
-        non_wall_patches : list, optional
-            Patches to treat as non-wall. Defaults to self.patches.permeable.
-
-        Returns
-        -------
-        tuple[Array, Array, Array]
-            - iwall: shape self.shape_iface, 0=wall, >0=non-wall
-            - jwall: shape self.shape_jface, 0=wall, >0=non-wall
-            - kwall: shape self.shape_kface, 0=wall, >0=non-wall
-        """
-        if self.ndim != 3:
-            raise ValueError(
-                f"Wall indicator requires 3D block (ndim=3), got ndim={self.ndim}"
-            )
-
-        if non_wall_patches is None:
-            non_wall_patches = self.patches.permeable
-
-        iwall = np.zeros(self.shape_iface, dtype=np.uint8)
-        jwall = np.zeros(self.shape_jface, dtype=np.uint8)
-        kwall = np.zeros(self.shape_kface, dtype=np.uint8)
-
-        # Set interior faces to non-wall
-        iwall[1:-1, :, :] = 1
-        jwall[:, 1:-1, :] = 1
-        kwall[:, :, 1:-1] = 1
-
-        # Process non-wall patches
-        for patch in non_wall_patches:
-            ijk_face = patch.get_ijk_face()
-            if patch.const_dim == 0:  # i-face patch
-                iwall[*ijk_face.T] += 1
-            elif patch.const_dim == 1:  # j-face patch
-                jwall[*ijk_face.T] += 1
-            elif patch.const_dim == 2:  # k-face patch
-                kwall[*ijk_face.T] += 1
-
-        return iwall, jwall, kwall
 
     def _make_fluid_property(prop_name, doc, ref=None):
         """Factory for creating fluid property getters.
@@ -1174,11 +1119,6 @@ class Block(ember._struct.StructuredData):
         getter.__doc__ = doc
         return property(getter)
 
-    @property
-    def _face_wall_arrays(self):
-        """Permeable-variant face wall arrays (iwall, jwall, kwall)."""
-        return self._get_face_wall_arrays()
-
     def _fill_transport_nd(self, mu=None, kappa=None, cp=None):
         r"""Write the nodal transport properties into caller buffers.
 
@@ -1201,15 +1141,6 @@ class Block(ember._struct.StructuredData):
             kappa /= self.L_ref
         if cp is not None:
             self.fluid.get_cp(rho, u, out=cp)
-
-    @cached_object
-    def _face_wall_arrays_slip(self):
-        """Slip-variant face wall arrays (iwall, jwall, kwall).
-
-        Treats slip (frictionless) patches as non-wall, in addition to the
-        permeable types handled by :attr:`_face_wall_arrays`.
-        """
-        return self._get_face_wall_arrays(self.patches.slip)
 
     @property
     def _halfVsq_nd_uninit(self):
@@ -1404,73 +1335,6 @@ class Block(ember._struct.StructuredData):
         return Vxyz
 
     @property
-    def _wall_nodes(self):
-        """Boolean node array: True where the node lies on a wall surface.
-
-        A node is a wall if every face touching it is a wall. The threshold
-        varies by topological position: interior=0, face=8, edge=4, corner=3.
-
-        Not cached: safe to call after modifying patches.
-        """
-        return self._get_wall_nodes()
-
-    def _get_wall_nodes(self, non_wall_patches=None):
-        """Boolean node array of :attr:`_wall_nodes`, with the non-wall patches
-        chosen as for :meth:`_get_face_wall_arrays`: pass
-        ``self.patches.slip`` to leave inviscid walls out as well."""
-        iwall, jwall, kwall = self._get_face_wall_arrays(non_wall_patches)
-
-        wall_node = np.zeros(self.shape, dtype=np.uint8)
-
-        wall_node[:, :-1, :-1] += iwall
-        wall_node[:, 1:, :-1] += iwall
-        wall_node[:, :-1, 1:] += iwall
-        wall_node[:, 1:, 1:] += iwall
-
-        wall_node[:-1, :, :-1] += jwall
-        wall_node[1:, :, :-1] += jwall
-        wall_node[:-1, :, 1:] += jwall
-        wall_node[1:, :, 1:] += jwall
-
-        wall_node[:-1, :-1, :] += kwall
-        wall_node[1:, :-1, :] += kwall
-        wall_node[:-1, 1:, :] += kwall
-        wall_node[1:, 1:, :] += kwall
-
-        thresh = np.zeros(self.shape, dtype=np.uint8)
-
-        thresh[0, :, :] = 8
-        thresh[-1, :, :] = 8
-        thresh[:, 0, :] = 8
-        thresh[:, -1, :] = 8
-        thresh[:, :, 0] = 8
-        thresh[:, :, -1] = 8
-
-        thresh[:, 0, 0] = 4
-        thresh[:, 0, -1] = 4
-        thresh[:, -1, 0] = 4
-        thresh[:, -1, -1] = 4
-        thresh[0, :, 0] = 4
-        thresh[0, :, -1] = 4
-        thresh[-1, :, 0] = 4
-        thresh[-1, :, -1] = 4
-        thresh[0, 0, :] = 4
-        thresh[0, -1, :] = 4
-        thresh[-1, 0, :] = 4
-        thresh[-1, -1, :] = 4
-
-        thresh[0, 0, 0] = 3
-        thresh[-1, 0, 0] = 3
-        thresh[0, -1, 0] = 3
-        thresh[-1, -1, 0] = 3
-        thresh[0, 0, -1] = 3
-        thresh[-1, 0, -1] = 3
-        thresh[0, -1, -1] = 3
-        thresh[-1, -1, -1] = 3
-
-        return wall_node < thresh
-
-    @property
     def _xrt_nd(self):
         """Raw nondimensional polar coordinates (x/L_ref, r/L_ref, t)."""
         return self._get_data_by_keys(("x", "r", "t"))
@@ -1629,8 +1493,7 @@ class Block(ember._struct.StructuredData):
         # hold values nondimensionalised against the old ones. Re-derive them
         # before anything can impose a stale target, which raises nothing and
         # shows up several steps into a march as a diverged boundary.
-        for p in self.patches:
-            p.update_ref_scales()
+        self._update_ref_scales()
 
     def set_h_s(self, h, s):
         """Store enthalpy and entropy.
@@ -1709,8 +1572,7 @@ class Block(ember._struct.StructuredData):
         # a surface-of-revolution patch carries. Only reachable by setting the
         # length scale after attaching the patches; attach_to_block builds those
         # at the right scale to begin with.
-        for p in self.patches:
-            p.update_ref_scales()
+        self._update_ref_scales()
 
     def set_label(self, label):
         """Set a string label describing the block.
@@ -1941,67 +1803,6 @@ class Block(ember._struct.StructuredData):
             raise ValueError("Internal energy must be finite.")
 
         self._set_rho_u_nd(rho / self.fluid.rho_ref, u / self._Vsq_ref)
-
-    def set_rho_u_Vxrt_nd(self, rho_nd, u_nd, Vx_nd, Vr_nd, Vt_nd):
-        r"""Write conserved variables from non-dimensional density, internal energy, and velocity components.
-
-        Low-level, no-validation setter on the boundary-condition hot path: all
-        inputs are non-dimensionalised by the fluid reference scales. The
-        velocity components are supplied explicitly, so the internal energy
-        follows from
-
-        .. math::
-
-            e = u + \tfrac{1}{2}(V_x^2 + V_r^2 + V_\theta^2).
-
-        Boundary conditions own the physics that produces ``(rho, u)`` and the
-        velocity vector (e.g. ``fluid.set_P_s`` or ``fluid.set_rho_s`` followed
-        by a flow-angle or energy-equation reconstruction) and then call this
-        primitive to store the result.
-
-        Parameters
-        ----------
-        rho_nd : array-like
-            Non-dimensional density. Must broadcast to block shape.
-        u_nd : array-like
-            Non-dimensional specific internal energy. Must broadcast to block shape.
-        Vx_nd : array-like
-            Non-dimensional axial velocity. Must broadcast to block shape.
-        Vr_nd : array-like
-            Non-dimensional radial velocity. Must broadcast to block shape.
-        Vt_nd : array-like
-            Non-dimensional tangential velocity. Must broadcast to block shape.
-
-        """
-        r_nd = self._get_data_by_keys(("r",), raise_uninit=False)
-
-        keys = ("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
-        i0 = self._data_inds["rho"]  # rho..rhoe are consecutive at i0..i0+4
-
-        # Fused Fortran pass into Block.scratch (see its docstring's consumer
-        # list) rather than a chain of np.multiply(out=...): on the small,
-        # patch-face-sized arrays this runs on, per-call numpy dispatch
-        # dominates the arithmetic. The kernel cannot write _data directly --
-        # for a patch's block_view it is a non-contiguous slice, which f2py
-        # refuses as intent(inout) -- so it lands in scratch and this copies
-        # once. util.bcast_if_needed keeps the docstring's "inputs may
-        # broadcast" contract while skipping the cost when they already match.
-        shape = self.shape
-        # The arena is flat, so carve the nodal view this kernel writes.
-        nodal = util.carve_view(self.scratch, shape + (5,))
-        ember.fortran.set_rho_u_vxrt_write(
-            util.bcast_if_needed(rho_nd, shape),
-            util.bcast_if_needed(u_nd, shape),
-            util.bcast_if_needed(Vx_nd, shape),
-            util.bcast_if_needed(Vr_nd, shape),
-            util.bcast_if_needed(Vt_nd, shape),
-            util.bcast_if_needed(r_nd, shape),
-            nodal,
-        )
-        self._data[..., i0 : i0 + 5] = nodal
-
-        for k in keys:
-            self._versions[k] += 1
 
     def set_rpm(self, rpm):
         """Set reference frame angular velocity in revolutions per minute.
@@ -2300,48 +2101,6 @@ class Block(ember._struct.StructuredData):
         self.set_r(r)
         self.set_t(t)
 
-    def copy(self, keep_patches=True):
-        """Return an independent copy of this block.
-
-        All data arrays, metadata, and derived-property caches are copied so
-        that modifications to the returned block do not affect the original.
-        Patches are deep-copied by default so each block owns its own patch
-        objects; pass ``keep_patches=False`` to get a copy with an empty patch
-        collection instead.
-
-        Parameters
-        ----------
-        keep_patches : bool, optional
-            If True (default), all patches are deep-copied onto the new block.
-            If False, the returned block has no patches attached.
-
-        Returns
-        -------
-        Block
-            An independent copy of this block.
-
-        """
-        import copy as copy_module  # noqa: PLC0415 - only needed on this path
-
-        out = super().copy()
-
-        if not keep_patches:
-            out._set_metadata_by_key(
-                "patches", ember.collections.BlockPatchCollection(out)
-            )
-            return out
-
-        # Deep copy all patches to ensure independence between blocks
-        copied_patches = [copy_module.deepcopy(patch) for patch in self.patches]
-
-        patch_collection = ember.collections.BlockPatchCollection(out)
-        patch_collection.extend(copied_patches)
-
-        # Set the new patch collection on the copied block
-        out._set_metadata_by_key("patches", patch_collection)
-
-        return out
-
     def masked(self, mask):
         r"""Confine subsequent setters to the nodes where `mask` is True.
 
@@ -2450,68 +2209,6 @@ class Block(ember._struct.StructuredData):
         for k in ("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe"):
             self._versions[k] += 1
 
-    def update_primitive(self):
-        """Evaluate the primitive cache eagerly.
-
-        Populates :attr:`P_nd`, :attr:`T_nd` and the internal energy behind
-        :attr:`u_nd` together, which may save time when done in the solver hot
-        loop. Lazily accessing any of those properties afterwards is a fast
-        cache hit.
-
-        Three things this forms are NOT published, each because a consumer
-        derives it where it walks instead: the velocity and the kinetic energy,
-        which the kernels needing them rebuild from the conserved state as they
-        sweep rather than reading a stored copy, and the stagnation enthalpy
-        (:attr:`ho_nd`, which ``set_residual`` builds from ``cons`` and the
-        pressure at its own face corners).
-
-        Returns early when the caches are already current, so calling it
-        more often than necessary costs a handful of dict lookups.
-
-        """
-        # Raise on uninitialised state exactly as the public properties do:
-        # P_nd/T_nd need rho and rhoe, and the kinematic pass the momenta.
-        for key in ("rho", "rhoe", "rhoVx", "rhoVr", "rhorVt"):
-            self._get_data_by_keys((key,))
-
-        # Every cache filled here depends on the energy as well as the momenta;
-        # the kinetic energy, which depended on the radius instead, is no
-        # longer among them (it is borrowed below, not cached).
-        ver_e = self._get_version(("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe"))
-        stamps = (
-            ("_u_nd_uninit", ver_e),
-            ("P_nd", ver_e),
-            ("T_nd", ver_e),
-        )
-        if all(self._store.get(k, (None,))[0] == v for k, v in stamps):
-            return
-
-        shape = self.shape
-        # One borrowed nodal buffer serves both passes in turn, their two
-        # throwaways never coexisting: the kinetic energy exists only to make
-        # `u` inside the kernel, the static enthalpy only because get_P_h_T
-        # produces it beside the pressure and temperature that are wanted.
-        # Neither is kept, so the second write lands on the first. The arena is
-        # free at every call site, each calling this before carving anything of
-        # its own (see Grid.update_sources, update_residual, update_timestep).
-        scrap = util.carve_view(self.scratch, shape)
-        u = self._primitive_buffer("_u_nd_uninit", shape)
-        P = self._primitive_buffer("P_nd", shape)
-        T = self._primitive_buffer("T_nd", shape)
-
-        # Pass 1: kinematics, fluid-agnostic (velocity is defined by the
-        # conserved variables for any fluid).
-        ember.fortran.set_primitive_kinematic(
-            cons=self.conserved_nd, r=self.r_nd, u=u, halfvsq=scrap
-        )
-        # Pass 2: thermodynamics, behind the Fluid interface. The enthalpy is
-        # written over the kinetic energy, which is dead by now.
-        self.fluid.get_P_h_T(self._rho_nd_uninit, u, P, scrap, T)
-
-        for (cache_key, versions), arr in zip(stamps, (u, P, T)):
-            arr.flags.writeable = False
-            self._store[cache_key] = (versions, arr)
-
     @derived_array
     def a(self):
         r"""Acoustic speed :math:`a` [m/s], nodal array.
@@ -2608,40 +2305,6 @@ class Block(ember._struct.StructuredData):
         out[..., 4] = nd[..., 4] * self._rhoV_ref * self.fluid.V_ref
         return out
 
-    @cached_array()
-    def conserved_avg_nd(self, out):
-        """Time-averaged nodal nondimensional conserved variables, shape (ni, nj, nk, 5).
-
-        Running-mean accumulator built over the final ``n_step_avg`` steps of a
-        march. Like :attr:`F_body_nd` this is a no-key cached buffer: allocated
-        once, never invalidated, read-only to consumers. Zero-initialised here
-        so accumulation starts from a clean slate; its owners
-        (:meth:`ember.grid.Grid.accumulate_avg` and
-        :meth:`ember.grid.Grid.finalise_average`) toggle ``flags.writeable``
-        around their in-place writes.
-        """
-        cons_avg = util.allocate_or_reuse(out, self.shape + (5,), dtype=np.float32)
-        cons_avg.fill(0.0)
-        return cons_avg
-
-    @cached_array()
-    def conserved_filt_nd(self, out):
-        """Low-pass-filtered cell-centred conserved state, shape (ni-1, nj-1, nk-1, 5).
-
-        Stateful selective-frequency-damping scratch: seeded to the current
-        cell-averaged conserved state on first access, then read by the SFD
-        body force and evolved each step, in that order, by
-        :meth:`ember.grid.Grid.update_timestep`. Only allocated when
-        ``Solver.gain_filt`` is nonzero, since nothing else touches it. The
-        no-key ``cached_array`` allocates it once and never invalidates it;
-        read-only to consumers, and its one writer
-        (:meth:`~ember.grid.Grid.update_timestep`) toggles ``flags.writeable``
-        around its writes.
-        """
-        out = util.allocate_or_reuse(out, self.shape_cell + (5,))
-        ember.fortran.node_to_cell(self.conserved_nd, out)
-        return out
-
     @property
     def conserved_nd(self):
         r"""Stacked non-dimensional conserved variables :math:`\mathcal{U}^*`, nodal array with 5 components on last axis.
@@ -2680,27 +2343,6 @@ class Block(ember._struct.StructuredData):
         return out
 
     @derived_array
-    def dA_quad(self):
-        r"""Face area vectors for a 2D structured cut :math:`\delta A` [m^2], shape ``(ni-1, nj-1, 3)``.
-
-        See :attr:`dA_quad_nd` for the nondimensional form and the geometry
-        reference.
-        """
-        return self.dA_quad_nd * self.L_ref**2
-
-    @derived_array
-    def dA_quad_nd(self):
-        r"""Face area vectors for a 2D structured cut :math:`\delta A / L_\mathrm{ref}^2` [-], shape ``(ni-1, nj-1, 3)``.
-
-        Components on the trailing axis, as for :attr:`dA_quad`.
-
-        See :ref:`face-areas` for the calculation.
-        """
-        assert self.ndim == 2, "dA_quad is only defined for a two-dimensional cut."
-        assert not self.triangulated, "dA_quad requires triangulated=False"
-        return _get_da_quad(self._xrt_nd)
-
-    @derived_array
     def dA_tri(self):
         r"""Face area vectors for a 2D unstructured cut :math:`\delta\!A` [m^2], shape ``(ntri, 3)``.
 
@@ -2724,91 +2366,6 @@ class Block(ember._struct.StructuredData):
             )
         assert self.triangulated, "dA_tri requires triangulated=True"
         return _get_da_tri(self._xrt_nd)
-
-    @derived_array
-    def dAi(self):
-        r"""Constant-i face area vectors of a 3D block :math:`\delta A_i` [m^2], shape ``(ni, nj-1, nk-1, 3)``.
-
-        See :attr:`dAi_nd` for the nondimensional form and the geometry reference.
-        """
-        return self.dAi_nd * self.L_ref**2
-
-    @cached_array("x", "r", "t")
-    def dAi_nd(self, out):
-        r"""Constant-i face area vectors of a 3D block :math:`\delta A_i / L_\mathrm{ref}^2` [-], components on first axis.
-
-        See :ref:`face-areas` for the calculation.
-        """
-        # The helper walks in slabs and writes this component-first buffer
-        # directly, so neither a whole-block double array nor a transposed
-        # copy of the result is ever materialised.
-        out = util.allocate_or_reuse(out, (3,) + self.shape_iface)
-        return _get_dai(self._xrt_nd, out)
-
-    @derived_array
-    def dAj(self):
-        r"""Constant-j face area vectors of a 3D block :math:`\delta A_j` [m^2], shape ``(ni-1, nj, nk-1, 3)``.
-
-        See :attr:`dAj_nd` for the nondimensional form and the geometry reference.
-        """
-        return self.dAj_nd * self.L_ref**2
-
-    @cached_array("x", "r", "t")
-    def dAj_nd(self, out):
-        r"""Constant-j face area vectors of a 3D block :math:`\delta A_j / L_\mathrm{ref}^2` [-], components on first axis.
-
-        See :ref:`face-areas` for the calculation.
-        """
-        # The helper walks in slabs and writes this component-first buffer
-        # directly, so neither a whole-block double array nor a transposed
-        # copy of the result is ever materialised.
-        out = util.allocate_or_reuse(out, (3,) + self.shape_jface)
-        return _get_daj(self._xrt_nd, out)
-
-    @derived_array
-    def dAk(self):
-        r"""Constant-k face area vectors of a 3D block :math:`\delta A_k` [m^2], shape ``(ni-1, nj-1, nk, 3)``.
-
-        See :attr:`dAk_nd` for the nondimensional form and the geometry reference.
-        """
-        return self.dAk_nd * self.L_ref**2
-
-    @cached_array("x", "r", "t")
-    def dAk_nd(self, out):
-        r"""Constant-k face area vectors of a 3D block :math:`\delta A_k / L_\mathrm{ref}^2` [-], components on first axis.
-
-        See :ref:`face-areas` for the calculation.
-        """
-        # The helper walks in slabs and writes this component-first buffer
-        # directly, so neither a whole-block double array nor a transposed
-        # copy of the result is ever materialised.
-        out = util.allocate_or_reuse(out, (3,) + self.shape_kface)
-        return _get_dak(self._xrt_nd, out)
-
-    @scratch_array
-    def damp_rfac(self, out):
-        """Change-limiter state, one reciprocal normaliser per conserved variable.
-
-        Like :attr:`store` and unlike :attr:`scratch`, this carries meaning
-        between kernel calls: it holds ``ncell * scale / (dampin * sum|dU|)``
-        per variable, accumulated by one call to a scree/RK kernel and consumed
-        by the next. The limiter multall applies to the assembled increment
-        needs a block mean of that increment, and ember's multigrid scatter
-        never materialises the increment full-volume, so the normaliser is
-        lagged one call rather than costing a second traversal (see
-        ``scree.f90``'s ``damp_increment``). The ``scale`` factor makes the
-        stored value independent of the march coefficient, so the lag carries
-        across RK stages of differing ``alpha`` without mis-scaling.
-
-        Seeded to zeros, which is the identity soft-clip: the first call of a
-        march runs unlimited, and a march with ``Solver.dampin <= 0`` never
-        leaves zero and so is bitwise identical to an undamped one.
-
-        Returns
-        -------
-        Array, shape (5,)
-        """
-        return util.zeros((5,))
 
     @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
     def dhdP_rho_nd(self, out):
@@ -2834,19 +2391,6 @@ class Block(ember._struct.StructuredData):
         out = util.allocate_or_reuse(out, self.shape)
         return self.fluid.get_dsdrho_P(self._rho_nd_uninit, self.u_nd, out=out)
 
-    @cached_array()
-    def dt_vol_nd(self, out):
-        """Unscaled volumetric time step (dt/vol) per cell, shape (ni-1, nj-1, nk-1).
-
-        Persistent scratch buffer, not a cache keyed on the conserved state: the
-        no-key ``cached_array`` allocates it once and never invalidates it, so
-        the lagged ``rf`` relaxation in its writer can blend the new value into
-        the previous one. Like every cached property it is read-only to
-        consumers; its writer (:meth:`ember.grid.Grid.update_timestep`) toggles
-        ``flags.writeable`` around the write (mirrors :attr:`F_body_nd`).
-        """
-        return util.allocate_or_reuse(out, self.shape_cell)
-
     @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
     def dudP_rho_nd(self, out):
         r"""Nondimensional derivative of internal energy wrt. pressure at constant density :math:`(\partial u/\partial p)_\rho \, \rho_\mathrm{ref}` [-]."""
@@ -2858,21 +2402,6 @@ class Block(ember._struct.StructuredData):
         r"""Nondimensional derivative of internal energy wrt. density at constant pressure :math:`(\partial u/\partial \rho)_p \, \rho_\mathrm{ref} / V_\mathrm{ref}^2` [-]."""
         out = util.allocate_or_reuse(out, self.shape)
         return self.fluid.get_dudrho_P(self._rho_nd_uninit, self.u_nd, out=out)
-
-    @cached_array()
-    def F_body_nd(self, out):
-        """Cell-volume-integrated body force, shape (ni-1, nj-1, nk-1, 5).
-
-        Scratch accumulator, not a cached physical field: it is zeroed and
-        rebuilt every pre-step (viscous + polar + prescribed + SFD). The no-key
-        ``cached_array`` allocates the buffer once and never invalidates it.
-        Like every cached property it is read-only to consumers; its owners
-        (``Grid.update_sources`` and the FAS coarse-forcing assembly) toggle
-        ``flags.writeable`` around their writes. Components are the
-        cell-volume-integrated source terms
-        ``(rho, rho*Vx, rho*Vr, rho*r*Vt, rho*E)``.
-        """
-        return util.allocate_or_reuse(out, self.shape_cell + (5,))
 
     @derived_array
     def fac_lam(self):
@@ -2898,31 +2427,6 @@ class Block(ember._struct.StructuredData):
         from before the field existed reads zeros.
         """
         return self._get_data_by_keys(("fac_lam",), raise_uninit=False)
-
-    @property
-    def flat(self):
-        """Flatten all axes into a single axis, returning a view rather than a copy.
-
-        This copies the metadata dict and but clears patches,
-        since 2D spatial patches have no meaning on a 1D flattened layout.
-
-        Points are ordered Fortran-style, with the first axis varying fastest,
-        matching the column-major layout of the backing array. That ordering is
-        what makes the result a view rather than a copy, so anything reshaping
-        the result back must pass ``order="F"``. Raises ``ValueError`` if this
-        instance is a non-contiguous view that cannot be flattened without
-        copying.
-
-        Returns
-        -------
-        out : Block, shape (npoints,)
-            A new instance with all points in a single dimension and no patches.
-
-        """
-        out = ember._struct.StructuredData.flat.fget(self)
-        out._metadata = self._metadata.copy()
-        out._metadata["patches"] = ember.collections.BlockPatchCollection(out)
-        return out
 
     @property
     def fluid(self):
@@ -3008,119 +2512,6 @@ class Block(ember._struct.StructuredData):
         """
         return self.ho - self.U * self.Vt
 
-    @cached_object
-    def i_cusp(self):
-        """1-based start and end node indices of the cusp patch, (start, end).
-
-        Returns (0, 0) if the block has no cusp patches. See :attr:`j_cusp` for
-        the spanwise extent of the same patch.
-
-        The first cusp patch found is the whole story:
-        :py:meth:`ember.patch.CuspPatch.attach_to_block` requires every cusp
-        patch on a block to cover the same i and j range.
-        """
-        for patch in self.patches.cusp:
-            lim = patch.ijk_lim_abs
-            ist, ien = int(lim[0, 0]), int(lim[0, 1])
-            return (ist + 1, ien + 1)
-        return (0, 0)
-
-    @cached_object
-    def i_perk(self):
-        """1-based (i_LE, i_TE) bounding the k-periodic intervals of an H-mesh.
-
-        For a block periodic to itself in k (k=1 coincident with k=nk) over an
-        upstream interval at the leading edge and a downstream interval at the
-        trailing edge, returns the inclusive end i of the upstream interval and
-        the inclusive start i of the downstream interval. These bound the two
-        streamwise ranges (1..i_LE and i_TE..ni) over which the k=1/k=nk faces
-        are periodic to self; in between (the bladed region) they are not.
-
-        Derived from k-face PeriodicPatches (const_dim == 2): a patch starting
-        at i=0 sets the upstream end, a patch ending at i=ni-1 sets the
-        downstream start. Returns (0, 0) if the block has no k-face
-        PeriodicPatch.
-
-        Cached: patches must not be modified after first access.
-        """
-        ni = self.shape[0]
-        i_le, i_te = 0, 0
-        for patch in self.patches.periodic:
-            if patch.const_dim != 2:
-                continue
-            lim = patch.ijk_lim_abs
-            ist, ien = int(lim[0, 0]), int(lim[0, 1])
-            if ist == 0:  # upstream interval 1..i_le
-                i_le = max(i_le, ien + 1)
-            if ien == ni - 1:  # downstream interval i_te..ni
-                i_te = ist + 1 if i_te == 0 else min(i_te, ist + 1)
-        return (i_le, i_te)
-
-    @cached_object
-    def ijk_wall_conv(self):
-        """Per-face wall indicator dict for the convective (inviscid) kernel.
-
-        Treats all PERMEABLE_TYPES as non-wall. Keys walli1, wallni, wallj1,
-        wallnj, wallk1, wallnk, each a float32 array (0.0=wall, 1.0=free) for
-        splatting into the inviscid Fortran kernel call (:func:`set_residual`).
-
-        Cached: patches must not be modified after first access.
-        """
-        iwall, jwall, kwall = self._face_wall_arrays
-
-        def _f(arr):
-            return arr.astype(np.float32, order="F")
-
-        return {
-            "walli1": _f(~(iwall[0] == 0))[np.newaxis, :, :],
-            "wallni": _f(~(iwall[-1] == 0))[np.newaxis, :, :],
-            "wallj1": _f(~(jwall[:, 0, :] == 0))[:, np.newaxis, :],
-            "wallnj": _f(~(jwall[:, -1, :] == 0))[:, np.newaxis, :],
-            "wallk1": _f(~(kwall[:, :, 0] == 0))[:, :, np.newaxis],
-            "wallnk": _f(~(kwall[:, :, -1] == 0))[:, :, np.newaxis],
-        }
-
-    @cached_object
-    def ijk_wall_visc(self):
-        """Per-face wall indicator dict for the viscous kernel.
-
-        Like the inviscid :attr:`ijk_wall_conv`, but treats slip (frictionless)
-        patches as non-wall in addition to all PERMEABLE_TYPES, so slip walls
-        carry zero shear. Keys walli1, wallni, wallj1, wallnj, wallk1, wallnk,
-        each a float32 array (0.0=wall, 1.0=free) for splatting into the viscous
-        Fortran kernel call.
-
-        Cached: patches must not be modified after first access.
-        """
-        iwall, jwall, kwall = self._face_wall_arrays_slip
-
-        def _f(arr):
-            return arr.astype(np.float32, order="F")
-
-        return {
-            "walli1": _f(~(iwall[0] == 0))[np.newaxis, :, :],
-            "wallni": _f(~(iwall[-1] == 0))[np.newaxis, :, :],
-            "wallj1": _f(~(jwall[:, 0, :] == 0))[:, np.newaxis, :],
-            "wallnj": _f(~(jwall[:, -1, :] == 0))[:, np.newaxis, :],
-            "wallk1": _f(~(kwall[:, :, 0] == 0))[:, :, np.newaxis],
-            "wallnk": _f(~(kwall[:, :, -1] == 0))[:, :, np.newaxis],
-        }
-
-    @cached_object
-    def j_cusp(self):
-        """1-based start and end node indices of the cusp patch in j, (start, end).
-
-        The spanwise companion to :attr:`i_cusp`, and (0, 0) on the same
-        condition: a blade that does not run the full span leaves a hub or tip
-        gap carrying no cusp, and the seam correction must skip it. Together
-        the two give the kernels the (i, j) rectangle of the seam.
-        """
-        for patch in self.patches.cusp:
-            lim = patch.ijk_lim_abs
-            jst, jen = int(lim[1, 0]), int(lim[1, 1])
-            return (jst + 1, jen + 1)
-        return (0, 0)
-
     @derived_array
     def kappa_nd(self):
         r"""Non-dimensional thermal conductivity :math:`\kappa^*` [--], nodal array.
@@ -3204,18 +2595,6 @@ class Block(ember._struct.StructuredData):
         return self._get_data_by_keys(("mu_turb",))
 
     @property
-    def n_levels_max(self):
-        """Most multigrid levels this block's cell counts all divide into: the
-        power of two in their greatest common divisor; ``int``.
-
-        A fact about the shape alone. How many levels a march asks for, and the
-        most it may, are the solver's: each block runs the lesser of what is
-        asked and this.
-        """
-        g = math.gcd(*(n - 1 for n in self.shape))
-        return (g & -g).bit_length() - 1 if g else 0
-
-    @property
     def Nb(self):
         r"""Number of blades in the row containing this block :math:`N_\mathrm{b}` [-], scalar int."""
         return self._get_metadata_by_key("Nb")
@@ -3235,78 +2614,6 @@ class Block(ember._struct.StructuredData):
         """
         return self.Omega * self.L_ref / self.fluid.V_ref
 
-    @property
-    def Omega_wall(self):
-        r"""Per-face wall angular velocity dict [rad/s].
-
-        Keys omega_walli1, omega_wallni, etc., each a float32 array of the same
-        shape as the corresponding :attr:`ijk_wall_visc` array, so the two can
-        be read together to find each wall face and the speed it turns at.
-        Defaults to :attr:`Omega` on all faces; overridden by RotatingPatch
-        faces.
-
-        See :attr:`Omega_wall_nd` for the nondimensional form.
-        """
-        scale = self.fluid.V_ref / self.L_ref
-        return {
-            key.removesuffix("_nd"): val * scale
-            for key, val in self.Omega_wall_nd.items()
-        }
-
-    @cached_object
-    def Omega_wall_nd(self):
-        """Per-face wall angular velocity dict (nondimensional).
-
-        Keys omega_walli1_nd, omega_wallni_nd, etc., each a float32 array of the
-        same shape as the corresponding wall array. Defaults to Omega_nd on all
-        faces; overridden by RotatingPatch faces.
-        """
-        ni, nj, nk = self.shape
-        omega_nd = self.Omega_nd
-
-        # Initialise all six face arrays to block Omega_nd
-        # Shapes: iface boundary = (nj-1, nk-1), jface = (ni-1, nk-1), kface = (ni-1, nj-1)
-        oi1 = np.full((nj - 1, nk - 1), omega_nd, dtype=np.float32)
-        oni = np.full((nj - 1, nk - 1), omega_nd, dtype=np.float32)
-        oj1 = np.full((ni - 1, nk - 1), omega_nd, dtype=np.float32)
-        onj = np.full((ni - 1, nk - 1), omega_nd, dtype=np.float32)
-        ok1 = np.full((ni - 1, nj - 1), omega_nd, dtype=np.float32)
-        onk = np.full((ni - 1, nj - 1), omega_nd, dtype=np.float32)
-
-        for patch in self.patches.rotating:
-            patch_omega_nd = np.float32(patch.Omega * self.L_ref / self.fluid.V_ref)
-            ijk_face = patch.get_ijk_face()
-            if patch.const_dim == 0:  # i-face patch
-                i_val = ijk_face[..., 0].flat[0]
-                if i_val == 0:
-                    oi1[*ijk_face.T[1:]] = patch_omega_nd
-                else:
-                    oni[*ijk_face.T[1:]] = patch_omega_nd
-            elif patch.const_dim == 1:  # j-face patch
-                j_val = ijk_face[..., 1].flat[0]
-                if j_val == 0:
-                    oj1[*ijk_face.T[[0, 2]]] = patch_omega_nd
-                else:
-                    onj[*ijk_face.T[[0, 2]]] = patch_omega_nd
-            elif patch.const_dim == 2:  # k-face patch
-                k_val = ijk_face[..., 2].flat[0]
-                if k_val == 0:
-                    ok1[*ijk_face.T[:2]] = patch_omega_nd
-                else:
-                    onk[*ijk_face.T[:2]] = patch_omega_nd
-
-        def _f(arr):
-            return np.asfortranarray(arr)
-
-        return {
-            "omega_walli1_nd": _f(oi1)[np.newaxis, :, :],
-            "omega_wallni_nd": _f(oni)[np.newaxis, :, :],
-            "omega_wallj1_nd": _f(oj1)[:, np.newaxis, :],
-            "omega_wallnj_nd": _f(onj)[:, np.newaxis, :],
-            "omega_wallk1_nd": _f(ok1)[:, :, np.newaxis],
-            "omega_wallnk_nd": _f(onk)[:, :, np.newaxis],
-        }
-
     @cached_array("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
     def P_nd(self, out):
         r"""Nondimensional static pressure :math:`p^*` [-], nodal array.
@@ -3317,23 +2624,6 @@ class Block(ember._struct.StructuredData):
         """
         out = util.allocate_or_reuse(out, self.shape)
         return self.fluid.get_P(self._rho_nd_uninit, self.u_nd, out=out)
-
-    @cached_array()
-    def P_offset_nd(self, out):
-        """Nondimensional pressure datum for the flux/source kernels [-], scalar.
-
-        Mean nondimensional pressure, computed once on first access and then
-        frozen (no data keys, so the cache never invalidates). The flux
-        divergence (residual.f90) and the polar source (polar.f90) both subtract
-        this datum from the pressure, so a uniform offset cancels exactly and
-        only reduces float32 round-off; the converged solution is independent of
-        its value, which is why a fixed datum is fine and recomputing it every
-        iteration would be needless cost. Returned as a 0-d array so it can be
-        locked read-only like other cached properties.
-        """
-        out = util.allocate_or_reuse(out, ())
-        out[...] = self.P_nd.mean()
-        return out
 
     @derived_array
     def P_rot(self):
@@ -3350,11 +2640,6 @@ class Block(ember._struct.StructuredData):
         )
         rho_nd, u_nd = self.fluid.set_h_s(h_rot_nd, self.s_nd)
         return self.fluid.get_P(rho_nd, u_nd) * self.fluid.P_ref
-
-    @property
-    def patches(self):
-        """Boundary conditions for the block."""
-        return self._get_metadata_by_key("patches")
 
     @property
     def pitch(self):
@@ -3381,45 +2666,10 @@ class Block(ember._struct.StructuredData):
         r"""Radial coordinate :math:`r` [m], nodal array."""
         return self.r_nd * self.L_ref
 
-    @cached_object
-    def r_mid_nd(self):
-        r"""Midspan nondimensional radius, :math:`\tfrac12(\min r_\mathrm{nd} + \max r_\mathrm{nd})` [-].
-
-        Derived from the block's own coordinates (a representative radius for
-        this block), not a user-set reference scale -- hence ``_mid`` rather than
-        the ``_ref`` suffix carried by the arbitrary fluid/length scales. Used to
-        rescale the angular-momentum (``rhorVt``) residual by a radius so its
-        magnitude is comparable to the linear-momentum residuals.
-
-        Cached once: the block geometry is fixed for the lifetime of a solve.
-        """
-        return 0.5 * (self.r_nd.min() + self.r_nd.max())
-
     @derived_array
     def r_nd(self):
         r"""Nondimensional radial coordinate :math:`r / L_\mathrm{ref}` [-], nodal array"""
         return self._get_data_by_keys(("r",))
-
-    @cached_array()
-    def residual_nd(self, out):
-        r"""Unintegrated net-flow residual + body forces, shape (ni-1, nj-1, nk-1, 5).
-
-        Sign convention: the residual is the net flux **into** the control volume
-        (sum of face flows entering minus those leaving) plus body-force sources,
-        i.e. the rate of accumulation :math:`\mathrm{d}U/\mathrm{d}t` of each
-        conserved quantity within the cell. It is *unintegrated* -- not yet scaled
-        by the local timestep or cell volume.
-
-        Because it points in the direction of accumulation, the increment is
-        **added** to (never subtracted from) the conserved variables to take a
-        time step::
-
-            conserved_nd += cfl * dt_vol_nd * residual_nd
-
-        At steady state the residual tends to zero. See ``solver.scree_step`` and
-        ``solver.advance_rk_stage_mg`` for the integrators that consume it.
-        """
-        return util.allocate_or_reuse(out, self.shape_cell + (5,))
 
     @derived_array
     def rho(self):
@@ -3491,50 +2741,6 @@ class Block(ember._struct.StructuredData):
         """
         return self.fluid.get_s(self._rho_nd_uninit, self.u_nd)
 
-    @scratch_array
-    def scratch(self, out):
-        """Shared scratch arena, flat, sized to the most demanding phase of a step.
-
-        PURE TRANSIENT SCRATCH, NOT a cached value: shared, throwaway kernel
-        workspace, allocated once and never invalidated. Its contents are
-        meaningless between kernel calls -- every consumer overwrites it on
-        entry and nothing may rely on what it holds after a kernel returns.
-        Left writeable so callers can pass it straight to an ``intent(inout)``
-        kernel without toggling ``flags.writeable``.
-
-        THE ONE ARENA. Every throwaway buffer in the step comes from here,
-        including the six boundary tau/q face buffers (:attr:`tau_q_faces`),
-        ``set_visc_force``'s rolling tau/q cell-plane pair, the nodal transport
-        trio the viscous kernels read, the nodal acoustic speed
-        ``set_timestep_sources`` reads, ``set_residual``'s and
-        ``set_visc_force``'s rolling planes and rows, the IRS work vector, and
-        the multigrid coarse scratch. It is sized from whichever phase needs
-        most, so every phase fits without it being resized.
-
-        THE RULE, and it is the whole safety argument. Buffers that reach the
-        same kernel call must come from ONE ``util.carve_view``, which packs
-        them end to end and guarantees they alias distinct storage. Buffers in
-        different phases may reuse the same span freely, because no two phases
-        are live at once -- that invariant is what makes the arena small, and
-        it is a contract, not something the code can check. Never carve a
-        second view during a phase that is already using the arena.
-
-        This buffer is flat: consumers reshape it through ``carve_view``, so
-        needing a particular rank is not a reason to allocate separately. For
-        storage that must survive *alongside* this one within a kernel call or
-        between calls, see the persistent buffer :attr:`store`.
-        """
-        # First touch only: scratch_array calls this once per block, and the
-        # arena is one of the two big solver allocations.
-        n = _scratch_len(self.shape)
-        logger.debug(
-            "alloc: scratch arena %d elements (%.1f MB) for block %s",
-            n,
-            n * 4 / 1024**2,
-            self.shape,
-        )
-        return util.allocate_or_reuse(out, (n,))
-
     @derived_array
     def sinBeta(self):
         r"""Sine of pitch angle :math:`\sin\beta` [-], nodal array.
@@ -3544,29 +2750,6 @@ class Block(ember._struct.StructuredData):
 
         """
         return self.Vr / self.Vm
-
-    @scratch_array
-    def store(self, out):
-        """Persistent cross-step solver buffer, nodal shape (ni, nj, nk, 5).
-
-        Counterpart to :attr:`scratch`: a buffer that does carry meaning between
-        kernel calls. Unlike :attr:`scratch` its value must survive across calls,
-        so no consumer may treat it as throwaway. Used by time integrators to
-        carry state between stages.
-
-        Seeded to zeros on first access.
-
-        Returns
-        -------
-        Array, shape (ni, nj, nk, 5)
-        """
-        # First touch only, like scratch: the other big solver allocation.
-        logger.debug(
-            "alloc: store buffer %.1f MB for block %s",
-            int(np.prod(self.shape)) * 5 * 4 / 1024**2,
-            self.shape,
-        )
-        return util.zeros(self.shape + (5,))
 
     @derived_array
     def t(self):
@@ -3608,49 +2791,6 @@ class Block(ember._struct.StructuredData):
 
         """
         return self.Vr / self.Vx
-
-    @property
-    def tau_q_faces(self):
-        """Boundary tau/q as six surface buffers: ``(i1, ini, j1, jnj, k1, knk)``.
-
-        WARNING -- PURE TRANSIENT SCRATCH, and a VIEW into :attr:`scratch`, not
-        its own allocation. Valid only within a single viscous pass and only in
-        the slots it refreshes: ``set_tau_q_faces`` writes them,
-        ``exchange_faces`` overwrites the halo layer wherever a patch connects,
-        and ``set_visc_force`` reads them back, all within one
-        :meth:`ember.grid.Grid.update_sources`.
-
-        This is the ONLY tau/q that reaches memory: ``set_visc_force`` makes
-        interior tau/q inside its own k walk, into a rolling cell-plane pair,
-        so what a viscous pass must keep is O(surface). They are also all the
-        periodic seam exchange carries, freeing the kernel's halo source from
-        the block's topology.
-
-        Each face carries TWO layers on its trailing axis:
-
-        * layer 0, the block's own edge-cell tau/q, from the boundary producer;
-        * layer 1, the halo value the face-flux kernel reads. The producer
-          seeds it to ``(2*wall - 1) * layer0`` -- ``+edge`` for a permeable or
-          slip face, so the boundary face takes the single-sided stress,
-          ``-edge`` for a viscous wall, so the face average is zero -- and the
-          periodic exchange then overwrites it wherever a patch connects.
-          The sign applied once here spares the consumer any wall mask.
-
-        Keeping the layers apart makes that exchange a one-directional copy,
-        layer 0 to layer 1, needing no temporary and tolerating a face paired to
-        itself. The component axis sits second so the ``(edge, component)``
-        block is contiguous, the order the face-flux kernel walks. The cusp seam
-        correction reads layer 0 too: ``k1`` and ``knk`` hold both k cell planes
-        and their halos for the whole call.
-
-        Returns
-        -------
-        tuple of Array
-            ``(i1, ini, j1, jnj, k1, knk)``, shapes ``(nj-1, 9, nk-1, 2)``,
-            ``(ni-1, 9, nk-1, 2)`` and ``(ni-1, 9, nj-1, 2)`` respectively,
-            all carved from one allocation and therefore mutually disjoint.
-        """
-        return _carve_viscous(self)[0]
 
     @derived_array
     def To(self):
@@ -3747,27 +2887,6 @@ class Block(ember._struct.StructuredData):
 
         """
         return np.sqrt(self.Vx**2 + self.Vr**2)
-
-    @derived_array
-    def vol(self):
-        r"""Volume elements for a 3D block :math:`\delta \mathcal{V}` [m^3], cell array.
-
-        See :attr:`vol_nd` for the nondimensional form and the geometry reference.
-        """
-        return self.vol_nd * self.L_ref**3
-
-    @cached_array("x", "r", "t")
-    def vol_nd(self, out):
-        r"""Nondimensional volume elements for a 3D block :math:`\delta \mathcal{V}^*` [-], cell array.
-
-        .. math::
-            \delta \mathcal{V}^* = {\delta \mathcal{V}}/{L_\mathrm{ref}^3}
-
-        See :ref:`cell-volumes` for the calculation.
-        """
-        assert self.ndim == 3, "volume is only defined for a three-dimensional block."
-        out = _get_vol(self._xrt_nd, self.dAi_nd, self.dAj_nd, self.dAk_nd, out)
-        return out
 
     @derived_array
     def Vr(self):
@@ -4057,3 +3176,911 @@ class Block(ember._struct.StructuredData):
     )
 
     T = _make_fluid_property("T", "Temperature [K], nodal array.", "T")
+
+
+class Block(_PointBlock):
+    def __init__(self, shape=()):
+        """Allocate a structured grid block.
+
+        This is the primary data container for flow fields. It stores coordinates and conserved variables, and provides properties for derived variables such as velocity, pressure and Mach number. All data flows are managed through setter methods that ensure validity and consistency of the flow field. The class also stores boundary patches to specify simulation boundary conditions in :py:attr:`Block.patches`.
+
+        The setters fall into two complementary families: thermodynamic setters
+        such as :py:meth:`set_P_T` store pressure and temperature
+        while preserving the velocity field, and kinematic
+        setters like :py:meth:`set_Vx` store
+        the velocity while preserving thermodynamic
+        state. The setters may be
+        called in either order to build up a complete flow field.
+
+        Parameters
+        ----------
+        shape : tuple of int, optional
+            Number of nodes in each dimension `(ni, nj, nk, ...)`. Any number of
+            dimensions is supported. Defaults to `()`, giving a scalar block with
+            no grid dimensions.
+
+        """
+
+        super().__init__(shape)
+
+    def __post_init__(self):
+        """Initialise the point data, then an empty patch collection."""
+        super().__post_init__()
+
+        # Initialize patch collection (only if not already present from deserialization)
+        if "patches" not in self._metadata:
+            patch_collection = ember.collections.BlockPatchCollection(self)
+            self._set_metadata_by_key("patches", patch_collection)
+
+    def _update_ref_scales(self):
+        """Re-derive the patches' nondimensional values after a scale change."""
+        for p in self.patches:
+            p.update_ref_scales()
+
+    def _get_face_wall_arrays(self, non_wall_patches=None):
+        """Get face wall indicator arrays (iwall, jwall, kwall).
+
+        Parameters
+        ----------
+        non_wall_patches : list, optional
+            Patches to treat as non-wall. Defaults to self.patches.permeable.
+
+        Returns
+        -------
+        tuple[Array, Array, Array]
+            - iwall: shape self.shape_iface, 0=wall, >0=non-wall
+            - jwall: shape self.shape_jface, 0=wall, >0=non-wall
+            - kwall: shape self.shape_kface, 0=wall, >0=non-wall
+        """
+        if self.ndim != 3:
+            raise ValueError(
+                f"Wall indicator requires 3D block (ndim=3), got ndim={self.ndim}"
+            )
+
+        if non_wall_patches is None:
+            non_wall_patches = self.patches.permeable
+
+        iwall = np.zeros(self.shape_iface, dtype=np.uint8)
+        jwall = np.zeros(self.shape_jface, dtype=np.uint8)
+        kwall = np.zeros(self.shape_kface, dtype=np.uint8)
+
+        # Set interior faces to non-wall
+        iwall[1:-1, :, :] = 1
+        jwall[:, 1:-1, :] = 1
+        kwall[:, :, 1:-1] = 1
+
+        # Process non-wall patches
+        for patch in non_wall_patches:
+            ijk_face = patch.get_ijk_face()
+            if patch.const_dim == 0:  # i-face patch
+                iwall[*ijk_face.T] += 1
+            elif patch.const_dim == 1:  # j-face patch
+                jwall[*ijk_face.T] += 1
+            elif patch.const_dim == 2:  # k-face patch
+                kwall[*ijk_face.T] += 1
+
+        return iwall, jwall, kwall
+
+    @property
+    def _face_wall_arrays(self):
+        """Permeable-variant face wall arrays (iwall, jwall, kwall)."""
+        return self._get_face_wall_arrays()
+
+    @cached_object
+    def _face_wall_arrays_slip(self):
+        """Slip-variant face wall arrays (iwall, jwall, kwall).
+
+        Treats slip (frictionless) patches as non-wall, in addition to the
+        permeable types handled by :attr:`_face_wall_arrays`.
+        """
+        return self._get_face_wall_arrays(self.patches.slip)
+
+    @property
+    def _wall_nodes(self):
+        """Boolean node array: True where the node lies on a wall surface.
+
+        A node is a wall if every face touching it is a wall. The threshold
+        varies by topological position: interior=0, face=8, edge=4, corner=3.
+
+        Not cached: safe to call after modifying patches.
+        """
+        return self._get_wall_nodes()
+
+    def _get_wall_nodes(self, non_wall_patches=None):
+        """Boolean node array of :attr:`_wall_nodes`, with the non-wall patches
+        chosen as for :meth:`_get_face_wall_arrays`: pass
+        ``self.patches.slip`` to leave inviscid walls out as well."""
+        iwall, jwall, kwall = self._get_face_wall_arrays(non_wall_patches)
+
+        wall_node = np.zeros(self.shape, dtype=np.uint8)
+
+        wall_node[:, :-1, :-1] += iwall
+        wall_node[:, 1:, :-1] += iwall
+        wall_node[:, :-1, 1:] += iwall
+        wall_node[:, 1:, 1:] += iwall
+
+        wall_node[:-1, :, :-1] += jwall
+        wall_node[1:, :, :-1] += jwall
+        wall_node[:-1, :, 1:] += jwall
+        wall_node[1:, :, 1:] += jwall
+
+        wall_node[:-1, :-1, :] += kwall
+        wall_node[1:, :-1, :] += kwall
+        wall_node[:-1, 1:, :] += kwall
+        wall_node[1:, 1:, :] += kwall
+
+        thresh = np.zeros(self.shape, dtype=np.uint8)
+
+        thresh[0, :, :] = 8
+        thresh[-1, :, :] = 8
+        thresh[:, 0, :] = 8
+        thresh[:, -1, :] = 8
+        thresh[:, :, 0] = 8
+        thresh[:, :, -1] = 8
+
+        thresh[:, 0, 0] = 4
+        thresh[:, 0, -1] = 4
+        thresh[:, -1, 0] = 4
+        thresh[:, -1, -1] = 4
+        thresh[0, :, 0] = 4
+        thresh[0, :, -1] = 4
+        thresh[-1, :, 0] = 4
+        thresh[-1, :, -1] = 4
+        thresh[0, 0, :] = 4
+        thresh[0, -1, :] = 4
+        thresh[-1, 0, :] = 4
+        thresh[-1, -1, :] = 4
+
+        thresh[0, 0, 0] = 3
+        thresh[-1, 0, 0] = 3
+        thresh[0, -1, 0] = 3
+        thresh[-1, -1, 0] = 3
+        thresh[0, 0, -1] = 3
+        thresh[-1, 0, -1] = 3
+        thresh[0, -1, -1] = 3
+        thresh[-1, -1, -1] = 3
+
+        return wall_node < thresh
+
+    def set_rho_u_Vxrt_nd(self, rho_nd, u_nd, Vx_nd, Vr_nd, Vt_nd):
+        r"""Write conserved variables from non-dimensional density, internal energy, and velocity components.
+
+        Low-level, no-validation setter on the boundary-condition hot path: all
+        inputs are non-dimensionalised by the fluid reference scales. The
+        velocity components are supplied explicitly, so the internal energy
+        follows from
+
+        .. math::
+
+            e = u + \tfrac{1}{2}(V_x^2 + V_r^2 + V_\theta^2).
+
+        Boundary conditions own the physics that produces ``(rho, u)`` and the
+        velocity vector (e.g. ``fluid.set_P_s`` or ``fluid.set_rho_s`` followed
+        by a flow-angle or energy-equation reconstruction) and then call this
+        primitive to store the result.
+
+        Parameters
+        ----------
+        rho_nd : array-like
+            Non-dimensional density. Must broadcast to block shape.
+        u_nd : array-like
+            Non-dimensional specific internal energy. Must broadcast to block shape.
+        Vx_nd : array-like
+            Non-dimensional axial velocity. Must broadcast to block shape.
+        Vr_nd : array-like
+            Non-dimensional radial velocity. Must broadcast to block shape.
+        Vt_nd : array-like
+            Non-dimensional tangential velocity. Must broadcast to block shape.
+
+        """
+        r_nd = self._get_data_by_keys(("r",), raise_uninit=False)
+
+        keys = ("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe")
+        i0 = self._data_inds["rho"]  # rho..rhoe are consecutive at i0..i0+4
+
+        # Fused Fortran pass into Block.scratch (see its docstring's consumer
+        # list) rather than a chain of np.multiply(out=...): on the small,
+        # patch-face-sized arrays this runs on, per-call numpy dispatch
+        # dominates the arithmetic. The kernel cannot write _data directly --
+        # for a patch's block_view it is a non-contiguous slice, which f2py
+        # refuses as intent(inout) -- so it lands in scratch and this copies
+        # once. util.bcast_if_needed keeps the docstring's "inputs may
+        # broadcast" contract while skipping the cost when they already match.
+        shape = self.shape
+        # The arena is flat, so carve the nodal view this kernel writes.
+        nodal = util.carve_view(self.scratch, shape + (5,))
+        ember.fortran.set_rho_u_vxrt_write(
+            util.bcast_if_needed(rho_nd, shape),
+            util.bcast_if_needed(u_nd, shape),
+            util.bcast_if_needed(Vx_nd, shape),
+            util.bcast_if_needed(Vr_nd, shape),
+            util.bcast_if_needed(Vt_nd, shape),
+            util.bcast_if_needed(r_nd, shape),
+            nodal,
+        )
+        self._data[..., i0 : i0 + 5] = nodal
+
+        for k in keys:
+            self._versions[k] += 1
+
+    def copy(self, keep_patches=True):
+        """Return an independent copy of this block.
+
+        All data arrays, metadata, and derived-property caches are copied so
+        that modifications to the returned block do not affect the original.
+        Patches are deep-copied by default so each block owns its own patch
+        objects; pass ``keep_patches=False`` to get a copy with an empty patch
+        collection instead.
+
+        Parameters
+        ----------
+        keep_patches : bool, optional
+            If True (default), all patches are deep-copied onto the new block.
+            If False, the returned block has no patches attached.
+
+        Returns
+        -------
+        Block
+            An independent copy of this block.
+
+        """
+        import copy as copy_module  # noqa: PLC0415 - only needed on this path
+
+        out = super().copy()
+
+        if not keep_patches:
+            out._set_metadata_by_key(
+                "patches", ember.collections.BlockPatchCollection(out)
+            )
+            return out
+
+        # Deep copy all patches to ensure independence between blocks
+        copied_patches = [copy_module.deepcopy(patch) for patch in self.patches]
+
+        patch_collection = ember.collections.BlockPatchCollection(out)
+        patch_collection.extend(copied_patches)
+
+        # Set the new patch collection on the copied block
+        out._set_metadata_by_key("patches", patch_collection)
+
+        return out
+
+    def update_primitive(self):
+        """Evaluate the primitive cache eagerly.
+
+        Populates :attr:`P_nd`, :attr:`T_nd` and the internal energy behind
+        :attr:`u_nd` together, which may save time when done in the solver hot
+        loop. Lazily accessing any of those properties afterwards is a fast
+        cache hit.
+
+        Three things this forms are NOT published, each because a consumer
+        derives it where it walks instead: the velocity and the kinetic energy,
+        which the kernels needing them rebuild from the conserved state as they
+        sweep rather than reading a stored copy, and the stagnation enthalpy
+        (:attr:`ho_nd`, which ``set_residual`` builds from ``cons`` and the
+        pressure at its own face corners).
+
+        Returns early when the caches are already current, so calling it
+        more often than necessary costs a handful of dict lookups.
+
+        """
+        # Raise on uninitialised state exactly as the public properties do:
+        # P_nd/T_nd need rho and rhoe, and the kinematic pass the momenta.
+        for key in ("rho", "rhoe", "rhoVx", "rhoVr", "rhorVt"):
+            self._get_data_by_keys((key,))
+
+        # Every cache filled here depends on the energy as well as the momenta;
+        # the kinetic energy, which depended on the radius instead, is no
+        # longer among them (it is borrowed below, not cached).
+        ver_e = self._get_version(("rho", "rhoVx", "rhoVr", "rhorVt", "rhoe"))
+        stamps = (
+            ("_u_nd_uninit", ver_e),
+            ("P_nd", ver_e),
+            ("T_nd", ver_e),
+        )
+        if all(self._store.get(k, (None,))[0] == v for k, v in stamps):
+            return
+
+        shape = self.shape
+        # One borrowed nodal buffer serves both passes in turn, their two
+        # throwaways never coexisting: the kinetic energy exists only to make
+        # `u` inside the kernel, the static enthalpy only because get_P_h_T
+        # produces it beside the pressure and temperature that are wanted.
+        # Neither is kept, so the second write lands on the first. The arena is
+        # free at every call site, each calling this before carving anything of
+        # its own (see Grid.update_sources, update_residual, update_timestep).
+        scrap = util.carve_view(self.scratch, shape)
+        u = self._primitive_buffer("_u_nd_uninit", shape)
+        P = self._primitive_buffer("P_nd", shape)
+        T = self._primitive_buffer("T_nd", shape)
+
+        # Pass 1: kinematics, fluid-agnostic (velocity is defined by the
+        # conserved variables for any fluid).
+        ember.fortran.set_primitive_kinematic(
+            cons=self.conserved_nd, r=self.r_nd, u=u, halfvsq=scrap
+        )
+        # Pass 2: thermodynamics, behind the Fluid interface. The enthalpy is
+        # written over the kinetic energy, which is dead by now.
+        self.fluid.get_P_h_T(self._rho_nd_uninit, u, P, scrap, T)
+
+        for (cache_key, versions), arr in zip(stamps, (u, P, T)):
+            arr.flags.writeable = False
+            self._store[cache_key] = (versions, arr)
+
+    @cached_array()
+    def conserved_avg_nd(self, out):
+        """Time-averaged nodal nondimensional conserved variables, shape (ni, nj, nk, 5).
+
+        Running-mean accumulator built over the final ``n_step_avg`` steps of a
+        march. Like :attr:`F_body_nd` this is a no-key cached buffer: allocated
+        once, never invalidated, read-only to consumers. Zero-initialised here
+        so accumulation starts from a clean slate; its owners
+        (:meth:`ember.grid.Grid.accumulate_avg` and
+        :meth:`ember.grid.Grid.finalise_average`) toggle ``flags.writeable``
+        around their in-place writes.
+        """
+        cons_avg = util.allocate_or_reuse(out, self.shape + (5,), dtype=np.float32)
+        cons_avg.fill(0.0)
+        return cons_avg
+
+    @cached_array()
+    def conserved_filt_nd(self, out):
+        """Low-pass-filtered cell-centred conserved state, shape (ni-1, nj-1, nk-1, 5).
+
+        Stateful selective-frequency-damping scratch: seeded to the current
+        cell-averaged conserved state on first access, then read by the SFD
+        body force and evolved each step, in that order, by
+        :meth:`ember.grid.Grid.update_timestep`. Only allocated when
+        ``Solver.gain_filt`` is nonzero, since nothing else touches it. The
+        no-key ``cached_array`` allocates it once and never invalidates it;
+        read-only to consumers, and its one writer
+        (:meth:`~ember.grid.Grid.update_timestep`) toggles ``flags.writeable``
+        around its writes.
+        """
+        out = util.allocate_or_reuse(out, self.shape_cell + (5,))
+        ember.fortran.node_to_cell(self.conserved_nd, out)
+        return out
+
+    @derived_array
+    def dA_quad(self):
+        r"""Face area vectors for a 2D structured cut :math:`\delta A` [m^2], shape ``(ni-1, nj-1, 3)``.
+
+        See :attr:`dA_quad_nd` for the nondimensional form and the geometry
+        reference.
+        """
+        return self.dA_quad_nd * self.L_ref**2
+
+    @derived_array
+    def dA_quad_nd(self):
+        r"""Face area vectors for a 2D structured cut :math:`\delta A / L_\mathrm{ref}^2` [-], shape ``(ni-1, nj-1, 3)``.
+
+        Components on the trailing axis, as for :attr:`dA_quad`.
+
+        See :ref:`face-areas` for the calculation.
+        """
+        assert self.ndim == 2, "dA_quad is only defined for a two-dimensional cut."
+        assert not self.triangulated, "dA_quad requires triangulated=False"
+        return _get_da_quad(self._xrt_nd)
+
+    @derived_array
+    def dAi(self):
+        r"""Constant-i face area vectors of a 3D block :math:`\delta A_i` [m^2], shape ``(ni, nj-1, nk-1, 3)``.
+
+        See :attr:`dAi_nd` for the nondimensional form and the geometry reference.
+        """
+        return self.dAi_nd * self.L_ref**2
+
+    @cached_array("x", "r", "t")
+    def dAi_nd(self, out):
+        r"""Constant-i face area vectors of a 3D block :math:`\delta A_i / L_\mathrm{ref}^2` [-], components on first axis.
+
+        See :ref:`face-areas` for the calculation.
+        """
+        # The helper walks in slabs and writes this component-first buffer
+        # directly, so neither a whole-block double array nor a transposed
+        # copy of the result is ever materialised.
+        out = util.allocate_or_reuse(out, (3,) + self.shape_iface)
+        return _get_dai(self._xrt_nd, out)
+
+    @derived_array
+    def dAj(self):
+        r"""Constant-j face area vectors of a 3D block :math:`\delta A_j` [m^2], shape ``(ni-1, nj, nk-1, 3)``.
+
+        See :attr:`dAj_nd` for the nondimensional form and the geometry reference.
+        """
+        return self.dAj_nd * self.L_ref**2
+
+    @cached_array("x", "r", "t")
+    def dAj_nd(self, out):
+        r"""Constant-j face area vectors of a 3D block :math:`\delta A_j / L_\mathrm{ref}^2` [-], components on first axis.
+
+        See :ref:`face-areas` for the calculation.
+        """
+        # The helper walks in slabs and writes this component-first buffer
+        # directly, so neither a whole-block double array nor a transposed
+        # copy of the result is ever materialised.
+        out = util.allocate_or_reuse(out, (3,) + self.shape_jface)
+        return _get_daj(self._xrt_nd, out)
+
+    @derived_array
+    def dAk(self):
+        r"""Constant-k face area vectors of a 3D block :math:`\delta A_k` [m^2], shape ``(ni-1, nj-1, nk, 3)``.
+
+        See :attr:`dAk_nd` for the nondimensional form and the geometry reference.
+        """
+        return self.dAk_nd * self.L_ref**2
+
+    @cached_array("x", "r", "t")
+    def dAk_nd(self, out):
+        r"""Constant-k face area vectors of a 3D block :math:`\delta A_k / L_\mathrm{ref}^2` [-], components on first axis.
+
+        See :ref:`face-areas` for the calculation.
+        """
+        # The helper walks in slabs and writes this component-first buffer
+        # directly, so neither a whole-block double array nor a transposed
+        # copy of the result is ever materialised.
+        out = util.allocate_or_reuse(out, (3,) + self.shape_kface)
+        return _get_dak(self._xrt_nd, out)
+
+    @scratch_array
+    def damp_rfac(self, out):
+        """Change-limiter state, one reciprocal normaliser per conserved variable.
+
+        Like :attr:`store` and unlike :attr:`scratch`, this carries meaning
+        between kernel calls: it holds ``ncell * scale / (dampin * sum|dU|)``
+        per variable, accumulated by one call to a scree/RK kernel and consumed
+        by the next. The limiter multall applies to the assembled increment
+        needs a block mean of that increment, and ember's multigrid scatter
+        never materialises the increment full-volume, so the normaliser is
+        lagged one call rather than costing a second traversal (see
+        ``scree.f90``'s ``damp_increment``). The ``scale`` factor makes the
+        stored value independent of the march coefficient, so the lag carries
+        across RK stages of differing ``alpha`` without mis-scaling.
+
+        Seeded to zeros, which is the identity soft-clip: the first call of a
+        march runs unlimited, and a march with ``Solver.dampin <= 0`` never
+        leaves zero and so is bitwise identical to an undamped one.
+
+        Returns
+        -------
+        Array, shape (5,)
+        """
+        return util.zeros((5,))
+
+    @cached_array()
+    def dt_vol_nd(self, out):
+        """Unscaled volumetric time step (dt/vol) per cell, shape (ni-1, nj-1, nk-1).
+
+        Persistent scratch buffer, not a cache keyed on the conserved state: the
+        no-key ``cached_array`` allocates it once and never invalidates it, so
+        the lagged ``rf`` relaxation in its writer can blend the new value into
+        the previous one. Like every cached property it is read-only to
+        consumers; its writer (:meth:`ember.grid.Grid.update_timestep`) toggles
+        ``flags.writeable`` around the write (mirrors :attr:`F_body_nd`).
+        """
+        return util.allocate_or_reuse(out, self.shape_cell)
+
+    @cached_array()
+    def F_body_nd(self, out):
+        """Cell-volume-integrated body force, shape (ni-1, nj-1, nk-1, 5).
+
+        Scratch accumulator, not a cached physical field: it is zeroed and
+        rebuilt every pre-step (viscous + polar + prescribed + SFD). The no-key
+        ``cached_array`` allocates the buffer once and never invalidates it.
+        Like every cached property it is read-only to consumers; its owners
+        (``Grid.update_sources`` and the FAS coarse-forcing assembly) toggle
+        ``flags.writeable`` around their writes. Components are the
+        cell-volume-integrated source terms
+        ``(rho, rho*Vx, rho*Vr, rho*r*Vt, rho*E)``.
+        """
+        return util.allocate_or_reuse(out, self.shape_cell + (5,))
+
+    @property
+    def flat(self):
+        """Flatten all axes into a single axis, returning a view rather than a copy.
+
+        This copies the metadata dict and but clears patches,
+        since 2D spatial patches have no meaning on a 1D flattened layout.
+
+        Points are ordered Fortran-style, with the first axis varying fastest,
+        matching the column-major layout of the backing array. That ordering is
+        what makes the result a view rather than a copy, so anything reshaping
+        the result back must pass ``order="F"``. Raises ``ValueError`` if this
+        instance is a non-contiguous view that cannot be flattened without
+        copying.
+
+        Returns
+        -------
+        out : Block, shape (npoints,)
+            A new instance with all points in a single dimension and no patches.
+
+        """
+        out = ember._struct.StructuredData.flat.fget(self)
+        out._metadata = self._metadata.copy()
+        out._metadata["patches"] = ember.collections.BlockPatchCollection(out)
+        return out
+
+    @cached_object
+    def i_cusp(self):
+        """1-based start and end node indices of the cusp patch, (start, end).
+
+        Returns (0, 0) if the block has no cusp patches. See :attr:`j_cusp` for
+        the spanwise extent of the same patch.
+
+        The first cusp patch found is the whole story:
+        :py:meth:`ember.patch.CuspPatch.attach_to_block` requires every cusp
+        patch on a block to cover the same i and j range.
+        """
+        for patch in self.patches.cusp:
+            lim = patch.ijk_lim_abs
+            ist, ien = int(lim[0, 0]), int(lim[0, 1])
+            return (ist + 1, ien + 1)
+        return (0, 0)
+
+    @cached_object
+    def i_perk(self):
+        """1-based (i_LE, i_TE) bounding the k-periodic intervals of an H-mesh.
+
+        For a block periodic to itself in k (k=1 coincident with k=nk) over an
+        upstream interval at the leading edge and a downstream interval at the
+        trailing edge, returns the inclusive end i of the upstream interval and
+        the inclusive start i of the downstream interval. These bound the two
+        streamwise ranges (1..i_LE and i_TE..ni) over which the k=1/k=nk faces
+        are periodic to self; in between (the bladed region) they are not.
+
+        Derived from k-face PeriodicPatches (const_dim == 2): a patch starting
+        at i=0 sets the upstream end, a patch ending at i=ni-1 sets the
+        downstream start. Returns (0, 0) if the block has no k-face
+        PeriodicPatch.
+
+        Cached: patches must not be modified after first access.
+        """
+        ni = self.shape[0]
+        i_le, i_te = 0, 0
+        for patch in self.patches.periodic:
+            if patch.const_dim != 2:
+                continue
+            lim = patch.ijk_lim_abs
+            ist, ien = int(lim[0, 0]), int(lim[0, 1])
+            if ist == 0:  # upstream interval 1..i_le
+                i_le = max(i_le, ien + 1)
+            if ien == ni - 1:  # downstream interval i_te..ni
+                i_te = ist + 1 if i_te == 0 else min(i_te, ist + 1)
+        return (i_le, i_te)
+
+    @cached_object
+    def ijk_wall_conv(self):
+        """Per-face wall indicator dict for the convective (inviscid) kernel.
+
+        Treats all PERMEABLE_TYPES as non-wall. Keys walli1, wallni, wallj1,
+        wallnj, wallk1, wallnk, each a float32 array (0.0=wall, 1.0=free) for
+        splatting into the inviscid Fortran kernel call (:func:`set_residual`).
+
+        Cached: patches must not be modified after first access.
+        """
+        iwall, jwall, kwall = self._face_wall_arrays
+
+        def _f(arr):
+            return arr.astype(np.float32, order="F")
+
+        return {
+            "walli1": _f(~(iwall[0] == 0))[np.newaxis, :, :],
+            "wallni": _f(~(iwall[-1] == 0))[np.newaxis, :, :],
+            "wallj1": _f(~(jwall[:, 0, :] == 0))[:, np.newaxis, :],
+            "wallnj": _f(~(jwall[:, -1, :] == 0))[:, np.newaxis, :],
+            "wallk1": _f(~(kwall[:, :, 0] == 0))[:, :, np.newaxis],
+            "wallnk": _f(~(kwall[:, :, -1] == 0))[:, :, np.newaxis],
+        }
+
+    @cached_object
+    def ijk_wall_visc(self):
+        """Per-face wall indicator dict for the viscous kernel.
+
+        Like the inviscid :attr:`ijk_wall_conv`, but treats slip (frictionless)
+        patches as non-wall in addition to all PERMEABLE_TYPES, so slip walls
+        carry zero shear. Keys walli1, wallni, wallj1, wallnj, wallk1, wallnk,
+        each a float32 array (0.0=wall, 1.0=free) for splatting into the viscous
+        Fortran kernel call.
+
+        Cached: patches must not be modified after first access.
+        """
+        iwall, jwall, kwall = self._face_wall_arrays_slip
+
+        def _f(arr):
+            return arr.astype(np.float32, order="F")
+
+        return {
+            "walli1": _f(~(iwall[0] == 0))[np.newaxis, :, :],
+            "wallni": _f(~(iwall[-1] == 0))[np.newaxis, :, :],
+            "wallj1": _f(~(jwall[:, 0, :] == 0))[:, np.newaxis, :],
+            "wallnj": _f(~(jwall[:, -1, :] == 0))[:, np.newaxis, :],
+            "wallk1": _f(~(kwall[:, :, 0] == 0))[:, :, np.newaxis],
+            "wallnk": _f(~(kwall[:, :, -1] == 0))[:, :, np.newaxis],
+        }
+
+    @cached_object
+    def j_cusp(self):
+        """1-based start and end node indices of the cusp patch in j, (start, end).
+
+        The spanwise companion to :attr:`i_cusp`, and (0, 0) on the same
+        condition: a blade that does not run the full span leaves a hub or tip
+        gap carrying no cusp, and the seam correction must skip it. Together
+        the two give the kernels the (i, j) rectangle of the seam.
+        """
+        for patch in self.patches.cusp:
+            lim = patch.ijk_lim_abs
+            jst, jen = int(lim[1, 0]), int(lim[1, 1])
+            return (jst + 1, jen + 1)
+        return (0, 0)
+
+    @property
+    def n_levels_max(self):
+        """Most multigrid levels this block's cell counts all divide into: the
+        power of two in their greatest common divisor; ``int``.
+
+        A fact about the shape alone. How many levels a march asks for, and the
+        most it may, are the solver's: each block runs the lesser of what is
+        asked and this.
+        """
+        g = math.gcd(*(n - 1 for n in self.shape))
+        return (g & -g).bit_length() - 1 if g else 0
+
+    @property
+    def Omega_wall(self):
+        r"""Per-face wall angular velocity dict [rad/s].
+
+        Keys omega_walli1, omega_wallni, etc., each a float32 array of the same
+        shape as the corresponding :attr:`ijk_wall_visc` array, so the two can
+        be read together to find each wall face and the speed it turns at.
+        Defaults to :attr:`Omega` on all faces; overridden by RotatingPatch
+        faces.
+
+        See :attr:`Omega_wall_nd` for the nondimensional form.
+        """
+        scale = self.fluid.V_ref / self.L_ref
+        return {
+            key.removesuffix("_nd"): val * scale
+            for key, val in self.Omega_wall_nd.items()
+        }
+
+    @cached_object
+    def Omega_wall_nd(self):
+        """Per-face wall angular velocity dict (nondimensional).
+
+        Keys omega_walli1_nd, omega_wallni_nd, etc., each a float32 array of the
+        same shape as the corresponding wall array. Defaults to Omega_nd on all
+        faces; overridden by RotatingPatch faces.
+        """
+        ni, nj, nk = self.shape
+        omega_nd = self.Omega_nd
+
+        # Initialise all six face arrays to block Omega_nd
+        # Shapes: iface boundary = (nj-1, nk-1), jface = (ni-1, nk-1), kface = (ni-1, nj-1)
+        oi1 = np.full((nj - 1, nk - 1), omega_nd, dtype=np.float32)
+        oni = np.full((nj - 1, nk - 1), omega_nd, dtype=np.float32)
+        oj1 = np.full((ni - 1, nk - 1), omega_nd, dtype=np.float32)
+        onj = np.full((ni - 1, nk - 1), omega_nd, dtype=np.float32)
+        ok1 = np.full((ni - 1, nj - 1), omega_nd, dtype=np.float32)
+        onk = np.full((ni - 1, nj - 1), omega_nd, dtype=np.float32)
+
+        for patch in self.patches.rotating:
+            patch_omega_nd = np.float32(patch.Omega * self.L_ref / self.fluid.V_ref)
+            ijk_face = patch.get_ijk_face()
+            if patch.const_dim == 0:  # i-face patch
+                i_val = ijk_face[..., 0].flat[0]
+                if i_val == 0:
+                    oi1[*ijk_face.T[1:]] = patch_omega_nd
+                else:
+                    oni[*ijk_face.T[1:]] = patch_omega_nd
+            elif patch.const_dim == 1:  # j-face patch
+                j_val = ijk_face[..., 1].flat[0]
+                if j_val == 0:
+                    oj1[*ijk_face.T[[0, 2]]] = patch_omega_nd
+                else:
+                    onj[*ijk_face.T[[0, 2]]] = patch_omega_nd
+            elif patch.const_dim == 2:  # k-face patch
+                k_val = ijk_face[..., 2].flat[0]
+                if k_val == 0:
+                    ok1[*ijk_face.T[:2]] = patch_omega_nd
+                else:
+                    onk[*ijk_face.T[:2]] = patch_omega_nd
+
+        def _f(arr):
+            return np.asfortranarray(arr)
+
+        return {
+            "omega_walli1_nd": _f(oi1)[np.newaxis, :, :],
+            "omega_wallni_nd": _f(oni)[np.newaxis, :, :],
+            "omega_wallj1_nd": _f(oj1)[:, np.newaxis, :],
+            "omega_wallnj_nd": _f(onj)[:, np.newaxis, :],
+            "omega_wallk1_nd": _f(ok1)[:, :, np.newaxis],
+            "omega_wallnk_nd": _f(onk)[:, :, np.newaxis],
+        }
+
+    @cached_array()
+    def P_offset_nd(self, out):
+        """Nondimensional pressure datum for the flux/source kernels [-], scalar.
+
+        Mean nondimensional pressure, computed once on first access and then
+        frozen (no data keys, so the cache never invalidates). The flux
+        divergence (residual.f90) and the polar source (polar.f90) both subtract
+        this datum from the pressure, so a uniform offset cancels exactly and
+        only reduces float32 round-off; the converged solution is independent of
+        its value, which is why a fixed datum is fine and recomputing it every
+        iteration would be needless cost. Returned as a 0-d array so it can be
+        locked read-only like other cached properties.
+        """
+        out = util.allocate_or_reuse(out, ())
+        out[...] = self.P_nd.mean()
+        return out
+
+    @property
+    def patches(self):
+        """Boundary conditions for the block."""
+        return self._get_metadata_by_key("patches")
+
+    @cached_object
+    def r_mid_nd(self):
+        r"""Midspan nondimensional radius, :math:`\tfrac12(\min r_\mathrm{nd} + \max r_\mathrm{nd})` [-].
+
+        Derived from the block's own coordinates (a representative radius for
+        this block), not a user-set reference scale -- hence ``_mid`` rather than
+        the ``_ref`` suffix carried by the arbitrary fluid/length scales. Used to
+        rescale the angular-momentum (``rhorVt``) residual by a radius so its
+        magnitude is comparable to the linear-momentum residuals.
+
+        Cached once: the block geometry is fixed for the lifetime of a solve.
+        """
+        return 0.5 * (self.r_nd.min() + self.r_nd.max())
+
+    @cached_array()
+    def residual_nd(self, out):
+        r"""Unintegrated net-flow residual + body forces, shape (ni-1, nj-1, nk-1, 5).
+
+        Sign convention: the residual is the net flux **into** the control volume
+        (sum of face flows entering minus those leaving) plus body-force sources,
+        i.e. the rate of accumulation :math:`\mathrm{d}U/\mathrm{d}t` of each
+        conserved quantity within the cell. It is *unintegrated* -- not yet scaled
+        by the local timestep or cell volume.
+
+        Because it points in the direction of accumulation, the increment is
+        **added** to (never subtracted from) the conserved variables to take a
+        time step::
+
+            conserved_nd += cfl * dt_vol_nd * residual_nd
+
+        At steady state the residual tends to zero. See ``solver.scree_step`` and
+        ``solver.advance_rk_stage_mg`` for the integrators that consume it.
+        """
+        return util.allocate_or_reuse(out, self.shape_cell + (5,))
+
+    @scratch_array
+    def scratch(self, out):
+        """Shared scratch arena, flat, sized to the most demanding phase of a step.
+
+        PURE TRANSIENT SCRATCH, NOT a cached value: shared, throwaway kernel
+        workspace, allocated once and never invalidated. Its contents are
+        meaningless between kernel calls -- every consumer overwrites it on
+        entry and nothing may rely on what it holds after a kernel returns.
+        Left writeable so callers can pass it straight to an ``intent(inout)``
+        kernel without toggling ``flags.writeable``.
+
+        THE ONE ARENA. Every throwaway buffer in the step comes from here,
+        including the six boundary tau/q face buffers (:attr:`tau_q_faces`),
+        ``set_visc_force``'s rolling tau/q cell-plane pair, the nodal transport
+        trio the viscous kernels read, the nodal acoustic speed
+        ``set_timestep_sources`` reads, ``set_residual``'s and
+        ``set_visc_force``'s rolling planes and rows, the IRS work vector, and
+        the multigrid coarse scratch. It is sized from whichever phase needs
+        most, so every phase fits without it being resized.
+
+        THE RULE, and it is the whole safety argument. Buffers that reach the
+        same kernel call must come from ONE ``util.carve_view``, which packs
+        them end to end and guarantees they alias distinct storage. Buffers in
+        different phases may reuse the same span freely, because no two phases
+        are live at once -- that invariant is what makes the arena small, and
+        it is a contract, not something the code can check. Never carve a
+        second view during a phase that is already using the arena.
+
+        This buffer is flat: consumers reshape it through ``carve_view``, so
+        needing a particular rank is not a reason to allocate separately. For
+        storage that must survive *alongside* this one within a kernel call or
+        between calls, see the persistent buffer :attr:`store`.
+        """
+        # First touch only: scratch_array calls this once per block, and the
+        # arena is one of the two big solver allocations.
+        n = _scratch_len(self.shape)
+        logger.debug(
+            "alloc: scratch arena %d elements (%.1f MB) for block %s",
+            n,
+            n * 4 / 1024**2,
+            self.shape,
+        )
+        return util.allocate_or_reuse(out, (n,))
+
+    @scratch_array
+    def store(self, out):
+        """Persistent cross-step solver buffer, nodal shape (ni, nj, nk, 5).
+
+        Counterpart to :attr:`scratch`: a buffer that does carry meaning between
+        kernel calls. Unlike :attr:`scratch` its value must survive across calls,
+        so no consumer may treat it as throwaway. Used by time integrators to
+        carry state between stages.
+
+        Seeded to zeros on first access.
+
+        Returns
+        -------
+        Array, shape (ni, nj, nk, 5)
+        """
+        # First touch only, like scratch: the other big solver allocation.
+        logger.debug(
+            "alloc: store buffer %.1f MB for block %s",
+            int(np.prod(self.shape)) * 5 * 4 / 1024**2,
+            self.shape,
+        )
+        return util.zeros(self.shape + (5,))
+
+    @property
+    def tau_q_faces(self):
+        """Boundary tau/q as six surface buffers: ``(i1, ini, j1, jnj, k1, knk)``.
+
+        WARNING -- PURE TRANSIENT SCRATCH, and a VIEW into :attr:`scratch`, not
+        its own allocation. Valid only within a single viscous pass and only in
+        the slots it refreshes: ``set_tau_q_faces`` writes them,
+        ``exchange_faces`` overwrites the halo layer wherever a patch connects,
+        and ``set_visc_force`` reads them back, all within one
+        :meth:`ember.grid.Grid.update_sources`.
+
+        This is the ONLY tau/q that reaches memory: ``set_visc_force`` makes
+        interior tau/q inside its own k walk, into a rolling cell-plane pair,
+        so what a viscous pass must keep is O(surface). They are also all the
+        periodic seam exchange carries, freeing the kernel's halo source from
+        the block's topology.
+
+        Each face carries TWO layers on its trailing axis:
+
+        * layer 0, the block's own edge-cell tau/q, from the boundary producer;
+        * layer 1, the halo value the face-flux kernel reads. The producer
+          seeds it to ``(2*wall - 1) * layer0`` -- ``+edge`` for a permeable or
+          slip face, so the boundary face takes the single-sided stress,
+          ``-edge`` for a viscous wall, so the face average is zero -- and the
+          periodic exchange then overwrites it wherever a patch connects.
+          The sign applied once here spares the consumer any wall mask.
+
+        Keeping the layers apart makes that exchange a one-directional copy,
+        layer 0 to layer 1, needing no temporary and tolerating a face paired to
+        itself. The component axis sits second so the ``(edge, component)``
+        block is contiguous, the order the face-flux kernel walks. The cusp seam
+        correction reads layer 0 too: ``k1`` and ``knk`` hold both k cell planes
+        and their halos for the whole call.
+
+        Returns
+        -------
+        tuple of Array
+            ``(i1, ini, j1, jnj, k1, knk)``, shapes ``(nj-1, 9, nk-1, 2)``,
+            ``(ni-1, 9, nk-1, 2)`` and ``(ni-1, 9, nj-1, 2)`` respectively,
+            all carved from one allocation and therefore mutually disjoint.
+        """
+        return _carve_viscous(self)[0]
+
+    @derived_array
+    def vol(self):
+        r"""Volume elements for a 3D block :math:`\delta \mathcal{V}` [m^3], cell array.
+
+        See :attr:`vol_nd` for the nondimensional form and the geometry reference.
+        """
+        return self.vol_nd * self.L_ref**3
+
+    @cached_array("x", "r", "t")
+    def vol_nd(self, out):
+        r"""Nondimensional volume elements for a 3D block :math:`\delta \mathcal{V}^*` [-], cell array.
+
+        .. math::
+            \delta \mathcal{V}^* = {\delta \mathcal{V}}/{L_\mathrm{ref}^3}
+
+        See :ref:`cell-volumes` for the calculation.
+        """
+        assert self.ndim == 3, "volume is only defined for a three-dimensional block."
+        out = _get_vol(self._xrt_nd, self.dAi_nd, self.dAj_nd, self.dAk_nd, out)
+        return out
