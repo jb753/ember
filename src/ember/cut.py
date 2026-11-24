@@ -349,19 +349,10 @@ def _eijk(i, j, k, e):
 # of a cell's 8 vertices and of the two ends of its 12 edges. All are derived
 # from the table and helpers above rather than written out again, and are
 # handed to the Fortran kernels so that they hold no copy of their own.
-_NTRITABLE = np.count_nonzero(_TRITABLE != -1, axis=1) // 3
 _VERT_IJK = np.array(
     [[s.start for s in _vijk((2, 2, 2), v)] for v in range(8)], dtype=np.int32
 )
 _EDGE_IJK = np.array([_eijk(0, 0, 0, e) for e in range(12)], dtype=np.int32)
-
-
-def _cube_index(d):
-    """For a 3D array of signed distances, get cube indices."""
-    ni, nj, nk = d.shape
-    ind = np.zeros((ni - 1, nj - 1, nk - 1), dtype=np.int32, order="F")
-    ember.fortran.marching_cubes_index(d, _VERT_IJK, ind)
-    return ind
 
 
 def _marching_cubes(data, dist):
@@ -385,63 +376,50 @@ def _marching_cubes(data, dist):
 
     Returns None if nothing is cut.
     """
+    dist = np.asfortranarray(dist, dtype=np.float32)
 
-    # Which of the 256 corner sign patterns each cell has
-    icube = _cube_index(dist)
-
-    # Only a cell with corners on both sides of the cut contributes triangles,
-    # which for a cut of a 3D block is a couple of percent of them. Find those
-    # first, in the one pass over the whole grid, and work on them alone.
-    # argwhere walks the cells i first, the order the triangles come back in.
-    cells = np.argwhere((icube != 0) & (icube != 255))
-    icube = icube[tuple(cells.T)]
-    n_face_cell = _NTRITABLE[icube]
-
-    # Where each cell's triangles start in the output
-    offsets = np.cumsum(n_face_cell) - n_face_cell
-    n_face = int(n_face_cell.sum())
+    # Room for one triangle per cell, which a cut through a 3D block, crossing
+    # a few percent of its cells, comes nowhere near. Pages of an empty array
+    # are only mapped in when written, so the room left over costs nothing.
+    # A cut that does make more is counted in full, and then run again with
+    # room for all of it.
+    cap = max(int(np.prod(np.subtract(dist.shape, 1))), 1)
+    while True:
+        lo = np.empty((3, cap), dtype=np.int32, order="F")
+        hi = np.empty((3, cap), dtype=np.int32, order="F")
+        frac = np.empty((3, cap), dtype=np.float32, order="F")
+        n_face = ember.fortran.marching_cubes(
+            dist, _VERT_IJK, _TRITABLE, _EDGE_IJK, lo, hi, frac
+        )
+        if n_face <= cap:
+            break
+        cap = n_face
 
     # Nothing is cut
     if n_face == 0:
         return None
 
-    ijk_lo = np.zeros((n_face, 3, 3), dtype=np.int32, order="F")
-    ijk_hi = np.zeros((n_face, 3, 3), dtype=np.int32, order="F")
-    frac = np.zeros((n_face, 3), dtype=np.float32, order="F")
-
-    ember.fortran.marching_cubes_edges(
-        dist,
-        cells,
-        offsets,
-        icube,
-        _TRITABLE,
-        _EDGE_IJK,
-        ijk_lo,
-        ijk_hi,
-        frac,
-    )
-
     # One vertex per cut edge, however many triangles share it. The kernel
     # gives each edge as its pair of nodes, lower first, so the pair is the
-    # same from every cell around the edge and keys it.
-    ijk_lo = ijk_lo.reshape(-1, 3)
-    ijk_hi = ijk_hi.reshape(-1, 3)
-    lo = np.ravel_multi_index(ijk_lo.T, dist.shape).astype(np.int64)
-    hi = np.ravel_multi_index(ijk_hi.T, dist.shape).astype(np.int64)
+    # same from every cell around the edge and keys it. Transposed, the
+    # vertices run face by face.
+    lo = lo[:, :n_face].T.ravel()
+    hi = hi[:, :n_face].T.ravel()
+    frac = frac[:, :n_face].T.ravel()
     _, first, inverse = np.unique(
-        lo * dist.size + hi, return_index=True, return_inverse=True
+        lo.astype(np.int64) * dist.size + hi, return_index=True, return_inverse=True
     )
     faces = inverse.reshape(n_face, 3).astype(np.int32)
-    ijk_lo, ijk_hi = ijk_lo[first], ijk_hi[first]
-    frac = frac.reshape(-1)[first]
 
     # Interpolate every variable onto the vertices the kernel located. Done
     # here rather than in the kernel so that the data keeps whatever precision
-    # it arrived in, and never has to be handed over in bulk.
-    data_lo = data[ijk_lo[:, 0], ijk_lo[:, 1], ijk_lo[:, 2]]
-    data_hi = data[ijk_hi[:, 0], ijk_hi[:, 1], ijk_hi[:, 2]]
+    # it arrived in, and never has to be handed over in bulk. The node indices
+    # flatten i fastest, as a block's data is stored, so this is a view.
+    flat = data.reshape(-1, data.shape[-1], order="F")
+    data_lo = flat[lo[first]]
+    data_hi = flat[hi[first]]
 
-    return data_lo + (data_hi - data_lo) * frac[:, np.newaxis], faces
+    return data_lo + (data_hi - data_lo) * frac[first, np.newaxis], faces
 
 
 def signed_distance(xr, xr_query):
@@ -671,11 +649,7 @@ def unstructured(grid, xr_cut):
         # Evaluate signed distance for all points in the block
         dist = _cut_distance(xr_cut, xr_coords)
 
-        # Skip blocks that do not intersect the cut
-        if np.all(dist >= 0) or np.all(dist <= 0):
-            continue
-
-        # Get triangles for this block
+        # Get triangles for this block, or None if the cut misses it
         cut_block = _marching_cubes(block._data, dist)
 
         # Add them to the list, numbering this block's vertices after those

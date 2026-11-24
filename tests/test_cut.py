@@ -5,7 +5,6 @@ Module tested: ember.cut
 Test cases:
 - test_vijk: _vijk function for vertex indexing
 - test_eijk: _eijk function for edge indexing
-- test_cube_index: _cube_index function
 - test_no_cut: Case where no cut occurs
 - test_simple_cut: Simple cutting case
 - test_multiple_variables: Marching cubes with multiple data variables
@@ -73,7 +72,6 @@ from ember.cut import (
     structured_meridional,
     interpolate_to_structured,
     triangulate_to_unstructured,
-    _cube_index,
     _vijk,
     _eijk,
     signed_distance,
@@ -176,21 +174,6 @@ class TestMarchingCubesHelper:
         start, end = _eijk(i, j, k, 8)
         assert start == (1, 2, 3)
         assert end == (1, 2, 4)
-
-    def test_cube_index(self):
-        """Test _cube_index function."""
-        # Simple 2x2x2 case where only corner 0 is negative
-        d = np.ones((2, 2, 2))
-        d[0, 0, 0] = -1.0
-
-        ind = _cube_index(d)
-        assert ind.shape == (1, 1, 1)
-        assert ind[0, 0, 0] == 1  # Only bit 0 set
-
-        # Case where all corners are negative
-        d_all_neg = -np.ones((2, 2, 2))
-        ind_all = _cube_index(d_all_neg)
-        assert ind_all[0, 0, 0] == 255  # All 8 bits set
 
 
 class TestMarchingCubes:
@@ -2319,7 +2302,7 @@ _REF_EDGETABLE = np.array(
 
 
 def _cube_index_numpy(d):
-    """Reference for :func:`ember.cut._cube_index`, kept for comparison.
+    """Corner sign pattern of every cell, for the reference loop below.
 
     The numpy version used before the corner sign patterns moved into
     ``_fortran/marching.f90``, slicing the field once per corner.
@@ -2347,9 +2330,11 @@ def _marching_cubes_loop(data, dist):
     # Now treat each cell individually
     # Most cells are not cut so for loop is not too bad
     triangles = []
-    for i in range(ni - 1):
+    # Walk the cells i fastest, as the kernel does, so the triangles come
+    # out in the same order
+    for k in range(nk - 1):
         for j in range(nj - 1):
-            for k in range(nk - 1):
+            for i in range(ni - 1):
                 # Skip uncut cells
                 if not edge_index[i, j, k]:
                     continue
@@ -2438,8 +2423,8 @@ class TestMarchingCubesKernel:
         """The kernel reproduces the loop it replaced, triangle for triangle.
 
         The triangles are compared with their vertices gathered back onto
-        them, in the order the cells were walked in, which is what the
-        caller's offsets arrange. The kernel finds each fraction along an
+        them, in the order the cells were walked in, i fastest in both. The
+        kernel finds each fraction along an
         edge in single precision, and the loop in double from some edges'
         other ends, so a vertex differs from it by single precision round-off.
         """
@@ -2513,17 +2498,23 @@ class TestMarchingCubesKernel:
         # A surface across many cells shares most of its vertices
         assert verts.shape[0] < faces.size / 2
 
-    def test_cube_index_matches_the_numpy_version(self):
-        """The corner sign patterns match the slicing version they replaced."""
-        rng = np.random.default_rng(0)
+    def test_more_triangles_than_cells(self):
+        """A cut making more triangles than the room first given is complete.
 
-        for shape in [(2, 2, 2), (3, 4, 5), (7, 6, 8)]:
-            for _ in range(20):
-                dist = rng.normal(0.0, 1.0, shape)
-                # Exact zeros count as positive, being not less than zero
-                dist[rng.random(shape) < 0.2] = 0.0
+        The kernel starts with room for one triangle per cell. A noisy field
+        cuts nearly every cell, several times over, so it overflows that and
+        has to be counted and run again; the result must still be the loop's.
+        """
+        rng = np.random.default_rng(3)
+        shape = (6, 7, 8)
+        dist = rng.normal(0.0, 1.0, shape)
+        data = rng.normal(0.0, 1.0, shape + (2,))
 
-                assert np.array_equal(_cube_index(dist), _cube_index_numpy(dist))
+        verts, faces = _marching_cubes(data, dist)
+        assert faces.shape[0] > np.prod(np.subtract(shape, 1))
+        np.testing.assert_allclose(
+            verts[faces], _marching_cubes_loop(data, dist), rtol=1e-5, atol=1e-5
+        )
 
     def test_uncut_field_returns_none(self):
         """A field of one sign produces no triangles at all."""

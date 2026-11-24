@@ -52,8 +52,7 @@ public API without a deprecation period.
 * ``cut.signed_distance`` returns single precision, as the coordinates are,
   and ``cut.unstructured`` is about three times quicker: the distance and
   marching cubes kernels work in single precision, a straight cut needs no
-  search over segments, and only the cut cells are visited after the first
-  pass over the grid
+  search over segments, and marching cubes is one pass of one kernel
 
 .. _v0.4.10:
 
