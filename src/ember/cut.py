@@ -386,34 +386,34 @@ def _marching_cubes(data, dist):
     Returns None if nothing is cut.
     """
 
-    # Which of the 256 corner sign patterns each cell has, and so how many
-    # triangles it contributes
+    # Which of the 256 corner sign patterns each cell has
     icube = _cube_index(dist)
+
+    # Only a cell with corners on both sides of the cut contributes triangles,
+    # which for a cut of a 3D block is a couple of percent of them. Find those
+    # first, in the one pass over the whole grid, and work on them alone.
+    # argwhere walks the cells i first, the order the triangles come back in.
+    cells = np.argwhere((icube != 0) & (icube != 255))
+    icube = icube[tuple(cells.T)]
     n_face_cell = _NTRITABLE[icube]
 
-    # Where each cell's triangles start in the output. Counting in C order
-    # walks the cells i first, which is the order the triangles come back in.
-    n_face_flat = n_face_cell.ravel(order="C")
-    offsets = np.cumsum(n_face_flat) - n_face_flat
-    n_face = int(n_face_flat.sum())
+    # Where each cell's triangles start in the output
+    offsets = np.cumsum(n_face_cell) - n_face_cell
+    n_face = int(n_face_cell.sum())
 
     # Nothing is cut
     if n_face == 0:
         return None
 
-    # Only the cells that contribute a triangle reach the kernel, which for a
-    # cut of a 3D block is a couple of percent of them
-    cells = np.argwhere(n_face_cell > 0)
-
     ijk_lo = np.zeros((n_face, 3, 3), dtype=np.int32, order="F")
     ijk_hi = np.zeros((n_face, 3, 3), dtype=np.int32, order="F")
-    frac = np.zeros((n_face, 3), order="F")
+    frac = np.zeros((n_face, 3), dtype=np.float32, order="F")
 
     ember.fortran.marching_cubes_edges(
         dist,
         cells,
-        offsets.reshape(n_face_cell.shape)[tuple(cells.T)],
-        icube[tuple(cells.T)],
+        offsets,
+        icube,
         _TRITABLE,
         _EDGE_IJK,
         ijk_lo,
@@ -461,7 +461,8 @@ def signed_distance(xr, xr_query):
     Returns
     -------
     Array, shape (...)
-        Signed distance above or below the cut.
+        Signed distance above or below the cut, in single precision like the
+        coordinates it is measured from.
 
     """
 
@@ -474,21 +475,54 @@ def signed_distance(xr, xr_query):
     # A single node spans no segment, so nothing is ever nearer than the
     # sentinel.  The kernel would return its own, so screen the case out here.
     if xr.shape[0] < 2:
-        return np.full(shape, np.inf)
+        return np.full(shape, np.inf, dtype=np.float32)
 
     # The kernel indexes points fastest and components slowest, which is the
     # Fortran ordering ember stores nodal arrays in, so the reshape below is a
-    # view for a block coordinate array rather than a repack.  Widening to
-    # double is a copy, since those arrays are single precision, but it is one
-    # pass against the numpy version's ten per segment, and it keeps the return
-    # dtype this function has always had.
-    xr_query = np.asfortranarray(xr_query, dtype=np.float64)
+    # view for a block coordinate array rather than a repack. They are single
+    # precision, as the kernel takes them, so they reach it without a copy.
+    xr_query = np.asfortranarray(xr_query, dtype=np.float32)
     d = ember.fortran.signed_distance(
-        np.asfortranarray(xr, dtype=np.float64),
+        np.asfortranarray(xr, dtype=np.float32),
         xr_query.reshape(-1, 2, order="F"),
     )
 
     return d.reshape(shape, order="F")
+
+
+def _line_distance(xr_cut, xr_query):
+    """Signed distance from the line through a single segment, past both ends.
+
+    Agrees with :func:`signed_distance` wherever the foot of the perpendicular
+    falls on the segment, sign included, and carries the same values on along
+    the line beyond its ends. Linear in the coordinates, so a few array passes
+    rather than the kernel's search over segments. In single precision, as
+    the coordinates are.
+    """
+    (x0, r0), (x1, r1) = np.asarray(xr_cut, dtype=np.float64)
+    bx, br = x1 - x0, r1 - r0
+    length = np.sqrt(max(bx * bx + br * br, 1e-9))
+
+    # The normal (-br, bx) gives the sign signed_distance does. Folding the
+    # origin into one constant leaves two products and a sum per point.
+    nx, nr = -br / length, bx / length
+    xr_query = np.asarray(xr_query, dtype=np.float32)
+    d = xr_query[..., 0] * np.float32(nx)
+    d += xr_query[..., 1] * np.float32(nr)
+    d -= np.float32(x0 * nx + r0 * nr)
+    return d
+
+
+def _cut_distance(xr_cut, xr_query):
+    """Signed distance the cutting functions take their zero level from.
+
+    A cut along a single straight segment runs right across every block the
+    line through it reaches, so its distance is to that line. A polyline cut
+    is :func:`signed_distance` to the curve itself.
+    """
+    if len(xr_cut) == 2:
+        return _line_distance(xr_cut, xr_query)
+    return signed_distance(xr_cut, xr_query)
 
 
 def _cut_reaches_block(xr_cut, block):
@@ -527,6 +561,13 @@ def _cut_reaches_block(xr_cut, block):
     # screen now sees the curve first
     assert xr_cut.shape[-1] == 2, "Segments must have shape (..., 2)"
     assert xr_cut.ndim >= 2, "Segments must be at least 2D"
+
+    # A single segment cuts along the whole of its line, which reaches the box
+    # if the box's corners are not all on one side of it
+    if len(xr_cut) == 2:
+        corners = np.array([[lo[0], lo[1]], [lo[0], hi[1]], [hi[0], lo[1]], hi])
+        d = _line_distance(xr_cut, corners)
+        return bool(d.min() <= 0.0 <= d.max())
 
     seg_start = xr_cut[:-1]
     seg_delta = xr_cut[1:] - seg_start
@@ -580,7 +621,9 @@ def unstructured(grid, xr_cut):
     signed distance field of each block. Triangles from all intersected
     blocks are concatenated into a single unstructured block. The curve's end
     segments are carried on by :data:`CUT_EXTEND` of their length, so a curve
-    ending on an endwall cuts the wall cells cleanly.
+    ending on an endwall cuts the wall cells cleanly. A single straight
+    segment is carried on along its whole line, across every block it
+    reaches, which is also the quicker case to evaluate.
 
     Parameters
     ----------
@@ -626,7 +669,7 @@ def unstructured(grid, xr_cut):
         xr_coords = block.xrt_nd[..., :2] * block.L_ref
 
         # Evaluate signed distance for all points in the block
-        dist = signed_distance(xr_cut, xr_coords)
+        dist = _cut_distance(xr_cut, xr_coords)
 
         # Skip blocks that do not intersect the cut
         if np.all(dist >= 0) or np.all(dist <= 0):
@@ -728,7 +771,8 @@ def structured_meridional(grid, xr_cut):
     For each block, walks every :math:`(i, k)` grid line and linearly
     interpolates to the first ``j`` location where the signed distance to the
     cut curve changes sign, producing one structured ``(ni, nk)`` cut per
-    intersected block.
+    intersected block. A single straight segment cuts along its whole line,
+    as in :func:`unstructured`.
 
     Parameters
     ----------
@@ -761,7 +805,7 @@ def structured_meridional(grid, xr_cut):
         xr_coords = block.xrt_nd[..., :2] * block.L_ref
 
         # Get signed distance
-        dist = signed_distance(xr_cut, xr_coords)
+        dist = _cut_distance(xr_cut, xr_coords)
 
         # Check for intersection
         if np.all(dist >= 0) or np.all(dist <= 0):

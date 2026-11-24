@@ -46,6 +46,14 @@ public API without a deprecation period.
 * ``cut.interpolate_to_structured`` carries the coordinates, conserved
   variables and metadata of the cut, but not solver fields such as the wall
   distance; ``average.mix_out`` no longer shares the cut's patches
+* A cut along a single straight segment, in ``cut.unstructured`` and
+  ``cut.structured_meridional``, now runs along the whole of its line across
+  every block it reaches, rather than stopping near the segment's ends
+* ``cut.signed_distance`` returns single precision, as the coordinates are,
+  and ``cut.unstructured`` is about three times quicker: the distance and
+  marching cubes kernels work in single precision, a straight cut needs no
+  search over segments, and only the cut cells are visited after the first
+  pass over the grid
 
 .. _v0.4.10:
 

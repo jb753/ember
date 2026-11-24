@@ -26,8 +26,10 @@ subroutine marching_cubes_edges( &
 
     integer, intent(in) :: ni, nj, nk, ncut, ntri
 
-    ! Signed distance at every node, zero on the cut
-    double precision, intent(in) :: dist(ni, nj, nk)
+    ! Signed distance at every node, zero on the cut, in the single precision
+    ! of the coordinates it is measured from, as is everything worked out
+    ! from it here
+    real, intent(in) :: dist(ni, nj, nk)
 
     ! Zero-based (i, j, k) of each cut cell, and the index of the first
     ! triangle it contributes, so that cells can be walked in any order and
@@ -47,11 +49,11 @@ subroutine marching_cubes_edges( &
     ! Nodes each vertex lies between, and how far along it lies
     integer, intent(inout) :: ijk_lo(ntri, 3, 3)
     integer, intent(inout) :: ijk_hi(ntri, 3, 3)
-    double precision, intent(inout) :: frac(ntri, 3)
+    real, intent(inout) :: frac(ntri, 3)
 
     integer :: c, n, v, e, t, row
     integer :: ijk_cell(3), lo(3), hi(3), swap(3)
-    double precision :: d_lo, d_hi
+    real :: d_lo, d_hi
 
     do c = 1, ncut
         ijk_cell = cells(c, :)
@@ -111,7 +113,7 @@ subroutine marching_cubes_index(dist, vert_ijk, icube, ni, nj, nk)
 
     integer, intent(in) :: ni, nj, nk
 
-    double precision, intent(in) :: dist(ni, nj, nk)
+    real, intent(in) :: dist(ni, nj, nk)
 
     ! Zero-based (i, j, k) offset of each of the 8 corners of a cell
     integer, intent(in) :: vert_ijk(8, 3)
@@ -128,7 +130,7 @@ subroutine marching_cubes_index(dist, vert_ijk, icube, ni, nj, nk)
                 do v = 1, 8
                     if (dist(i + vert_ijk(v, 1), &
                              j + vert_ijk(v, 2), &
-                             k + vert_ijk(v, 3)) < 0.0d0) ic = ic + bit
+                             k + vert_ijk(v, 3)) < 0.0) ic = ic + bit
                     bit = bit * 2
                 end do
                 icube(i, j, k) = ic

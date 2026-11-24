@@ -20,30 +20,33 @@ subroutine signed_distance(xr, xq, d, nseg, npt)
     implicit none
 
     integer, intent(in) :: nseg, npt
-    double precision, intent(in) :: xr(nseg, 2), xq(npt, 2)
-    double precision, intent(out) :: d(npt)
 
-    ! Points per tile.  2048 doubles of running minimum plus the two coordinate
-    ! streams is 48 kB, which stays inside a typical 32-48 kB L1 with the
+    ! Single precision throughout, as ember stores coordinates, which is all
+    ! the precision a cut can have; it also doubles the vector width.
+    real, intent(in) :: xr(nseg, 2), xq(npt, 2)
+    real, intent(out) :: d(npt)
+
+    ! Points per tile.  2048 reals of running minimum plus the two coordinate
+    ! streams is 24 kB, which stays inside a typical 32-48 kB L1 with the
     ! streams themselves evicting rather than the minimum.
     integer, parameter :: NTILE = 2048
 
     integer :: i, s, i0, i1
-    double precision :: bx, br, ax, ar, Lsq, h, px, pr, cross, di, sgn
+    real :: bx, br, ax, ar, Lsq, h, px, pr, cross, di, sgn
 
     do i0 = 1, npt, NTILE
         i1 = min(i0 + NTILE - 1, npt)
 
         ! With no segments at all this sentinel is what the caller sees, but
         ! the caller screens that case out before reaching the kernel.
-        d(i0:i1) = huge(1.0d0)
+        d(i0:i1) = huge(1.0)
 
         do s = 1, nseg - 1
             bx = xr(s + 1, 1) - xr(s, 1)
             br = xr(s + 1, 2) - xr(s, 2)
 
             ! Floor the squared length so a repeated node cannot divide by zero
-            Lsq = max(bx * bx + br * br, 1.0d-9)
+            Lsq = max(bx * bx + br * br, 1.0e-9)
 
             do i = i0, i1
                 ax = xq(i, 1) - xr(s, 1)
@@ -51,7 +54,7 @@ subroutine signed_distance(xr, xq, d, nseg, npt)
 
                 ! Fraction along the segment of the projected point, clamped to
                 ! the segment so the distance is to the segment, not to its line
-                h = min(max((ax * bx + ar * br) / Lsq, 0.0d0), 1.0d0)
+                h = min(max((ax * bx + ar * br) / Lsq, 0.0), 1.0)
 
                 ! Perpendicular from the segment to the point
                 px = ax - bx * h
@@ -69,13 +72,14 @@ subroutine signed_distance(xr, xq, d, nseg, npt)
                 ! is zero.  Under -Ofast it comes out as +/- round-off instead,
                 ! whose sign differs between the vectorised loop body and the
                 ! scalar remainder, so equal points landed on opposite sides by
-                ! their place in the array.  Anything within 1e-12 of |a| |b|,
-                ! compared in squares to keep sqrt out, is therefore on the axis
-                ! and takes the positive side.  Not a zero sign, which the numpy
+                ! their place in the array.  Anything within 1e-6 of |a| |b|,
+                ! a few times the single precision round-off and compared in
+                ! squares to keep sqrt out, is therefore on the axis and takes
+                ! the positive side.  Not a zero sign, which the numpy
                 ! reference gives: stored as zero, the running minimum below
                 ! can then never be beaten by a nearer segment.
-                sgn = merge(1.0d0, sign(1.0d0, cross), &
-                            cross * cross <= 1.0d-24 * (ax * ax + ar * ar) * Lsq)
+                sgn = merge(1.0, sign(1.0, cross), &
+                            cross * cross <= 1.0e-12 * (ax * ax + ar * ar) * Lsq)
 
                 ! Compare unsigned, store signed, as the reference does
                 d(i) = merge(di * sgn, d(i), di < abs(d(i)))

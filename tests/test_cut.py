@@ -80,6 +80,7 @@ from ember.cut import (
     _cut_reaches_block,
     _first_j_crossing,
     _pitchwise_fluid,
+    _line_distance,
 )
 
 
@@ -1991,10 +1992,12 @@ class TestSignedDistance:
     def test_signed_distance_matches_numpy_reference(self):
         """The Fortran kernel reproduces the numpy implementation it replaced.
 
-        Magnitudes must agree to round-off. Signs may disagree, but only at a
-        point equidistant from two segments, where which segment is nearest --
-        and hence which side the point is deemed to be on -- is decided by the
-        last bit of the distance and is arbitrary in both implementations.
+        The kernel works in single precision, as ember's coordinates are, so
+        both sides take the same single precision inputs and the magnitudes
+        must agree to its round-off. Signs may disagree, but only at a point
+        (near) equidistant from two segments, where which segment is nearest
+        -- and hence which side the point is deemed to be on -- is decided by
+        round-off and is arbitrary in both implementations.
         """
 
         def nearest_two(xr, q):
@@ -2029,17 +2032,22 @@ class TestSignedDistance:
             lo, hi = xr.min(axis=0) - 1.0, xr.max(axis=0) + 1.0
             q = rng.random((20000, 2)) * (hi - lo) + lo
 
+            # The inputs the kernel sees, so only its arithmetic differs
+            xr = xr.astype(np.float32).astype(float)
+            q = q.astype(np.float32).astype(float)
+
             expected = _signed_distance_numpy(xr, q)
             actual = signed_distance(xr, q)
 
             # Magnitude is the part that is not tie-dependent
+            scale = np.abs(q).max() + np.abs(xr).max()
             assert np.allclose(
-                np.abs(actual), np.abs(expected), rtol=0.0, atol=1e-14
+                np.abs(actual), np.abs(expected), rtol=0.0, atol=1e-6 * scale
             ), name
 
             # Every sign disagreement sits on a tie between two segments
             d_first, d_second = nearest_two(xr, q)
-            tied = (d_second - d_first) <= 1e-12 * np.maximum(d_first, 1e-300)
+            tied = (d_second - d_first) <= 1e-6 * scale
             disagrees = np.sign(actual) != np.sign(expected)
             assert not np.any(disagrees & ~tied), name
 
@@ -2385,6 +2393,44 @@ def _marching_cubes_loop(data, dist):
         return None
 
 
+class TestStraightCut:
+    """A cut along a single segment runs along the whole of its line."""
+
+    def test_line_distance_matches_signed_distance_on_the_segment(self):
+        """Where the foot of the perpendicular is on the segment, they agree."""
+        rng = np.random.default_rng(0)
+        for xr in (
+            np.array([[0.43, 0.4], [0.43, 1.6]]),
+            np.array([[-0.1, 1.03], [1.1, 1.03]]),
+            np.array([[0.2, 0.4], [0.7, 1.6]]),
+        ):
+            q = (rng.random((5000, 2)) * 2.0).astype(np.float32)
+            b = xr[1] - xr[0]
+            h = ((q - xr[0]) @ b) / (b @ b)
+            on = (h > 0.0) & (h < 1.0)
+            np.testing.assert_allclose(
+                _line_distance(xr, q)[on], signed_distance(xr, q)[on], atol=1e-6
+            )
+
+    def test_short_segment_cuts_the_whole_block(self):
+        """A segment ending inside a block still cuts right across it."""
+        block = TestCutScreen._block_spanning([0.0, 1.0], [0.5, 1.5], (9, 9, 5))
+        cut = unstructured(block, np.array([[0.5, 0.9], [0.5, 1.1]]))
+
+        np.testing.assert_allclose(cut.x, 0.5, atol=1e-6)
+        np.testing.assert_allclose([cut.r.min(), cut.r.max()], [0.5, 1.5], atol=1e-6)
+
+    def test_screen_follows_the_line(self):
+        """The screen takes a block the line crosses, wherever the segment is."""
+        block = TestCutScreen._block_spanning([0.0, 1.0], [0.5, 1.5])
+
+        # The segment is well clear of the block, but its line runs through it
+        assert _cut_reaches_block(np.array([[0.5, 3.0], [0.5, 4.0]]), block)
+
+        # A line that misses the box altogether
+        assert not _cut_reaches_block(np.array([[2.0, 0.0], [2.0, 1.0]]), block)
+
+
 class TestMarchingCubesKernel:
     """The Fortran topology kernel behind _marching_cubes."""
 
@@ -2393,8 +2439,9 @@ class TestMarchingCubesKernel:
 
         The triangles are compared with their vertices gathered back onto
         them, in the order the cells were walked in, which is what the
-        caller's offsets arrange. The loop interpolates some edges from the
-        other end, so a vertex can differ from it by round-off.
+        caller's offsets arrange. The kernel finds each fraction along an
+        edge in single precision, and the loop in double from some edges'
+        other ends, so a vertex differs from it by single precision round-off.
         """
         rng = np.random.default_rng(0)
 
@@ -2437,8 +2484,8 @@ class TestMarchingCubesKernel:
                 np.testing.assert_allclose(
                     actual,
                     expected,
-                    rtol=1e-12,
-                    atol=1e-12,
+                    rtol=1e-5,
+                    atol=1e-5,
                     equal_nan=True,
                     err_msg=str((shape, trial)),
                 )
