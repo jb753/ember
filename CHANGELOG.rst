@@ -10,38 +10,23 @@ public API without a deprecation period.
 0.5.0
 -----
 
-* Move ``ember.outlet.calc_radial_equilibrium(patch)`` to the method
-  ``OutletPatch.calc_radial_equilibrium()``; the free function is removed
+* Make ``ember.outlet.calc_radial_equilibrium(patch)`` a method
+  ``OutletPatch.calc_radial_equilibrium()``
 * Fix ``Grid.resample`` leaving nodes unmatched across periodic and cusp
   interfaces between blocks, at any factor but a whole number: critical
-  indices are now carried across each interface, and each segment between
-  them gets ``round(span * factor)`` cells, so a block's total can differ
-  from ``round((n - 1) * factor)`` where its segments do not divide
+  indices are now carried across every patch including mixing planes
 * ``Grid.resample`` places new coordinates on monotone cubics through the old
-  grid lines (PCHIP, blended across each cell), not straight lines, so a
-  stretched grid stays smoothly stretched and a curved wall is not faceted;
-  flow variables are still interpolated linearly
+  grid lines, not straight lines, so a   stretched grid stays smoothly
+  stretched and a curved wall is not faceted
 * Add ``mult`` to ``Grid.resample``, ``block_util.resample`` and
   ``util.resample``: each segment between critical indices gets a multiple of
-  that many cells, so a grid whose segments are multiples of eight keeps
-  three multigrid levels at any factor
-* Fix ``Grid.resample`` parting the spanwise nodes of the two sides of a
-  mixing plane where one row's span is cut, as at the top of a blade with a
-  tip gap, and the other's is not: spanwise critical indices are now carried
-  across mixing planes too
+  that many cells, for rounding to a multigrid depth
 * Add ``ceilings`` to ``elliptic.winslow_sweeps``: the most length of each
   cell of the lines out from a wall, as ``floors`` is the least, each sweep
   pulling in a node further than that from the one inside it
-* Add ``ember.unstructured.UnstructuredBlock``, flow data at the vertices of
-  a triangulated surface with its faces as ``faces``, an ``(n_face, 3)``
-  index array, and their area vectors as ``dA``. ``cut.unstructured`` and
-  ``cut.triangulate_to_unstructured`` return one, storing each vertex once
-  however many faces share it (about a quarter of the memory for a
-  marching cubes cut), and the averages, fluxes and ``block_util.to_tm3``
-  take one. This replaces the ``(ntri, 3)`` Block
-  with a ``triangulated`` flag: ``Block.triangulated``,
-  ``Block.set_triangulated``, ``Block.dA_tri`` and ``Block.dA_tri_nd`` are
-  removed, and cuts pickled before this load as plain Blocks
+* Add ``ember.unstructured.UnstructuredBlock`` storing flow data at the
+  vertices of a triangulated surface, replacing the old ``Block.triangulated``
+  flag which duplicated data at shared vertices
 * Fix ``average.mass_average`` raising on an unstructured cut
 * ``cut.interpolate_to_structured`` carries the coordinates, conserved
   variables and metadata of the cut, but not solver fields such as the wall
@@ -49,14 +34,12 @@ public API without a deprecation period.
 * A cut along a single straight segment, in ``cut.unstructured`` and
   ``cut.structured_meridional``, now runs along the whole of its line across
   every block it reaches, rather than stopping near the segment's ends
-* Polyline cuts in ``cut.unstructured`` and ``cut.structured_meridional`` run
-  on along the end segments' lines within the blocks they reach, and no longer
-  cut where the nearest segment switches; working out the distance only near
-  the cut makes long curves several times quicker
+* Speedup ``cut.unstructured`` and ``cut.structured_meridional`` run
+  by calculating distances only near the cut line
 * ``cut.signed_distance`` returns single precision, as the coordinates are,
   and is about a third quicker on long curves; ``cut.unstructured`` and
   ``cut.structured_meridional`` are three to four times quicker: the kernels
-  work in single precision, a straight cut needs no search over segments,
+  now work in single precision, a straight cut needs no search over segments,
   marching cubes is one pass of one kernel, and the walk along ``j`` is a
   kernel of its own. ``cut.structured_meridional`` now returns single
   precision data, as every other block holds
