@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Array utilities &#8212; ember 0.4.10.dev7+g21aeca744 documentation</title>
+    <title>Array utilities &#8212; ember 0.4.11.dev20+g87aaec6a5 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=a9693e87"></script>
+    <script src="../_static/documentation_options.js?v=364d5ad8"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.10.dev7+g21aeca744</p>
+<p class="blurb">Version 0.4.11.dev20+g87aaec6a5</p>
 
 
 
@@ -73,6 +73,7 @@
 <li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
 <li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="unstructured.html">Unstructured blocks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="elliptic.html">Elliptic grid generation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
 <li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
@@ -275,7 +276,7 @@ useful for coarsening or refining the distribution of an existing grid.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#ember.util.cluster_symmetric" title="ember.util.cluster_symmetric"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cluster_symmetric</span></code></a>(n, ER[, dmax])</p></td>
 <td><p>Generate geometrically spaced points from 0 to 1, dense at both ends.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.resample" title="ember.util.resample"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resample</span></code></a>(factor, vector[, i_crit])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.util.resample" title="ember.util.resample"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resample</span></code></a>(factor, vector[, i_crit, mult])</p></td>
 <td><p>Resampled a vector with specified factor, optionally preserving critical points.</p></td>
 </tr>
 </tbody>
@@ -792,7 +793,7 @@ curve is the same one passed to <a class="reference internal" href="cut.html#emb
 the coordinate and the surface it describes are exactly consistent.</p>
 <p>Query points are projected onto the curve and their perpendicular offset
 discarded, so points lying near it rather than exactly on it — the
-triangulated output of <a class="reference internal" href="cut.html#ember.cut.unstructured" title="ember.cut.unstructured"><code class="xref py py-func docutils literal notranslate"><span class="pre">ember.cut.unstructured()</span></code></a>, say, or a blade
+vertices of an unstructured cut from <a class="reference internal" href="cut.html#ember.cut.unstructured" title="ember.cut.unstructured"><code class="xref py py-func docutils literal notranslate"><span class="pre">ember.cut.unstructured()</span></code></a>, say, or a blade
 surface — are handled without special-casing. A point beyond either end
 clamps to that end.</p>
 <dl class="field-list simple">
@@ -1040,7 +1041,7 @@ all, falls back to <a class="reference external" href="https://numpy.org/doc/sta
 
 <dl class="py function">
 <dt class="sig sig-object py" id="ember.util.resample">
-<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">resample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">factor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vector</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">i_crit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#resample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.resample" title="Link to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">util.</span></span><span class="sig-name descname"><span class="pre">resample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">factor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vector</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">i_crit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mult</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/util.html#resample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.util.resample" title="Link to this definition">¶</a></dt>
 <dd><p>Resampled a vector with specified factor, optionally preserving critical points.</p>
 <p>Creates a new vector by resampling with a given factor. The new length equals
 len(vector) * factor (approximately). Critical indices are preserved, and for
@@ -1053,6 +1054,11 @@ Must be &gt; 0.</p></li>
 <li><p><strong>vector</strong> (<em>array_like</em>) – Input vector to resample.</p></li>
 <li><p><strong>i_crit</strong> (<em>array_like</em><em>, </em><em>optional</em>) – Critical indices that must be preserved in the output.
 Must be sorted and within [0, len(vector)-1]. If None, uses [0, len(vector)-1].</p></li>
+<li><p><strong>mult</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a><em>, </em><em>optional</em>) – Give each segment between critical indices a multiple of this many
+cells, the nearest to its span times <cite>factor</cite> and at least <cite>mult</cite>, so
+that a multigrid level can halve every segment however the factor
+divides: eight keeps three levels. One, the default, rounds to the
+nearest cell.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>

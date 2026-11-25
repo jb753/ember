@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Block utilities &#8212; ember 0.4.10.dev7+g21aeca744 documentation</title>
+    <title>Block utilities &#8212; ember 0.4.11.dev20+g87aaec6a5 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=a9693e87"></script>
+    <script src="../_static/documentation_options.js?v=364d5ad8"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.10.dev7+g21aeca744</p>
+<p class="blurb">Version 0.4.11.dev20+g87aaec6a5</p>
 
 
 
@@ -89,6 +89,7 @@
 <li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
 <li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="unstructured.html">Unstructured blocks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="elliptic.html">Elliptic grid generation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
 <li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
@@ -194,7 +195,7 @@ block-granularity functions.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#ember.block_util.repeat_pitchwise" title="ember.block_util.repeat_pitchwise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">repeat_pitchwise</span></code></a>(block, n_passage)</p></td>
 <td><p>Return copies of <cite>block</cite>, each one blade pitch further round.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block_util.resample" title="ember.block_util.resample"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resample</span></code></a>(block, factors)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.block_util.resample" title="ember.block_util.resample"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resample</span></code></a>(block, factors[, ijk_crit, mult])</p></td>
 <td><p>Resample 3D block with vectorized interpolation while preserving patch connectivity.</p></td>
 </tr>
 </tbody>
@@ -237,7 +238,7 @@ inverse of its partner.</p>
 <td><p>y+ on all six wall-adjacent boundary faces of <code class="docutils literal notranslate"><span class="pre">block</span></code>.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#ember.block_util.to_tm3" title="ember.block_util.to_tm3"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_tm3</span></code></a>(block, filename[, clip_quantile])</p></td>
-<td><p>Write a triangulated cut to a tm3 binary file.</p></td>
+<td><p>Write an unstructured cut to a tm3 binary file.</p></td>
 </tr>
 </tbody>
 </table>
@@ -341,7 +342,7 @@ patch’s averaging plane.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="ember.block_util.resample">
-<span class="sig-prename descclassname"><span class="pre">block_util.</span></span><span class="sig-name descname"><span class="pre">resample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">factors</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/block_util.html#resample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.block_util.resample" title="Link to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">block_util.</span></span><span class="sig-name descname"><span class="pre">resample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">factors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ijk_crit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mult</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/block_util.html#resample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.block_util.resample" title="Link to this definition">¶</a></dt>
 <dd><p>Resample 3D block with vectorized interpolation while preserving patch connectivity.</p>
 <p>Creates a new block by resampling with given factor(s). Critical indices from
 patch boundaries are preserved to maintain connectivity. Uses scipy.interpn
@@ -352,6 +353,12 @@ for efficient multi-dimensional interpolation.</p>
 <li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a>) – Block to resample</p></li>
 <li><p><strong>factors</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a><em> of </em><em>3 floats</em>) – Resampling factor(s). Values &gt; 1 increase resolution, &lt; 1 decrease resolution.
 If scalar, same factor applied to all three dimensions.</p></li>
+<li><p><strong>ijk_crit</strong> (<em>sequence</em><em> of </em><em>3 iterables</em><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a><em>, </em><em>optional</em>) – Further critical indices in each direction, beyond the block’s ends and
+its own patch boundaries. <a class="reference internal" href="grid.html#ember.grid.Grid.resample" title="ember.grid.Grid.resample"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.resample()</span></code></a> passes those its
+neighbours impose across a matched interface, so that both sides of it
+are cut into the same segments and get the same nodes.</p></li>
+<li><p><strong>mult</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a><em>, </em><em>optional</em>) – Give each segment between critical indices, in every direction, a
+multiple of this many cells; see <a class="reference internal" href="util.html#ember.util.resample" title="ember.util.resample"><code class="xref py py-func docutils literal notranslate"><span class="pre">ember.util.resample()</span></code></a>.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -501,22 +508,22 @@ non-wall cells.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="ember.block_util.to_tm3">
 <span class="sig-prename descclassname"><span class="pre">block_util.</span></span><span class="sig-name descname"><span class="pre">to_tm3</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">block</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_quantile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/block_util.html#to_tm3"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.block_util.to_tm3" title="Link to this definition">¶</a></dt>
-<dd><p>Write a triangulated cut to a tm3 binary file.</p>
+<dd><p>Write an unstructured cut to a tm3 binary file.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>block</strong> (<a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><em>Block</em></a>) – Triangulated block with shape <code class="docutils literal notranslate"><span class="pre">(ntri,</span> <span class="pre">3)</span></code>.</p></li>
+<li><p><strong>block</strong> (<a class="reference internal" href="unstructured.html#ember.unstructured.UnstructuredBlock" title="ember.unstructured.UnstructuredBlock"><em>UnstructuredBlock</em></a>) – Unstructured triangulated cut.</p></li>
 <li><p><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em> or </em><em>path-like</em>) – Output file path.</p></li>
 <li><p><strong>clip_quantile</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a><em>, </em><em>optional</em>) – Quantile used to clip the property colour range. The range is set
 to [q, 1-q] percentiles so that extreme outliers do not dominate
 the colour scale. Default is 0.01 (1%). Set to 0 to use the
 full min/max range.</p></li>
-<li><p><strong>**kwargs</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><em>ntri</em><em>, </em><em>3</em><em>)</em>) – Exactly one keyword argument: the key is used as the property name
+<li><p><strong>**kwargs</strong> (<em>array_like</em><em>, </em><a class="reference internal" href="block.html#ember.block.Block.shape" title="ember.block.Block.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="unstructured.html#ember.unstructured.UnstructuredBlock.n_vert" title="ember.unstructured.UnstructuredBlock.n_vert"><em>n_vert</em></a><em>,</em><em>)</em>) – Exactly one keyword argument: the key is used as the property name
 in the file, the value is the per-vertex scalar array.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.15)"><strong>ValueError</strong></a> – If the block is not triangulated, kwargs count != 1, or the value
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.15)"><strong>ValueError</strong></a> – If the block is not unstructured, kwargs count != 1, or the value
     shape does not match the block shape.</p>
 </dd>
 </dl>

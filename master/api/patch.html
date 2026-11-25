@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Patch &#8212; ember 0.4.10.dev7+g21aeca744 documentation</title>
+    <title>Patch &#8212; ember 0.4.11.dev20+g87aaec6a5 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=a9693e87"></script>
+    <script src="../_static/documentation_options.js?v=364d5ad8"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.10.dev7+g21aeca744</p>
+<p class="blurb">Version 0.4.11.dev20+g87aaec6a5</p>
 
 
 
@@ -104,6 +104,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="unstructured.html">Unstructured blocks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="elliptic.html">Elliptic grid generation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
 <li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
@@ -1562,6 +1563,43 @@ unset.</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="ember.patch.OutletPatch.calc_radial_equilibrium">
+<span class="sig-name descname"><span class="pre">calc_radial_equilibrium</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/outlet.html#OutletPatch.calc_radial_equilibrium"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.OutletPatch.calc_radial_equilibrium" title="Link to this definition">¶</a></dt>
+<dd><p>Spanwise static pressure profile in centrifugal radial equilibrium.</p>
+<p>Swirling flow leaving a blade row carries a centrifugal radial pressure
+gradient,</p>
+<div class="math notranslate nohighlight">
+\[\frac{dp}{dr} = \frac{\overline{\rho V_\theta}\;\overline{V_\theta}}{r}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\overline{\Box}\)</span> is the pitch mean. This product-of-means
+form matches the Multall <code class="docutils literal notranslate"><span class="pre">EXBCONDS</span></code> radial-equilibrium treatment. Flow
+quantities are pitch-averaged over the first interior layer (the
+offset-1 slice) rather than the boundary face, so the profile is driven
+by the interior rather than by whatever the boundary condition last
+wrote there.</p>
+<p>Integrated from hub to tip and anchored to zero at the hub, so adding
+it to a prescribed pressure enforces that pressure at the hub. Computed
+from the current flow on every call; this is the profile
+<a class="reference internal" href="#ember.patch.OutletPatch.set_adjustment" title="ember.patch.OutletPatch.set_adjustment"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_adjustment()</span></code></a> relaxes toward each timestep.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Nondimensional pressure offset at each span station, shape
+<code class="docutils literal notranslate"><span class="pre">(nspan,)</span></code>, zero at the hub. Multiply by <code class="docutils literal notranslate"><span class="pre">fluid.P_ref</span></code> for
+pascals; broadcast over the patch shape to add it to a pressure.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>array</p>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<dl class="simple">
+<dt><a class="reference internal" href="#ember.patch.OutletPatch.set_adjustment" title="ember.patch.OutletPatch.set_adjustment"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ember.patch.OutletPatch.set_adjustment</span></code></a></dt><dd><p>Enables this on the outlet</p>
+</dd>
+</dl>
+</div>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="ember.patch.OutletPatch.update_ref_scales">
 <span class="sig-name descname"><span class="pre">update_ref_scales</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/outlet.html#OutletPatch.update_ref_scales"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.patch.OutletPatch.update_ref_scales" title="Link to this definition">¶</a></dt>
 <dd><p>Re-derive the prescribed pressure and drop the spanwise adjustment.</p>
@@ -1665,7 +1703,7 @@ re-prescribe to hold that point:</p>
 </div>
 <p>Held apart from <a class="reference internal" href="#ember.patch.OutletPatch.P" title="ember.patch.OutletPatch.P"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P</span></code></a> because that is the imposed field rather than
 its level, and the two differ under <a class="reference internal" href="#ember.patch.OutletPatch.set_adjustment" title="ember.patch.OutletPatch.set_adjustment"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_adjustment()</span></code></a> — see
-<code class="xref py py-func docutils literal notranslate"><span class="pre">calc_radial_equilibrium()</span></code>, whose profile is anchored at the hub,
+<a class="reference internal" href="#ember.patch.OutletPatch.calc_radial_equilibrium" title="ember.patch.OutletPatch.calc_radial_equilibrium"><code class="xref py py-meth docutils literal notranslate"><span class="pre">calc_radial_equilibrium()</span></code></a>, whose profile is anchored at the hub,
 so the level is the hub value and not the mean of <a class="reference internal" href="#ember.patch.OutletPatch.P" title="ember.patch.OutletPatch.P"><code class="xref py py-attr docutils literal notranslate"><span class="pre">P</span></code></a>.</p>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>

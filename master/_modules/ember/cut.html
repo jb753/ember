@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.cut &#8212; ember 0.4.10.dev7+g21aeca744 documentation</title>
+    <title>ember.cut &#8212; ember 0.4.11.dev20+g87aaec6a5 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=a9693e87"></script>
+    <script src="../../_static/documentation_options.js?v=364d5ad8"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.10.dev7+g21aeca744</p>
+<p class="blurb">Version 0.4.11.dev20+g87aaec6a5</p>
 
 
 
@@ -69,6 +69,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/unstructured.html">Unstructured blocks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/elliptic.html">Elliptic grid generation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
@@ -161,7 +162,8 @@
 
 <span class="sd">This module implements the marching cubes algorithm for extracting isosurfaces from 3D</span>
 <span class="sd">structured grids, along with utilities for creating both structured meridional cuts and</span>
-<span class="sd">unstructured triangulated cuts. The marching cubes implementation uses a precomputed lookup</span>
+<span class="sd">unstructured triangulated cuts, returned as</span>
+<span class="sd">:class:`~ember.unstructured.UnstructuredBlock`. The marching cubes implementation uses a precomputed lookup</span>
 <span class="sd">table (TRITABLE) to determine how to triangulate the cell edges an isosurface intersects.</span>
 <span class="sd">Key functionality includes extracting</span>
 <span class="sd">unstructured triangular cuts using signed distance fields, creating structured 2D meridional</span>
@@ -187,6 +189,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">ember.grid</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ember</span><span class="w"> </span><span class="kn">import</span> <span class="n">util</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">ember.block</span><span class="w"> </span><span class="kn">import</span> <span class="n">Block</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember.unstructured</span><span class="w"> </span><span class="kn">import</span> <span class="n">_like</span>
 
 <span class="n">_TRITABLE</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
     <span class="p">[</span>
@@ -506,82 +509,100 @@
 <span class="c1"># of a cell&#39;s 8 vertices and of the two ends of its 12 edges. All are derived</span>
 <span class="c1"># from the table and helpers above rather than written out again, and are</span>
 <span class="c1"># handed to the Fortran kernels so that they hold no copy of their own.</span>
-<span class="n">_NTRITABLE</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">(</span><span class="n">_TRITABLE</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">3</span>
 <span class="n">_VERT_IJK</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
     <span class="p">[[</span><span class="n">s</span><span class="o">.</span><span class="n">start</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">_vijk</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">v</span><span class="p">)]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">8</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span>
 <span class="p">)</span>
 <span class="n">_EDGE_IJK</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">_eijk</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">12</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_cube_index</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;For a 3D array of signed distances, get cube indices.&quot;&quot;&quot;</span>
-    <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">shape</span>
-    <span class="n">ind</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nk</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
-    <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">marching_cubes_index</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">_VERT_IJK</span><span class="p">,</span> <span class="n">ind</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">ind</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_marching_cubes</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">dist</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_marching_cubes</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Take an unstructured cut of 3D data using a signed distance field.</span>
+
+<span class="sd">    The kernel forms the distance ``na * a + nb * b - c0`` at each node as it</span>
+<span class="sd">    goes. With only `a` given, that is `a` itself, a distance field already</span>
+<span class="sd">    worked out; a straight cut instead passes the meridional coordinates and</span>
+<span class="sd">    its line&#39;s coefficients, and no field is ever built.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    data: (ni, nj, nk, nvar) array</span>
 <span class="sd">        Data variables arranged on a three-dimensional structured grid</span>
 <span class="sd">        following ember convention with components in last axis.</span>
-<span class="sd">    dist: (ni, nj, nk) array</span>
-<span class="sd">        The signed distance field at each grid point, `dist=0` sets the cut location.</span>
+<span class="sd">    a, b: (ni, nj, nk) array</span>
+<span class="sd">        Fields the signed distance is formed from, zero on the cut.</span>
+<span class="sd">    coeffs: tuple of float</span>
+<span class="sd">        ``(na, nb, c0)``. The default makes the distance `a`.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
-<span class="sd">    triangles: (ntri, 3, nvar) array</span>
-<span class="sd">        The unstructured cut is composed of `ntri` triangles, each with 3</span>
-<span class="sd">        vertices, holding values for each of the `nvar` data variables.</span>
+<span class="sd">    verts: (n_vert, nvar) array</span>
+<span class="sd">        Data variables at each vertex of the cut, one vertex per cut edge</span>
+<span class="sd">        however many triangles share it.</span>
+<span class="sd">    faces: (n_face, 3) int32 array</span>
+<span class="sd">        Indices into `verts` of the three vertices of each triangle.</span>
 
+<span class="sd">    Returns None if nothing is cut.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">a</span> <span class="k">if</span> <span class="n">b</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">na</span><span class="p">,</span> <span class="n">nb</span><span class="p">,</span> <span class="n">c0</span> <span class="o">=</span> <span class="n">coeffs</span>
 
-    <span class="c1"># Which of the 256 corner sign patterns each cell has, and so how many</span>
-    <span class="c1"># triangles it contributes</span>
-    <span class="n">icube</span> <span class="o">=</span> <span class="n">_cube_index</span><span class="p">(</span><span class="n">dist</span><span class="p">)</span>
-    <span class="n">ntri_cell</span> <span class="o">=</span> <span class="n">_NTRITABLE</span><span class="p">[</span><span class="n">icube</span><span class="p">]</span>
-
-    <span class="c1"># Where each cell&#39;s triangles start in the output. Counting in C order</span>
-    <span class="c1"># walks the cells i first, which is the order the triangles come back in.</span>
-    <span class="n">ntri_flat</span> <span class="o">=</span> <span class="n">ntri_cell</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="s2">&quot;C&quot;</span><span class="p">)</span>
-    <span class="n">offsets</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">ntri_flat</span><span class="p">)</span> <span class="o">-</span> <span class="n">ntri_flat</span>
-    <span class="n">ntri</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">ntri_flat</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+    <span class="c1"># Room for one triangle per cell, which a cut through a 3D block, crossing</span>
+    <span class="c1"># a few percent of its cells, comes nowhere near. Pages of an empty array</span>
+    <span class="c1"># are only mapped in when written, so the room left over costs nothing.</span>
+    <span class="c1"># A cut that does make more is counted in full, and then run again with</span>
+    <span class="c1"># room for all of it.</span>
+    <span class="n">cap</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="mi">1</span><span class="p">))),</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">ic_row</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="n">i_cut</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">ic_row</span><span class="p">)</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">lo</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="n">cap</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+        <span class="n">hi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="n">cap</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+        <span class="n">frac</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="n">cap</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+        <span class="n">n_face</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">marching_cubes</span><span class="p">(</span>
+            <span class="n">a</span><span class="p">,</span>
+            <span class="n">b</span><span class="p">,</span>
+            <span class="n">na</span><span class="p">,</span>
+            <span class="n">nb</span><span class="p">,</span>
+            <span class="n">c0</span><span class="p">,</span>
+            <span class="n">_VERT_IJK</span><span class="p">,</span>
+            <span class="n">_TRITABLE</span><span class="p">,</span>
+            <span class="n">_EDGE_IJK</span><span class="p">,</span>
+            <span class="n">lo</span><span class="p">,</span>
+            <span class="n">hi</span><span class="p">,</span>
+            <span class="n">frac</span><span class="p">,</span>
+            <span class="n">ic_row</span><span class="p">,</span>
+            <span class="n">i_cut</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">n_face</span> <span class="o">&lt;=</span> <span class="n">cap</span><span class="p">:</span>
+            <span class="k">break</span>
+        <span class="n">cap</span> <span class="o">=</span> <span class="n">n_face</span>
 
     <span class="c1"># Nothing is cut</span>
-    <span class="k">if</span> <span class="n">ntri</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">n_face</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span>
 
-    <span class="c1"># Only the cells that contribute a triangle reach the kernel, which for a</span>
-    <span class="c1"># cut of a 3D block is a couple of percent of them</span>
-    <span class="n">cells</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argwhere</span><span class="p">(</span><span class="n">ntri_cell</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
-
-    <span class="n">ijk_lo</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">ntri</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
-    <span class="n">ijk_hi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">ntri</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
-    <span class="n">frac</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">ntri</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
-
-    <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">marching_cubes_edges</span><span class="p">(</span>
-        <span class="n">dist</span><span class="p">,</span>
-        <span class="n">cells</span><span class="p">,</span>
-        <span class="n">offsets</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ntri_cell</span><span class="o">.</span><span class="n">shape</span><span class="p">)[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">cells</span><span class="o">.</span><span class="n">T</span><span class="p">)],</span>
-        <span class="n">icube</span><span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">cells</span><span class="o">.</span><span class="n">T</span><span class="p">)],</span>
-        <span class="n">_TRITABLE</span><span class="p">,</span>
-        <span class="n">_EDGE_IJK</span><span class="p">,</span>
-        <span class="n">ijk_lo</span><span class="p">,</span>
-        <span class="n">ijk_hi</span><span class="p">,</span>
-        <span class="n">frac</span><span class="p">,</span>
+    <span class="c1"># One vertex per cut edge, however many triangles share it. The kernel</span>
+    <span class="c1"># gives each edge as its pair of nodes, lower first, so the pair is the</span>
+    <span class="c1"># same from every cell around the edge and keys it. Transposed, the</span>
+    <span class="c1"># vertices run face by face.</span>
+    <span class="n">lo</span> <span class="o">=</span> <span class="n">lo</span><span class="p">[:,</span> <span class="p">:</span><span class="n">n_face</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+    <span class="n">hi</span> <span class="o">=</span> <span class="n">hi</span><span class="p">[:,</span> <span class="p">:</span><span class="n">n_face</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+    <span class="n">frac</span> <span class="o">=</span> <span class="n">frac</span><span class="p">[:,</span> <span class="p">:</span><span class="n">n_face</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">first</span><span class="p">,</span> <span class="n">inverse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span>
+        <span class="n">lo</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span> <span class="o">*</span> <span class="n">a</span><span class="o">.</span><span class="n">size</span> <span class="o">+</span> <span class="n">hi</span><span class="p">,</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">return_inverse</span><span class="o">=</span><span class="kc">True</span>
     <span class="p">)</span>
+    <span class="n">faces</span> <span class="o">=</span> <span class="n">inverse</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n_face</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
 
     <span class="c1"># Interpolate every variable onto the vertices the kernel located. Done</span>
     <span class="c1"># here rather than in the kernel so that the data keeps whatever precision</span>
-    <span class="c1"># it arrived in, and never has to be handed over in bulk.</span>
-    <span class="n">data_lo</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">ijk_lo</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">ijk_lo</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">ijk_lo</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]]</span>
-    <span class="n">data_hi</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">ijk_hi</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">ijk_hi</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">ijk_hi</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]]</span>
+    <span class="c1"># it arrived in, and never has to be handed over in bulk. The node indices</span>
+    <span class="c1"># flatten i fastest, as a block&#39;s data is stored, so this is a view.</span>
+    <span class="n">flat</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+    <span class="n">data_lo</span> <span class="o">=</span> <span class="n">flat</span><span class="p">[</span><span class="n">lo</span><span class="p">[</span><span class="n">first</span><span class="p">]]</span>
+    <span class="n">data_hi</span> <span class="o">=</span> <span class="n">flat</span><span class="p">[</span><span class="n">hi</span><span class="p">[</span><span class="n">first</span><span class="p">]]</span>
 
-    <span class="k">return</span> <span class="n">data_lo</span> <span class="o">+</span> <span class="p">(</span><span class="n">data_hi</span> <span class="o">-</span> <span class="n">data_lo</span><span class="p">)</span> <span class="o">*</span> <span class="n">frac</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">data_lo</span> <span class="o">+</span> <span class="p">(</span><span class="n">data_hi</span> <span class="o">-</span> <span class="n">data_lo</span><span class="p">)</span> <span class="o">*</span> <span class="n">frac</span><span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span> <span class="n">faces</span>
 
 
 <div class="viewcode-block" id="signed_distance">
@@ -603,7 +624,8 @@
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    Array, shape (...)</span>
-<span class="sd">        Signed distance above or below the cut.</span>
+<span class="sd">        Signed distance above or below the cut, in single precision like the</span>
+<span class="sd">        coordinates it is measured from.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -616,22 +638,112 @@
     <span class="c1"># A single node spans no segment, so nothing is ever nearer than the</span>
     <span class="c1"># sentinel.  The kernel would return its own, so screen the case out here.</span>
     <span class="k">if</span> <span class="n">xr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
 
     <span class="c1"># The kernel indexes points fastest and components slowest, which is the</span>
     <span class="c1"># Fortran ordering ember stores nodal arrays in, so the reshape below is a</span>
-    <span class="c1"># view for a block coordinate array rather than a repack.  Widening to</span>
-    <span class="c1"># double is a copy, since those arrays are single precision, but it is one</span>
-    <span class="c1"># pass against the numpy version&#39;s ten per segment, and it keeps the return</span>
-    <span class="c1"># dtype this function has always had.</span>
-    <span class="n">xr_query</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">xr_query</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="c1"># view for a block coordinate array rather than a repack. They are single</span>
+    <span class="c1"># precision, as the kernel takes them, so they reach it without a copy.</span>
+    <span class="n">xr_query</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">xr_query</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
     <span class="n">d</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">signed_distance</span><span class="p">(</span>
-        <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">xr</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">xr</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
         <span class="n">xr_query</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">),</span>
     <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span></div>
 
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_line_normal</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Unit normal and offset of the line through a single segment.</span>
+
+<span class="sd">    Returns ``(nx, nr, c)`` such that ``nx * x + nr * r - c`` is the signed</span>
+<span class="sd">    distance from the line, with the sign :func:`signed_distance` gives.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="p">(</span><span class="n">x0</span><span class="p">,</span> <span class="n">r0</span><span class="p">),</span> <span class="p">(</span><span class="n">x1</span><span class="p">,</span> <span class="n">r1</span><span class="p">)</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">bx</span><span class="p">,</span> <span class="n">br</span> <span class="o">=</span> <span class="n">x1</span> <span class="o">-</span> <span class="n">x0</span><span class="p">,</span> <span class="n">r1</span> <span class="o">-</span> <span class="n">r0</span>
+    <span class="n">length</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">bx</span> <span class="o">*</span> <span class="n">bx</span> <span class="o">+</span> <span class="n">br</span> <span class="o">*</span> <span class="n">br</span><span class="p">,</span> <span class="mf">1e-9</span><span class="p">))</span>
+    <span class="n">nx</span><span class="p">,</span> <span class="n">nr</span> <span class="o">=</span> <span class="o">-</span><span class="n">br</span> <span class="o">/</span> <span class="n">length</span><span class="p">,</span> <span class="n">bx</span> <span class="o">/</span> <span class="n">length</span>
+    <span class="k">return</span> <span class="n">nx</span><span class="p">,</span> <span class="n">nr</span><span class="p">,</span> <span class="n">x0</span> <span class="o">*</span> <span class="n">nx</span> <span class="o">+</span> <span class="n">r0</span> <span class="o">*</span> <span class="n">nr</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_line_distance</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">xr_query</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Signed distance from the line through a single segment, past both ends.</span>
+
+<span class="sd">    Agrees with :func:`signed_distance` wherever the foot of the perpendicular</span>
+<span class="sd">    falls on the segment, sign included, and carries the same values on along</span>
+<span class="sd">    the line beyond its ends. Linear in the coordinates, so a few array passes</span>
+<span class="sd">    rather than the kernel&#39;s search over segments. In single precision, as</span>
+<span class="sd">    the coordinates are.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nx</span><span class="p">,</span> <span class="n">nr</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">_line_normal</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">))</span>
+    <span class="n">xr_query</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">xr_query</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">xr_query</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">nx</span>
+    <span class="n">d</span> <span class="o">+=</span> <span class="n">xr_query</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">nr</span>
+    <span class="n">d</span> <span class="o">-=</span> <span class="n">c</span>
+    <span class="k">return</span> <span class="n">d</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_distance_args</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">block</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fields and coefficients the kernels form a block&#39;s cut distance from.</span>
+
+<span class="sd">    The cut is the zero level of a signed distance. Only its sign and the</span>
+<span class="sd">    fraction along a grid edge where it vanishes are used, neither of which a</span>
+<span class="sd">    uniform scaling changes, so it is measured in the block&#39;s nondimensional</span>
+<span class="sd">    coordinates, a view of its data, rather than in scaled copies of them.</span>
+
+<span class="sd">    The cut runs on past both ends of the curve, straight along its end</span>
+<span class="sd">    segments, so through a block it reaches it is the curve and those two</span>
+<span class="sd">    rays, and the distance is to all three. A single straight segment is</span>
+<span class="sd">    then just its line, whose distance is linear in the coordinates, so the</span>
+<span class="sd">    kernels form it node by node from ``(x, r)`` and the line&#39;s coefficients</span>
+<span class="sd">    and no field is built. A polyline cut is :func:`_cut_field`, which the</span>
+<span class="sd">    default coefficients take as it is.</span>
+
+<span class="sd">    Returns the positional arguments ``(a, [b, coeffs])`` that follow the</span>
+<span class="sd">    data in :func:`_marching_cubes` and :func:`_first_j_crossing`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">xr_cut_nd</span> <span class="o">=</span> <span class="n">xr_cut</span> <span class="o">/</span> <span class="n">block</span><span class="o">.</span><span class="n">L_ref</span>
+    <span class="n">xrt_nd</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">xrt_nd</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">xrt_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">xrt_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">_line_normal</span><span class="p">(</span><span class="n">xr_cut_nd</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">_cut_field</span><span class="p">(</span><span class="n">xr_cut_nd</span><span class="p">,</span> <span class="n">xrt_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]),)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_cut_field</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">xr_query</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Signed distance to a cut curve and its end rays, exact near the cut.</span>
+
+<span class="sd">    The curve is carried on past both ends as straight rays along its end</span>
+<span class="sd">    segments. Each node is signed by the side of the curve and rays it lies</span>
+<span class="sd">    on, positive on the left of the direction the curve runs, as</span>
+<span class="sd">    :func:`signed_distance` signs it near the curve. Unlike</span>
+<span class="sd">    :func:`signed_distance`, which signs a node by the segment nearest it,</span>
+<span class="sd">    the sign changes only across the cut itself, never where the nearest</span>
+<span class="sd">    segment switches.</span>
+
+<span class="sd">    The distance is exact wherever the cutting kernels use it, at the nodes</span>
+<span class="sd">    of every grid edge the cut crosses, and at all nodes near the cut. Further</span>
+<span class="sd">    off only the sign is worked out, and the magnitude is the largest single</span>
+<span class="sd">    precision number. See ``cut_distance`` in ``_fortran/distance.f90``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    xr_cut : array_like, shape (n_points, 2)</span>
+<span class="sd">        Cut curve, of at least two points; neither it nor its rays may cross</span>
+<span class="sd">        themselves.</span>
+<span class="sd">    xr_query : Array, shape (ni, nj, nk, 2)</span>
+<span class="sd">        Meridional coordinates of a block&#39;s nodes.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Array, shape (ni, nj, nk)</span>
+<span class="sd">        Signed distance, in single precision.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">xr_cut</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">keep</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">xr_cut</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">cut_distance</span><span class="p">(</span>
+        <span class="n">xr_cut</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">xr_query</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span> <span class="n">keep</span>
+    <span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_cut_reaches_block</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">block</span><span class="p">):</span>
@@ -671,6 +783,13 @@
     <span class="k">assert</span> <span class="n">xr_cut</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;Segments must have shape (..., 2)&quot;</span>
     <span class="k">assert</span> <span class="n">xr_cut</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;Segments must be at least 2D&quot;</span>
 
+    <span class="c1"># A single segment cuts along the whole of its line, which reaches the box</span>
+    <span class="c1"># if the box&#39;s corners are not all on one side of it</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">corners</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">lo</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">lo</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span> <span class="p">[</span><span class="n">lo</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">hi</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span> <span class="p">[</span><span class="n">hi</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">lo</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span> <span class="n">hi</span><span class="p">])</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">_line_distance</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">corners</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="mf">0.0</span> <span class="o">&lt;=</span> <span class="n">d</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
+
     <span class="n">seg_start</span> <span class="o">=</span> <span class="n">xr_cut</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
     <span class="n">seg_delta</span> <span class="o">=</span> <span class="n">xr_cut</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">seg_start</span>
 
@@ -700,9 +819,11 @@
 
 
 <span class="n">CUT_EXTEND</span> <span class="o">=</span> <span class="mf">0.1</span>
-<span class="sd">&quot;&quot;&quot;How far :func:`unstructured` carries a cut curve on past each end, as a</span>
-<span class="sd">fraction of the end segment&#39;s length. Enough to cover the wall cells straddling</span>
-<span class="sd">a hub-to-casing line; short enough not to reach back into the fluid.&quot;&quot;&quot;</span>
+<span class="sd">&quot;&quot;&quot;How far past each end of a cut curve :func:`unstructured` looks for the</span>
+<span class="sd">blocks it reaches, as a fraction of the end segment&#39;s length. Enough to take in</span>
+<span class="sd">a block whose wall cells straddle the end of a hub-to-casing line; short enough</span>
+<span class="sd">not to reach back into the fluid. Within a block it does reach, the cut runs</span>
+<span class="sd">on along the end segments&#39; lines regardless.&quot;&quot;&quot;</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_extend_ends</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">frac</span><span class="p">):</span>
@@ -723,9 +844,12 @@
 <span class="sd">    Extracts a triangulated isosurface where the meridional cut curve</span>
 <span class="sd">    intersects the grid, by running the marching cubes algorithm on the</span>
 <span class="sd">    signed distance field of each block. Triangles from all intersected</span>
-<span class="sd">    blocks are concatenated into a single unstructured block. The curve&#39;s end</span>
-<span class="sd">    segments are carried on by :data:`CUT_EXTEND` of their length, so a curve</span>
-<span class="sd">    ending on an endwall cuts the wall cells cleanly.</span>
+<span class="sd">    blocks are concatenated into a single unstructured block. Within each</span>
+<span class="sd">    block the curve reaches, or comes within :data:`CUT_EXTEND` of its end</span>
+<span class="sd">    segments&#39; length of reaching, the cut runs on past both ends straight</span>
+<span class="sd">    along those segments, so a curve ending on an endwall cuts the wall cells</span>
+<span class="sd">    cleanly. A single straight segment is thus its whole line, which is also</span>
+<span class="sd">    the quicker case to evaluate.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -736,7 +860,7 @@
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
-<span class="sd">    cut : Block, shape (ntri, 3) or None</span>
+<span class="sd">    cut : UnstructuredBlock or None</span>
 <span class="sd">        Unstructured triangulated cut, or None if the curve does not</span>
 <span class="sd">        intersect any block.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -745,51 +869,42 @@
         <span class="n">grid</span> <span class="o">=</span> <span class="p">[</span><span class="n">grid</span><span class="p">]</span>
 
     <span class="c1"># A cut curve usually ends on an endwall, but where that wall is sloped the</span>
-    <span class="c1"># wall cells straddling the cut have nodes past the end of the curve. Their</span>
-    <span class="c1"># distance is then to the end point rather than across the line, which is</span>
-    <span class="c1"># larger, so marching cubes puts the vertices on those edges off the line,</span>
-    <span class="c1"># tens of microns on a spinner, differently at every theta. Carry the end</span>
-    <span class="c1"># segments on straight so the zero level stays the line through the walls.</span>
+    <span class="c1"># wall cells straddling the cut have nodes past the end of the curve. The</span>
+    <span class="c1"># cut runs on along the end segments in any block it reaches, so those</span>
+    <span class="c1"># cells are cut on the line through the walls. Carry the curve on a little</span>
+    <span class="c1"># before screening the blocks too, so that one whose wall cells are all</span>
+    <span class="c1"># that straddle it is still reached.</span>
     <span class="n">xr_cut</span> <span class="o">=</span> <span class="n">_extend_ends</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span> <span class="n">CUT_EXTEND</span><span class="p">)</span>
 
     <span class="c1"># Loop over blocks</span>
-    <span class="n">triangles</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">verts</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">faces</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">n_vert</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">last_block</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">grid</span><span class="p">:</span>
         <span class="c1"># Reject the blocks the curve does not reach before building any</span>
-        <span class="c1"># distance field. This also keeps out a block that the curve misses</span>
-        <span class="c1"># but whose field still changes sign, which happens across the medial</span>
-        <span class="c1"># axis between two segments, where the nearest segment switches and</span>
-        <span class="c1"># takes the sign with it without the distance passing through zero.</span>
+        <span class="c1"># distance field. This also keeps out a block that only the rays</span>
+        <span class="c1"># running on from the curve&#39;s ends would cut.</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">_cut_reaches_block</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">block</span><span class="p">):</span>
             <span class="k">continue</span>
 
-        <span class="c1"># Scaled from the nondimensional coordinates rather than read from</span>
-        <span class="c1"># block.xrt, which also copies the circumferential component</span>
-        <span class="n">xr_coords</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">xrt_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">block</span><span class="o">.</span><span class="n">L_ref</span>
+        <span class="c1"># Get triangles for this block, or None if the cut misses it</span>
+        <span class="n">cut_block</span> <span class="o">=</span> <span class="n">_marching_cubes</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">_data</span><span class="p">,</span> <span class="o">*</span><span class="n">_distance_args</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">block</span><span class="p">))</span>
 
-        <span class="c1"># Evaluate signed distance for all points in the block</span>
-        <span class="n">dist</span> <span class="o">=</span> <span class="n">signed_distance</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">xr_coords</span><span class="p">)</span>
-
-        <span class="c1"># Skip blocks that do not intersect the cut</span>
-        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">dist</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">dist</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">):</span>
-            <span class="k">continue</span>
-
-        <span class="c1"># Get triangles for this block</span>
-        <span class="n">triangles_block</span> <span class="o">=</span> <span class="n">_marching_cubes</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">_data</span><span class="p">,</span> <span class="n">dist</span><span class="p">)</span>
-
-        <span class="c1"># Add triangles to the list</span>
-        <span class="k">if</span> <span class="n">triangles_block</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">triangles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">triangles_block</span><span class="p">)</span>
+        <span class="c1"># Add them to the list, numbering this block&#39;s vertices after those</span>
+        <span class="c1"># of the blocks before. Vertices on an interface between blocks are</span>
+        <span class="c1"># kept once per block.</span>
+        <span class="k">if</span> <span class="n">cut_block</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">verts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cut_block</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">faces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cut_block</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">n_vert</span><span class="p">)</span>
+            <span class="n">n_vert</span> <span class="o">+=</span> <span class="n">cut_block</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
             <span class="n">last_block</span> <span class="o">=</span> <span class="n">block</span>
 
-    <span class="c1"># Join all blocks into one array</span>
-    <span class="k">if</span> <span class="n">triangles</span><span class="p">:</span>
-        <span class="n">triangles</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">triangles</span><span class="p">)</span>  <span class="c1"># Shape (ntri, 3, nvar)</span>
-
-        <span class="n">out</span> <span class="o">=</span> <span class="n">last_block</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">triangles</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>  <span class="c1"># Shape (ntri, 3)</span>
-        <span class="n">out</span><span class="o">.</span><span class="n">_data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">triangles</span>
-        <span class="n">out</span><span class="o">.</span><span class="n">set_triangulated</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># Join all blocks into one</span>
+    <span class="k">if</span> <span class="n">verts</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">_like</span><span class="p">(</span><span class="n">last_block</span><span class="p">,</span> <span class="n">n_vert</span><span class="p">)</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">_data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">verts</span><span class="p">)</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">set_faces</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">faces</span><span class="p">))</span>
 
         <span class="k">return</span> <span class="n">out</span>
 
@@ -798,7 +913,7 @@
 
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_first_j_crossing</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">dist</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_first_j_crossing</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coeffs</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Interpolate a block&#39;s data to the first sign change along ``j``.</span>
 
 <span class="sd">    Walks every :math:`(i, k)` grid line, finds the first ``j`` interval over</span>
@@ -806,12 +921,17 @@
 <span class="sd">    to the zero. Lines with no sign change, and lines whose bracketing</span>
 <span class="sd">    distances are too close together to interpolate between, come back as NaN.</span>
 
+<span class="sd">    The kernel forms the distance ``na * a + nb * b - c0`` node by node, as</span>
+<span class="sd">    :func:`_marching_cubes` does, so with only `a` given that is `a` itself.</span>
+
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    data : Array, shape (ni, nj, nk, nvar)</span>
 <span class="sd">        Nodal block data to interpolate.</span>
-<span class="sd">    dist : Array, shape (ni, nj, nk)</span>
-<span class="sd">        Signed distance to the cut curve at every node.</span>
+<span class="sd">    a, b : Array, shape (ni, nj, nk)</span>
+<span class="sd">        Fields the signed distance is formed from, zero on the cut.</span>
+<span class="sd">    coeffs : tuple of float</span>
+<span class="sd">        ``(na, nb, c0)``. The default makes the distance `a`.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -819,47 +939,29 @@
 <span class="sd">        Data on the cut, NaN on the lines that do not cross it.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">dist</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">a</span> <span class="k">if</span> <span class="n">b</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">shape</span>
 
-    <span class="n">cut_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">ni</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+    <span class="n">j_cut</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">ni</span><span class="p">,</span> <span class="n">nk</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+    <span class="n">frac</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">ni</span><span class="p">,</span> <span class="n">nk</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+    <span class="n">d_lo</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">n_cut</span> <span class="o">=</span> <span class="n">ember</span><span class="o">.</span><span class="n">fortran</span><span class="o">.</span><span class="n">first_j_crossing</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="o">*</span><span class="n">coeffs</span><span class="p">,</span> <span class="n">j_cut</span><span class="p">,</span> <span class="n">frac</span><span class="p">,</span> <span class="n">d_lo</span><span class="p">)</span>
 
-    <span class="c1"># A single j station spans no interval to cross, so no line can cut</span>
-    <span class="k">if</span> <span class="n">nj</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">cut_data</span>
-
-    <span class="c1"># Comparing signs rather than differencing them keeps a node sitting</span>
-    <span class="c1"># exactly on the curve a sign change on both sides of itself, which is</span>
-    <span class="c1"># what walking the line one interval at a time gives.</span>
-    <span class="n">sgn</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">dist</span><span class="p">)</span>
-    <span class="n">changes</span> <span class="o">=</span> <span class="n">sgn</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">!=</span> <span class="n">sgn</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># Shape (ni, nj-1, nk)</span>
-
-    <span class="c1"># First sign change along j. argmax reports the first True, and zero for a</span>
-    <span class="c1"># line with no sign change at all, which found masks off below.</span>
-    <span class="n">found</span> <span class="o">=</span> <span class="n">changes</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Shape (ni, nk)</span>
-    <span class="n">j_cut</span> <span class="o">=</span> <span class="n">changes</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Shape (ni, nk)</span>
-
-    <span class="c1"># Distances bracketing the cut, gathered from each line&#39;s own j_cut</span>
-    <span class="n">j_gather</span> <span class="o">=</span> <span class="n">j_cut</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># Put back the j axis to gather along</span>
-    <span class="n">d1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span> <span class="n">j_gather</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
-    <span class="n">d2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span> <span class="n">j_gather</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
-
-    <span class="c1"># A line whose bracketing distances are too close to interpolate between</span>
-    <span class="c1"># is left uncut, rather than moved on to its next crossing</span>
-    <span class="n">delta</span> <span class="o">=</span> <span class="n">d2</span> <span class="o">-</span> <span class="n">d1</span>
-    <span class="n">valid</span> <span class="o">=</span> <span class="n">found</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">delta</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mf">1e-12</span><span class="p">)</span>
-
-    <span class="c1"># Linear interpolation, clamped to the interval it came from.  The invalid</span>
-    <span class="c1"># lines divide by a zero delta here, and are masked off immediately after.</span>
-    <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">divide</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">invalid</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">):</span>
-        <span class="n">frac</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="o">-</span><span class="n">d1</span> <span class="o">/</span> <span class="n">delta</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
-
-    <span class="c1"># Interpolate every variable across the bracketing pair of j stations</span>
-    <span class="n">j_gather</span> <span class="o">=</span> <span class="n">j_gather</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>  <span class="c1"># Broadcast over the variables</span>
-    <span class="n">data1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">j_gather</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:]</span>
-    <span class="n">data2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">j_gather</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:]</span>
-    <span class="n">cut_data</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="n">data1</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">data2</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span> <span class="o">-</span> <span class="n">data1</span><span class="p">[</span><span class="n">valid</span><span class="p">])</span> <span class="o">*</span> <span class="n">frac</span><span class="p">[</span><span class="n">valid</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
-    <span class="p">)</span>
+    <span class="n">cut_data</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">ni</span><span class="p">,</span> <span class="n">nk</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">n_cut</span><span class="p">:</span>
+        <span class="c1"># Interpolate every variable across each crossed line&#39;s bracketing</span>
+        <span class="c1"># pair of j stations, done here so the data keeps its own precision.</span>
+        <span class="c1"># Lines and nodes are both flattened i fastest, as the data is</span>
+        <span class="c1"># stored, so the flattened data are a view.</span>
+        <span class="n">line</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flatnonzero</span><span class="p">(</span><span class="n">j_cut</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">i</span><span class="p">,</span> <span class="n">k</span> <span class="o">=</span> <span class="n">line</span> <span class="o">%</span> <span class="n">ni</span><span class="p">,</span> <span class="n">line</span> <span class="o">//</span> <span class="n">ni</span>
+        <span class="n">lo</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="n">ni</span> <span class="o">*</span> <span class="p">(</span><span class="n">j_cut</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)[</span><span class="n">line</span><span class="p">]</span> <span class="o">+</span> <span class="n">nj</span> <span class="o">*</span> <span class="n">k</span><span class="p">)</span>
+        <span class="n">flat</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+        <span class="n">data_lo</span> <span class="o">=</span> <span class="n">flat</span><span class="p">[</span><span class="n">lo</span><span class="p">]</span>
+        <span class="n">data_hi</span> <span class="o">=</span> <span class="n">flat</span><span class="p">[</span><span class="n">lo</span> <span class="o">+</span> <span class="n">ni</span><span class="p">]</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">cut_data</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+        <span class="n">out</span><span class="p">[</span><span class="n">line</span><span class="p">]</span> <span class="o">=</span> <span class="n">data_lo</span> <span class="o">+</span> <span class="p">(</span><span class="n">data_hi</span> <span class="o">-</span> <span class="n">data_lo</span><span class="p">)</span> <span class="o">*</span> <span class="n">frac</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)[</span><span class="n">line</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
 
     <span class="k">return</span> <span class="n">cut_data</span>
 
@@ -872,7 +974,10 @@
 <span class="sd">    For each block, walks every :math:`(i, k)` grid line and linearly</span>
 <span class="sd">    interpolates to the first ``j`` location where the signed distance to the</span>
 <span class="sd">    cut curve changes sign, producing one structured ``(ni, nk)`` cut per</span>
-<span class="sd">    intersected block.</span>
+<span class="sd">    intersected block. Within a block the curve reaches, the cut runs on</span>
+<span class="sd">    past both ends straight along the end segments, as in</span>
+<span class="sd">    :func:`unstructured`, so a single straight segment cuts along its whole</span>
+<span class="sd">    line.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -892,6 +997,7 @@
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">Block</span><span class="p">):</span>
         <span class="n">grid</span> <span class="o">=</span> <span class="p">[</span><span class="n">grid</span><span class="p">]</span>
 
+    <span class="n">xr_cut</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
     <span class="n">cut_blocks</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">grid</span><span class="p">:</span>
@@ -900,21 +1006,10 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="n">_cut_reaches_block</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">block</span><span class="p">):</span>
             <span class="k">continue</span>
 
-        <span class="c1"># Get meridional coordinates, scaled from the nondimensional ones</span>
-        <span class="c1"># rather than read from block.xrt, which also copies theta</span>
-        <span class="n">xr_coords</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">xrt_nd</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">block</span><span class="o">.</span><span class="n">L_ref</span>
-
-        <span class="c1"># Get signed distance</span>
-        <span class="n">dist</span> <span class="o">=</span> <span class="n">signed_distance</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">xr_coords</span><span class="p">)</span>
-
-        <span class="c1"># Check for intersection</span>
-        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">dist</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">dist</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">):</span>
-            <span class="k">continue</span>
-
         <span class="n">ni</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">nk</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span>
 
         <span class="c1"># Interpolate to the first j crossing on every (i, k) line</span>
-        <span class="n">cut_data</span> <span class="o">=</span> <span class="n">_first_j_crossing</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">_data</span><span class="p">,</span> <span class="n">dist</span><span class="p">)</span>
+        <span class="n">cut_data</span> <span class="o">=</span> <span class="n">_first_j_crossing</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">_data</span><span class="p">,</span> <span class="o">*</span><span class="n">_distance_args</span><span class="p">(</span><span class="n">xr_cut</span><span class="p">,</span> <span class="n">block</span><span class="p">))</span>
 
         <span class="c1"># Check if we found any valid cuts</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">cut_data</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">])):</span>
@@ -960,7 +1055,7 @@
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    unstructured_block : Block, shape (ntri, 3)</span>
+<span class="sd">    unstructured_block : UnstructuredBlock</span>
 <span class="sd">        Unstructured triangulated cut, for example from :func:`unstructured`.</span>
 <span class="sd">    interp_shape : tuple of int</span>
 <span class="sd">        Target structured grid shape ``(ni, nj)``.</span>
@@ -981,17 +1076,23 @@
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    cut : Block, shape (ni, nj)</span>
-<span class="sd">        Structured block with data interpolated onto the line-conforming grid.</span>
+<span class="sd">        Structured block with the coordinates and conserved variables</span>
+<span class="sd">        interpolated onto the line-conforming grid, and the fluid, length</span>
+<span class="sd">        scale, rotation, blade count and label of the cut. Solver fields such</span>
+<span class="sd">        as the wall distance are not carried over.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span> <span class="o">=</span> <span class="n">interp_shape</span>
 
-    <span class="c1"># Flatten triangle vertices to a point cloud, shape (ntri*3, nvar).</span>
-    <span class="n">triangle_data</span> <span class="o">=</span> <span class="n">unstructured_block</span><span class="o">.</span><span class="n">_data</span>
-    <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">nvar</span> <span class="o">=</span> <span class="n">triangle_data</span><span class="o">.</span><span class="n">shape</span>
-    <span class="n">points</span> <span class="o">=</span> <span class="n">triangle_data</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">nvar</span><span class="p">)</span>
-    <span class="n">xr</span> <span class="o">=</span> <span class="n">points</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
-    <span class="n">t_src</span> <span class="o">=</span> <span class="n">points</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
-    <span class="n">variables</span> <span class="o">=</span> <span class="n">points</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:]</span>
+    <span class="c1"># Gather the vertices onto the corners of each face, as a point cloud of</span>
+    <span class="c1"># n_face*3 points. The periodic wrap below moves whole faces by whole</span>
+    <span class="c1"># pitches, so a vertex shared by faces either side of the seam takes a</span>
+    <span class="c1"># different theta in each and cannot be wrapped once for all of them.</span>
+    <span class="n">faces</span> <span class="o">=</span> <span class="n">unstructured_block</span><span class="o">.</span><span class="n">faces</span>
+    <span class="n">n_face</span> <span class="o">=</span> <span class="n">faces</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">xrt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">unstructured_block</span><span class="o">.</span><span class="n">xrt</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)[</span><span class="n">faces</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="n">xr</span> <span class="o">=</span> <span class="n">xrt</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">t_src</span> <span class="o">=</span> <span class="n">xrt</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="n">variables</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">unstructured_block</span><span class="o">.</span><span class="n">conserved</span><span class="p">)[</span><span class="n">faces</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
 
     <span class="c1"># Project the whole cloud onto the meridional line&#39;s principal direction</span>
     <span class="c1"># with a single SVD. The first right-singular vector is the line&#39;s dominant</span>
@@ -1104,11 +1205,10 @@
     <span class="c1"># rather than re-triangulating the cloud. Reshape the per-vertex unfolded</span>
     <span class="c1"># coords and variables back into triangles, tiling +/- one period in the</span>
     <span class="c1"># periodic case so the seam stays continuous (mirrors the src_pts tiling).</span>
-    <span class="n">ntri_src</span> <span class="o">=</span> <span class="n">triangle_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">nvar_var</span> <span class="o">=</span> <span class="n">variables</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-    <span class="n">tri_zeta</span> <span class="o">=</span> <span class="n">zeta_src</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ntri_src</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
-    <span class="n">tri_tn</span> <span class="o">=</span> <span class="n">tn_src</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ntri_src</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
-    <span class="n">tri_var</span> <span class="o">=</span> <span class="n">variables</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ntri_src</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">nvar_var</span><span class="p">)</span>
+    <span class="n">tri_zeta</span> <span class="o">=</span> <span class="n">zeta_src</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n_face</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="n">tri_tn</span> <span class="o">=</span> <span class="n">tn_src</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n_face</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+    <span class="n">tri_var</span> <span class="o">=</span> <span class="n">variables</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n_face</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">nvar_var</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">periodic</span><span class="p">:</span>
         <span class="n">tri_xy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
             <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">tri_zeta</span><span class="p">,</span> <span class="n">tri_tn</span> <span class="o">+</span> <span class="n">d</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)]</span>
@@ -1128,16 +1228,18 @@
     <span class="n">near</span> <span class="o">=</span> <span class="n">src_vars</span><span class="p">[</span><span class="n">idx</span><span class="o">.</span><span class="n">ravel</span><span class="p">()]</span>
     <span class="n">interp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">interp</span><span class="p">),</span> <span class="n">near</span><span class="p">,</span> <span class="n">interp</span><span class="p">)</span>
 
-    <span class="c1"># Assemble the structured output block.</span>
-    <span class="n">output_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nvar</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
-    <span class="n">output_data</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">x_t</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
-    <span class="n">output_data</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">r_t</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
-    <span class="n">output_data</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">theta_out</span>
-    <span class="n">output_data</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:]</span> <span class="o">=</span> <span class="n">interp</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-
-    <span class="n">result_block</span> <span class="o">=</span> <span class="n">unstructured_block</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">))</span>
-    <span class="n">result_block</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">output_data</span>
-    <span class="k">return</span> <span class="n">result_block</span></div>
+    <span class="c1"># Assemble the structured output block, with the metadata of the cut</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">Block</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">))</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">unstructured_block</span><span class="o">.</span><span class="n">fluid</span><span class="p">)</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">set_L_ref</span><span class="p">(</span><span class="n">unstructured_block</span><span class="o">.</span><span class="n">L_ref</span><span class="p">)</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">set_Omega</span><span class="p">(</span><span class="n">unstructured_block</span><span class="o">.</span><span class="n">Omega</span><span class="p">)</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">set_Nb</span><span class="p">(</span><span class="n">unstructured_block</span><span class="o">.</span><span class="n">Nb</span><span class="p">)</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">set_label</span><span class="p">(</span><span class="n">unstructured_block</span><span class="o">.</span><span class="n">label</span><span class="p">)</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">set_x</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">x_t</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">)))</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">set_r</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">r_t</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">)))</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">set_t</span><span class="p">(</span><span class="n">theta_out</span><span class="p">)</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">set_conserved</span><span class="p">(</span><span class="n">interp</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ni</span><span class="p">,</span> <span class="n">nj</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">result</span></div>
 
 
 
@@ -1195,7 +1297,7 @@
 <span class="sd">    ----------</span>
 <span class="sd">    zeta_t : ndarray, shape (ni,)</span>
 <span class="sd">        Arc-length coordinate of each pitchwise line.</span>
-<span class="sd">    tri_zeta, tri_tn : ndarray, shape (ntri, 3)</span>
+<span class="sd">    tri_zeta, tri_tn : ndarray, shape (n_face, 3)</span>
 <span class="sd">        Vertex arc length and theta, in pitches, of each triangle.</span>
 <span class="sd">    tol : float</span>
 <span class="sd">        Uncovered arcs narrower than this, in pitches, are round-off between</span>
@@ -1297,8 +1399,8 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">triangulate_to_unstructured</span><span class="p">(</span><span class="n">block</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert a structured 2D cut into a triangulated unstructured cut.</span>
 
-<span class="sd">    Splits every structured quad face into two triangles, producing an</span>
-<span class="sd">    unstructured block with ``ntri = 2 (ni - 1) (nj - 1)`` triangles.</span>
+<span class="sd">    Every node becomes a vertex, and every structured quad face is split into</span>
+<span class="sd">    two triangles, giving ``n_face = 2 (ni - 1) (nj - 1)`` faces.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -1307,8 +1409,8 @@
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
-<span class="sd">    cut : Block, shape (ntri, 3)</span>
-<span class="sd">        Unstructured block with triangle-vertex data.</span>
+<span class="sd">    cut : UnstructuredBlock</span>
+<span class="sd">        Unstructured block with ``n_vert = ni * nj`` vertices.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Only work on 2D cuts</span>
     <span class="k">assert</span> <span class="n">block</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
@@ -1322,40 +1424,25 @@
     <span class="c1">#</span>
 
     <span class="n">ni</span><span class="p">,</span> <span class="n">nj</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">shape</span>
-    <span class="n">ntri</span> <span class="o">=</span> <span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span>
+    <span class="n">nvar</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
 
-    <span class="c1"># Create index arrays for vectorized access</span>
-    <span class="n">i_indices</span><span class="p">,</span> <span class="n">j_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="nb">range</span><span class="p">(</span><span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="n">indexing</span><span class="o">=</span><span class="s2">&quot;ij&quot;</span><span class="p">)</span>
-    <span class="n">i_flat</span> <span class="o">=</span> <span class="n">i_indices</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
-    <span class="n">j_flat</span> <span class="o">=</span> <span class="n">j_indices</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+    <span class="c1"># Vertices in Fortran order, so node (i, j) is vertex i + ni * j</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">_like</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">ni</span> <span class="o">*</span> <span class="n">nj</span><span class="p">)</span>
+    <span class="n">out</span><span class="o">.</span><span class="n">_data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ni</span> <span class="o">*</span> <span class="n">nj</span><span class="p">,</span> <span class="n">nvar</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
 
-    <span class="c1"># Preallocate output data</span>
-    <span class="n">out</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">ntri</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+    <span class="c1"># Corner vertices of every quad, i varying slowest</span>
+    <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">ni</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nj</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="n">indexing</span><span class="o">=</span><span class="s2">&quot;ij&quot;</span><span class="p">)</span>
+    <span class="n">v00</span> <span class="o">=</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="n">ni</span> <span class="o">*</span> <span class="n">j</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+    <span class="n">v01</span> <span class="o">=</span> <span class="n">v00</span> <span class="o">+</span> <span class="n">ni</span>
+    <span class="n">v11</span> <span class="o">=</span> <span class="n">v00</span> <span class="o">+</span> <span class="n">ni</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">v10</span> <span class="o">=</span> <span class="n">v00</span> <span class="o">+</span> <span class="mi">1</span>
 
-    <span class="c1"># Extract vertex data for all quads at once</span>
-    <span class="c1"># Triangle A vertices: (i,j), (i,j+1), (i+1,j+1)</span>
-    <span class="n">v1_A</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="n">i_flat</span><span class="p">,</span> <span class="n">j_flat</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># Shape: (nquads, nvar)</span>
-    <span class="n">v2_A</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="n">i_flat</span><span class="p">,</span> <span class="n">j_flat</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
-    <span class="n">v3_A</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="n">i_flat</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">j_flat</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
-
-    <span class="c1"># Triangle B vertices: (i,j), (i+1,j+1), (i+1,j)</span>
-    <span class="n">v1_B</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="n">i_flat</span><span class="p">,</span> <span class="n">j_flat</span><span class="p">,</span> <span class="p">:]</span>
-    <span class="n">v2_B</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="n">i_flat</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">j_flat</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
-    <span class="n">v3_B</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="n">i_flat</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">j_flat</span><span class="p">,</span> <span class="p">:]</span>
-
-    <span class="c1"># Assign triangle data - interleave A and B triangles</span>
-
-    <span class="c1"># Triangle A data</span>
-    <span class="n">out</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="mi">0</span><span class="p">::</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">v1_A</span>  <span class="c1"># First vertex of triangle A</span>
-    <span class="n">out</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="mi">0</span><span class="p">::</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">v2_A</span>  <span class="c1"># Second vertex of triangle A</span>
-    <span class="n">out</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="mi">0</span><span class="p">::</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">v3_A</span>  <span class="c1"># Third vertex of triangle A</span>
-
-    <span class="c1"># Triangle B data</span>
-    <span class="n">out</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">v1_B</span>  <span class="c1"># First vertex of triangle B</span>
-    <span class="n">out</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">v2_B</span>  <span class="c1"># Second vertex of triangle B</span>
-    <span class="n">out</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">v3_B</span>  <span class="c1"># Third vertex of triangle B</span>
-
-    <span class="n">out</span><span class="o">.</span><span class="n">set_triangulated</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># Triangle A is (i,j), (i,j+1), (i+1,j+1); B is (i,j), (i+1,j+1), (i+1,j).</span>
+    <span class="c1"># Interleave A and B quad by quad.</span>
+    <span class="n">faces</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">2</span> <span class="o">*</span> <span class="n">v00</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="n">faces</span><span class="p">[</span><span class="mi">0</span><span class="p">::</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span><span class="n">v00</span><span class="p">,</span> <span class="n">v01</span><span class="p">,</span> <span class="n">v11</span><span class="p">])</span>
+    <span class="n">faces</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span><span class="n">v00</span><span class="p">,</span> <span class="n">v11</span><span class="p">,</span> <span class="n">v10</span><span class="p">])</span>
+    <span class="n">out</span><span class="o">.</span><span class="n">set_faces</span><span class="p">(</span><span class="n">faces</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">out</span></div>
 
 </pre></div>

@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Elliptic grid generation &#8212; ember 0.4.10.dev7+g21aeca744 documentation</title>
+    <title>Elliptic grid generation &#8212; ember 0.4.11.dev20+g87aaec6a5 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=a9693e87"></script>
+    <script src="../_static/documentation_options.js?v=364d5ad8"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -21,7 +21,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Solver" href="solver.html" />
-    <link rel="prev" title="Cutting" href="cut.html" />
+    <link rel="prev" title="Unstructured blocks" href="unstructured.html" />
    
   <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
   
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.10.dev7+g21aeca744</p>
+<p class="blurb">Version 0.4.11.dev20+g87aaec6a5</p>
 
 
 
@@ -73,6 +73,7 @@
 <li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
 <li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="unstructured.html">Unstructured blocks</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Elliptic grid generation</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#ember.elliptic.ttm_stencil"><code class="docutils literal notranslate"><span class="pre">ttm_stencil()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ember.elliptic.winslow_sweeps"><code class="docutils literal notranslate"><span class="pre">winslow_sweeps()</span></code></a></li>
@@ -144,7 +145,7 @@
 <h3>Related Topics</h3>
 <ul>
   <li><a href="../index.html">Documentation overview</a><ul>
-      <li>Previous: <a href="cut.html" title="previous chapter">Cutting</a></li>
+      <li>Previous: <a href="unstructured.html" title="previous chapter">Unstructured blocks</a></li>
       <li>Next: <a href="solver.html" title="next chapter">Solver</a></li>
   </ul></li>
 </ul>
@@ -210,7 +211,7 @@ with the neighbours’ pitch shifts already moved into the <cite>y</cite> compon
 
 <dl class="py function">
 <dt class="sig sig-object py" id="ember.elliptic.winslow_sweeps">
-<span class="sig-prename descclassname"><span class="pre">elliptic.</span></span><span class="sig-name descname"><span class="pre">winslow_sweeps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stencil_g</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stencil_s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pitch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">irregular</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">slide</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">corner</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wall</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_sweep</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">slide_wall</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orth_lines</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">relax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">floors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/elliptic.html#winslow_sweeps"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.elliptic.winslow_sweeps" title="Link to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">elliptic.</span></span><span class="sig-name descname"><span class="pre">winslow_sweeps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stencil_g</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stencil_s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pitch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">irregular</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">slide</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">corner</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wall</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_sweep</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">slide_wall</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orth_lines</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">relax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">floors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ceilings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/elliptic.html#winslow_sweeps"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.elliptic.winslow_sweeps" title="Link to this definition">¶</a></dt>
 <dd><p>Point-Jacobi sweeps of Winslow’s equations, in single precision.</p>
 <p>Each sweep moves every regular node to the solution of its nine-point
 stencil of</p>
@@ -277,6 +278,11 @@ rest between the lines of <cite>orth_lines</cite> in turn. Each sweep ends with
 every node nearer the node inside it than that pushed out along the
 cell between them to it, line by line out, so the lines keep their
 thickness where the sweeps would draw them in. None for no floor.</p></li>
+<li><p><strong>ceilings</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a><em>, </em><em>optional</em>) – <code class="docutils literal notranslate"><span class="pre">(w_max,</span> <span class="pre">on_max)</span></code>, shaped as <cite>floors</cite>: the most length of each of
+those cells. Each node further from the node inside it than that is
+pulled in along the cell between them to it, in the same pass as the
+floors push out, so the lines keep their thickness where the sweeps
+would spread them out. None for no ceiling.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>

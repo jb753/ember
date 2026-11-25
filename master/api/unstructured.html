@@ -1,0 +1,2028 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Unstructured blocks &#8212; ember 0.4.11.dev20+g87aaec6a5 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../_static/documentation_options.js?v=364d5ad8"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Elliptic grid generation" href="elliptic.html" />
+    <link rel="prev" title="Cutting" href="cut.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.4.11.dev20+g87aaec6a5</p>
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Unstructured blocks</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock"><code class="docutils literal notranslate"><span class="pre">UnstructuredBlock</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_faces"><code class="docutils literal notranslate"><span class="pre">set_faces()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.empty"><code class="docutils literal notranslate"><span class="pre">empty()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.flip"><code class="docutils literal notranslate"><span class="pre">flip()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.mean"><code class="docutils literal notranslate"><span class="pre">mean()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.nanmean"><code class="docutils literal notranslate"><span class="pre">nanmean()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.reshape"><code class="docutils literal notranslate"><span class="pre">reshape()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.squeeze"><code class="docutils literal notranslate"><span class="pre">squeeze()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.transpose"><code class="docutils literal notranslate"><span class="pre">transpose()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.dA"><code class="docutils literal notranslate"><span class="pre">dA</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.dA_nd"><code class="docutils literal notranslate"><span class="pre">dA_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.faces"><code class="docutils literal notranslate"><span class="pre">faces</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.n_face"><code class="docutils literal notranslate"><span class="pre">n_face</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.n_vert"><code class="docutils literal notranslate"><span class="pre">n_vert</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Alpha"><code class="docutils literal notranslate"><span class="pre">Alpha</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Alpha_rel"><code class="docutils literal notranslate"><span class="pre">Alpha_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Beta"><code class="docutils literal notranslate"><span class="pre">Beta</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.I"><code class="docutils literal notranslate"><span class="pre">I</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.L_ref"><code class="docutils literal notranslate"><span class="pre">L_ref</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Ma"><code class="docutils literal notranslate"><span class="pre">Ma</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Ma_rel"><code class="docutils literal notranslate"><span class="pre">Ma_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Mam"><code class="docutils literal notranslate"><span class="pre">Mam</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Max"><code class="docutils literal notranslate"><span class="pre">Max</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Nb"><code class="docutils literal notranslate"><span class="pre">Nb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Omega"><code class="docutils literal notranslate"><span class="pre">Omega</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Omega_nd"><code class="docutils literal notranslate"><span class="pre">Omega_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.P"><code class="docutils literal notranslate"><span class="pre">P</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.P_nd"><code class="docutils literal notranslate"><span class="pre">P_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.P_rot"><code class="docutils literal notranslate"><span class="pre">P_rot</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Po"><code class="docutils literal notranslate"><span class="pre">Po</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Po_rel"><code class="docutils literal notranslate"><span class="pre">Po_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Pr"><code class="docutils literal notranslate"><span class="pre">Pr</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Rgas"><code class="docutils literal notranslate"><span class="pre">Rgas</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.T"><code class="docutils literal notranslate"><span class="pre">T</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.T_nd"><code class="docutils literal notranslate"><span class="pre">T_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.To"><code class="docutils literal notranslate"><span class="pre">To</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.To_rel"><code class="docutils literal notranslate"><span class="pre">To_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.U"><code class="docutils literal notranslate"><span class="pre">U</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.V"><code class="docutils literal notranslate"><span class="pre">V</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.V_nd"><code class="docutils literal notranslate"><span class="pre">V_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.V_rel"><code class="docutils literal notranslate"><span class="pre">V_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vm"><code class="docutils literal notranslate"><span class="pre">Vm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vr"><code class="docutils literal notranslate"><span class="pre">Vr</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vr_nd"><code class="docutils literal notranslate"><span class="pre">Vr_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vt"><code class="docutils literal notranslate"><span class="pre">Vt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vt_nd"><code class="docutils literal notranslate"><span class="pre">Vt_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vt_rel"><code class="docutils literal notranslate"><span class="pre">Vt_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vt_rel_nd"><code class="docutils literal notranslate"><span class="pre">Vt_rel_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vx"><code class="docutils literal notranslate"><span class="pre">Vx</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vx_nd"><code class="docutils literal notranslate"><span class="pre">Vx_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vxrt"><code class="docutils literal notranslate"><span class="pre">Vxrt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vxrt_nd"><code class="docutils literal notranslate"><span class="pre">Vxrt_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vxrt_rel"><code class="docutils literal notranslate"><span class="pre">Vxrt_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vy"><code class="docutils literal notranslate"><span class="pre">Vy</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.Vz"><code class="docutils literal notranslate"><span class="pre">Vz</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.a"><code class="docutils literal notranslate"><span class="pre">a</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.a_nd"><code class="docutils literal notranslate"><span class="pre">a_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.ao"><code class="docutils literal notranslate"><span class="pre">ao</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.clear_cache"><code class="docutils literal notranslate"><span class="pre">clear_cache()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.conserved"><code class="docutils literal notranslate"><span class="pre">conserved</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.conserved_nd"><code class="docutils literal notranslate"><span class="pre">conserved_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.copy"><code class="docutils literal notranslate"><span class="pre">copy()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.cp"><code class="docutils literal notranslate"><span class="pre">cp</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.cp_nd"><code class="docutils literal notranslate"><span class="pre">cp_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.cv"><code class="docutils literal notranslate"><span class="pre">cv</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.dhdP_rho_nd"><code class="docutils literal notranslate"><span class="pre">dhdP_rho_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.dhdrho_P_nd"><code class="docutils literal notranslate"><span class="pre">dhdrho_P_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.dsdP_rho_nd"><code class="docutils literal notranslate"><span class="pre">dsdP_rho_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.dsdrho_P_nd"><code class="docutils literal notranslate"><span class="pre">dsdrho_P_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.dudP_rho_nd"><code class="docutils literal notranslate"><span class="pre">dudP_rho_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.dudrho_P_nd"><code class="docutils literal notranslate"><span class="pre">dudrho_P_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.fac_lam"><code class="docutils literal notranslate"><span class="pre">fac_lam</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.flat"><code class="docutils literal notranslate"><span class="pre">flat</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.fluid"><code class="docutils literal notranslate"><span class="pre">fluid</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.freeze"><code class="docutils literal notranslate"><span class="pre">freeze()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.frozen"><code class="docutils literal notranslate"><span class="pre">frozen</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.gamma"><code class="docutils literal notranslate"><span class="pre">gamma</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.h"><code class="docutils literal notranslate"><span class="pre">h</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.ho"><code class="docutils literal notranslate"><span class="pre">ho</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.ho_nd"><code class="docutils literal notranslate"><span class="pre">ho_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.ho_rel"><code class="docutils literal notranslate"><span class="pre">ho_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.kappa"><code class="docutils literal notranslate"><span class="pre">kappa</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.kappa_nd"><code class="docutils literal notranslate"><span class="pre">kappa_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.label"><code class="docutils literal notranslate"><span class="pre">label</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.masked"><code class="docutils literal notranslate"><span class="pre">masked()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.memory_usage"><code class="docutils literal notranslate"><span class="pre">memory_usage()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.mu"><code class="docutils literal notranslate"><span class="pre">mu</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.mu_nd"><code class="docutils literal notranslate"><span class="pre">mu_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.mu_turb"><code class="docutils literal notranslate"><span class="pre">mu_turb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.ndim"><code class="docutils literal notranslate"><span class="pre">ndim</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.ni"><code class="docutils literal notranslate"><span class="pre">ni</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.nj"><code class="docutils literal notranslate"><span class="pre">nj</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.nk"><code class="docutils literal notranslate"><span class="pre">nk</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.nvar"><code class="docutils literal notranslate"><span class="pre">nvar</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.pitch"><code class="docutils literal notranslate"><span class="pre">pitch</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.r"><code class="docutils literal notranslate"><span class="pre">r</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.r_mid_nd"><code class="docutils literal notranslate"><span class="pre">r_mid_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.r_nd"><code class="docutils literal notranslate"><span class="pre">r_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.rho"><code class="docutils literal notranslate"><span class="pre">rho</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.rhoVm"><code class="docutils literal notranslate"><span class="pre">rhoVm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.rhoVr"><code class="docutils literal notranslate"><span class="pre">rhoVr</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.rhoVx"><code class="docutils literal notranslate"><span class="pre">rhoVx</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.rho_nd"><code class="docutils literal notranslate"><span class="pre">rho_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.rhoe"><code class="docutils literal notranslate"><span class="pre">rhoe</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.rhoo"><code class="docutils literal notranslate"><span class="pre">rhoo</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.rhoo_rel"><code class="docutils literal notranslate"><span class="pre">rhoo_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.rhorVt"><code class="docutils literal notranslate"><span class="pre">rhorVt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.rpm"><code class="docutils literal notranslate"><span class="pre">rpm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.rt"><code class="docutils literal notranslate"><span class="pre">rt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.s"><code class="docutils literal notranslate"><span class="pre">s</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.s_nd"><code class="docutils literal notranslate"><span class="pre">s_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_L_ref"><code class="docutils literal notranslate"><span class="pre">set_L_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_Nb"><code class="docutils literal notranslate"><span class="pre">set_Nb()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_Omega"><code class="docutils literal notranslate"><span class="pre">set_Omega()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_P_T"><code class="docutils literal notranslate"><span class="pre">set_P_T()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_P_h"><code class="docutils literal notranslate"><span class="pre">set_P_h()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_P_rho"><code class="docutils literal notranslate"><span class="pre">set_P_rho()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_P_rho_nd"><code class="docutils literal notranslate"><span class="pre">set_P_rho_nd()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_P_s"><code class="docutils literal notranslate"><span class="pre">set_P_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_T_s"><code class="docutils literal notranslate"><span class="pre">set_T_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_V_Alpha_Beta"><code class="docutils literal notranslate"><span class="pre">set_V_Alpha_Beta()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_Vr"><code class="docutils literal notranslate"><span class="pre">set_Vr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_Vt"><code class="docutils literal notranslate"><span class="pre">set_Vt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_Vx"><code class="docutils literal notranslate"><span class="pre">set_Vx()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_Vxrt"><code class="docutils literal notranslate"><span class="pre">set_Vxrt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_conserved"><code class="docutils literal notranslate"><span class="pre">set_conserved()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_fac_lam"><code class="docutils literal notranslate"><span class="pre">set_fac_lam()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_fluid"><code class="docutils literal notranslate"><span class="pre">set_fluid()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_h_s"><code class="docutils literal notranslate"><span class="pre">set_h_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_label"><code class="docutils literal notranslate"><span class="pre">set_label()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_mu_turb"><code class="docutils literal notranslate"><span class="pre">set_mu_turb()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_r"><code class="docutils literal notranslate"><span class="pre">set_r()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_rho_s"><code class="docutils literal notranslate"><span class="pre">set_rho_s()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_rho_u"><code class="docutils literal notranslate"><span class="pre">set_rho_u()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_rpm"><code class="docutils literal notranslate"><span class="pre">set_rpm()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_t"><code class="docutils literal notranslate"><span class="pre">set_t()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_wdist"><code class="docutils literal notranslate"><span class="pre">set_wdist()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_x"><code class="docutils literal notranslate"><span class="pre">set_x()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_xrt"><code class="docutils literal notranslate"><span class="pre">set_xrt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_xyz"><code class="docutils literal notranslate"><span class="pre">set_xyz()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.shape"><code class="docutils literal notranslate"><span class="pre">shape</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.shape_cell"><code class="docutils literal notranslate"><span class="pre">shape_cell</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.shape_iface"><code class="docutils literal notranslate"><span class="pre">shape_iface</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.shape_jface"><code class="docutils literal notranslate"><span class="pre">shape_jface</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.shape_kface"><code class="docutils literal notranslate"><span class="pre">shape_kface</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.sinBeta"><code class="docutils literal notranslate"><span class="pre">sinBeta</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.size"><code class="docutils literal notranslate"><span class="pre">size</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.t"><code class="docutils literal notranslate"><span class="pre">t</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.tanAlpha"><code class="docutils literal notranslate"><span class="pre">tanAlpha</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.tanAlpha_rel"><code class="docutils literal notranslate"><span class="pre">tanAlpha_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.tanBeta"><code class="docutils literal notranslate"><span class="pre">tanBeta</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.u"><code class="docutils literal notranslate"><span class="pre">u</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.u_nd"><code class="docutils literal notranslate"><span class="pre">u_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.uo"><code class="docutils literal notranslate"><span class="pre">uo</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.uo_rel"><code class="docutils literal notranslate"><span class="pre">uo_rel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.update_cached_conserved"><code class="docutils literal notranslate"><span class="pre">update_cached_conserved()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.view"><code class="docutils literal notranslate"><span class="pre">view()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.wdist"><code class="docutils literal notranslate"><span class="pre">wdist</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.wdist_nd"><code class="docutils literal notranslate"><span class="pre">wdist_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.x"><code class="docutils literal notranslate"><span class="pre">x</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.xr"><code class="docutils literal notranslate"><span class="pre">xr</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.xrrt"><code class="docutils literal notranslate"><span class="pre">xrrt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.xrt"><code class="docutils literal notranslate"><span class="pre">xrt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.xrt_nd"><code class="docutils literal notranslate"><span class="pre">xrt_nd</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.y"><code class="docutils literal notranslate"><span class="pre">y</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.z"><code class="docutils literal notranslate"><span class="pre">z</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="elliptic.html">Elliptic grid generation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Version history</a></li>
+</ul>
+
+
+<hr />
+<ul>
+    
+    <li class="toctree-l1"><a href="https://github.com/jb753/ember">Source code repository</a></li>
+    
+</ul>
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../" + "../";
+    var current = "master";
+    var page = "api/unstructured.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="cut.html" title="previous chapter">Cutting</a></li>
+      <li>Next: <a href="elliptic.html" title="next chapter">Elliptic grid generation</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-ember.unstructured">
+<span id="unstructured-blocks"></span><h1>Unstructured blocks<a class="headerlink" href="#module-ember.unstructured" title="Link to this heading">¶</a></h1>
+<p>Flow data on an unstructured triangulated surface.</p>
+<p>An <a class="reference internal" href="#ember.unstructured.UnstructuredBlock" title="ember.unstructured.UnstructuredBlock"><code class="xref py py-class docutils literal notranslate"><span class="pre">UnstructuredBlock</span></code></a> holds flow data at a set of vertices together
+with the triangular faces that join them. It is what
+<a class="reference internal" href="cut.html#ember.cut.unstructured" title="ember.cut.unstructured"><code class="xref py py-func docutils literal notranslate"><span class="pre">ember.cut.unstructured()</span></code></a> returns, and it is accepted by the integrals
+and averages in <a class="reference internal" href="average.html#module-ember.average" title="ember.average"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ember.average</span></code></a> alongside a structured 2D cut.</p>
+<p>Each vertex is stored once, however many faces share it. Every flow
+property of a <a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><code class="xref py py-class docutils literal notranslate"><span class="pre">Block</span></code></a> is available, evaluated per
+vertex, with shape <code class="docutils literal notranslate"><span class="pre">(n_vert,)</span></code>; face quantities have shape
+<code class="docutils literal notranslate"><span class="pre">(n_face,</span> <span class="pre">...)</span></code>.</p>
+<p>Construction mirrors <a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><code class="xref py py-class docutils literal notranslate"><span class="pre">Block</span></code></a>: the constructor sizes the
+vertex data, and setters fill it in, connectivity included:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">u</span> <span class="o">=</span> <span class="n">UnstructuredBlock</span><span class="p">(</span><span class="n">n_vert</span><span class="p">)</span>
+<span class="n">u</span><span class="o">.</span><span class="n">set_faces</span><span class="p">(</span><span class="n">faces</span><span class="p">)</span>  <span class="c1"># int, shape (n_face, 3)</span>
+<span class="n">u</span><span class="o">.</span><span class="n">set_xrt</span><span class="p">(</span><span class="n">xrt</span><span class="p">)</span>  <span class="c1"># shape (n_vert, 3)</span>
+<span class="n">u</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid</span><span class="p">)</span>
+<span class="n">u</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">T</span><span class="p">)</span>
+<span class="n">u</span><span class="o">.</span><span class="n">set_Vxrt</span><span class="p">(</span><span class="n">Vxrt</span><span class="p">)</span>
+</pre></div>
+</div>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ember.unstructured.UnstructuredBlock" title="ember.unstructured.UnstructuredBlock"><code class="xref py py-obj docutils literal notranslate"><span class="pre">UnstructuredBlock</span></code></a>(n_vert)</p></td>
+<td><p>Allocate flow data at the vertices of an unstructured surface.</p></td>
+</tr>
+</tbody>
+</table>
+<dl class="py class">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">unstructured.</span></span><span class="sig-name descname"><span class="pre">UnstructuredBlock</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_vert</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/unstructured.html#UnstructuredBlock"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.unstructured.UnstructuredBlock" title="Link to this definition">¶</a></dt>
+<dd><p>Allocate flow data at the vertices of an unstructured surface.</p>
+<p>The vertex data hold every variable a <a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><code class="xref py py-class docutils literal notranslate"><span class="pre">Block</span></code></a>
+does, and are set and read through the same methods and properties.
+The triangles joining the vertices are set with <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_faces" title="ember.unstructured.UnstructuredBlock.set_faces"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_faces()</span></code></a>.</p>
+<p>Each face is a triple of vertex indices <span class="math notranslate nohighlight">\((A, B, C)\)</span>. Its area
+vector, <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.dA" title="ember.unstructured.UnstructuredBlock.dA"><code class="xref py py-attr docutils literal notranslate"><span class="pre">dA</span></code></a>, follows the right-hand rule around
+<span class="math notranslate nohighlight">\(A \to B \to C\)</span> in the pseudo-Cartesian space
+<span class="math notranslate nohighlight">\((x, r, r\theta)\)</span>, the same sense as the face areas of a
+structured cut.</p>
+<p>The vertices form a one-dimensional array, so the inherited
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.ndim" title="ember.unstructured.UnstructuredBlock.ndim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ndim</span></code></a> is 1 whatever the dimension of the surface. Operations
+that reorder or regroup the vertices (indexing, <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.flip" title="ember.unstructured.UnstructuredBlock.flip"><code class="xref py py-meth docutils literal notranslate"><span class="pre">flip()</span></code></a>,
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.reshape" title="ember.unstructured.UnstructuredBlock.reshape"><code class="xref py py-meth docutils literal notranslate"><span class="pre">reshape()</span></code></a> and the like) raise, because they would leave the
+faces pointing at the wrong vertices.</p>
+<p>A volume mesh would extend this class rather than replace it: each
+face would also store the cells either side of it, and the cells,
+their volumes and their vertex lists would be derived from those.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>n_vert</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – Number of vertices.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_faces">
+<span class="sig-name descname"><span class="pre">set_faces</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">faces</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/unstructured.html#UnstructuredBlock.set_faces"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_faces" title="Link to this definition">¶</a></dt>
+<dd><p>Set the triangles joining the vertices.</p>
+<p>The array is copied and stored read-only; set new faces to change
+them.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>faces</strong> (<em>array_like</em><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a><em>, </em><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.shape" title="ember.unstructured.UnstructuredBlock.shape"><em>shape</em></a><em> (</em><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.n_face" title="ember.unstructured.UnstructuredBlock.n_face"><em>n_face</em></a><em>, </em><em>3</em><em>)</em>) – Indices of the three vertices of each face, each in
+<code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">n_vert)</span></code>. Their order sets the direction of the face’s
+area vector by the right-hand rule.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.empty">
+<span class="sig-name descname"><span class="pre">empty</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/unstructured.html#UnstructuredBlock.empty"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.empty" title="Link to this definition">¶</a></dt>
+<dd><p>Create an uninitialised block on the same mesh.</p>
+<p>Returns a fresh <a class="reference internal" href="#ember.unstructured.UnstructuredBlock" title="ember.unstructured.UnstructuredBlock"><code class="xref py py-class docutils literal notranslate"><span class="pre">UnstructuredBlock</span></code></a> with the same vertices,
+faces and metadata and all data set to NaN, as
+<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.empty_like.html#numpy.empty_like" title="(in NumPy v2.5)"><code class="xref py py-func docutils literal notranslate"><span class="pre">numpy.empty_like()</span></code></a> keeps the type and shape of its argument.
+A block of another shape is made with the <a class="reference internal" href="block.html#ember.block.Block" title="ember.block.Block"><code class="xref py py-class docutils literal notranslate"><span class="pre">Block</span></code></a>
+constructor and setters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>out</strong> – A new uninitialised block sharing this one’s faces and metadata.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#ember.unstructured.UnstructuredBlock" title="ember.unstructured.UnstructuredBlock">UnstructuredBlock</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.flip">
+<span class="sig-name descname"><span class="pre">flip</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">axis</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/unstructured.html#UnstructuredBlock.flip"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.flip" title="Link to this definition">¶</a></dt>
+<dd><p>Raise: flipping would reorder the vertices.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.mean">
+<span class="sig-name descname"><span class="pre">mean</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">axis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keepdims</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/unstructured.html#UnstructuredBlock.mean"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.mean" title="Link to this definition">¶</a></dt>
+<dd><p>Raise: use the face-weighted averages in <a class="reference internal" href="average.html#module-ember.average" title="ember.average"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ember.average</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.nanmean">
+<span class="sig-name descname"><span class="pre">nanmean</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">axis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/unstructured.html#UnstructuredBlock.nanmean"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.nanmean" title="Link to this definition">¶</a></dt>
+<dd><p>Raise: use the face-weighted averages in <a class="reference internal" href="average.html#module-ember.average" title="ember.average"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ember.average</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.reshape">
+<span class="sig-name descname"><span class="pre">reshape</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/unstructured.html#UnstructuredBlock.reshape"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.reshape" title="Link to this definition">¶</a></dt>
+<dd><p>Raise: reshaping would regroup the vertices.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.squeeze">
+<span class="sig-name descname"><span class="pre">squeeze</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/unstructured.html#UnstructuredBlock.squeeze"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.squeeze" title="Link to this definition">¶</a></dt>
+<dd><p>Raise: squeezing would regroup the vertices.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.transpose">
+<span class="sig-name descname"><span class="pre">transpose</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">axes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/unstructured.html#UnstructuredBlock.transpose"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.transpose" title="Link to this definition">¶</a></dt>
+<dd><p>Raise: transposing would reorder the vertices.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.dA">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dA</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.dA" title="Link to this definition">¶</a></dt>
+<dd><p>Face area vectors <span class="math notranslate nohighlight">\(\delta\!A\)</span> [m^2], shape <code class="docutils literal notranslate"><span class="pre">(n_face,</span> <span class="pre">3)</span></code>.</p>
+<p>See <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.dA_nd" title="ember.unstructured.UnstructuredBlock.dA_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">dA_nd</span></code></a> for the nondimensional form and the geometry
+reference.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.dA_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dA_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.dA_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Face area vectors <span class="math notranslate nohighlight">\(\delta\!A / L_\mathrm{ref}^2\)</span> [-], shape <code class="docutils literal notranslate"><span class="pre">(n_face,</span> <span class="pre">3)</span></code>.</p>
+<p>Pseudo-Cartesian components <span class="math notranslate nohighlight">\((x, r, r\theta)\)</span> on the trailing
+axis, directed by the right-hand rule around each face’s vertices.</p>
+<p>See <a class="reference internal" href="../coordinate_system.html#face-areas"><span class="std std-ref">Face areas</span></a> for the calculation.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.faces">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">faces</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.faces" title="Link to this definition">¶</a></dt>
+<dd><p>Vertex indices of each face, read-only int32, shape <code class="docutils literal notranslate"><span class="pre">(n_face,</span> <span class="pre">3)</span></code>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.n_face">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">n_face</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.n_face" title="Link to this definition">¶</a></dt>
+<dd><p>Number of faces.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.n_vert">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">n_vert</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.n_vert" title="Link to this definition">¶</a></dt>
+<dd><p>Number of vertices.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Alpha">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Alpha</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Alpha" title="Link to this definition">¶</a></dt>
+<dd><p>Absolute yaw angle <span class="math notranslate nohighlight">\(\alpha\)</span> [deg], nodal array.</p>
+<p>Yaw is the angle between the absolute velocity and its projection onto
+the meridional (x-r) plane, i.e. the out-of-plane swirl angle.</p>
+<div class="math notranslate nohighlight">
+\[\tan\alpha = \frac{V_\theta}{V_m}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Alpha_rel">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Alpha_rel</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Alpha_rel" title="Link to this definition">¶</a></dt>
+<dd><p>Relative-frame yaw angle <span class="math notranslate nohighlight">\(\alpha^\mathrm{rel}\)</span> [deg], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[\tan\alpha^\mathrm{rel} = \frac{V_\theta^\mathrm{rel}}{V_m}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Beta">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Beta</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Beta" title="Link to this definition">¶</a></dt>
+<dd><p>Pitch angle <span class="math notranslate nohighlight">\(\beta\)</span> [deg], nodal array.</p>
+<p>Pitch is the angle between the meridional velocity and the axial
+direction, i.e. the inclination of the flow in the x-r plane.</p>
+<div class="math notranslate nohighlight">
+\[\tan\beta = \frac{V_r}{V_x}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.I">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">I</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.I" title="Link to this definition">¶</a></dt>
+<dd><p>Rothalpy <span class="math notranslate nohighlight">\(I\)</span> [J/kg], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[I = h_0 - U V_\theta = h_0^\mathrm{rel} - \frac{1}{2}U^2\]</div>
+<p>Carries an offset dependent on the arbitrary datum state where
+<span class="math notranslate nohighlight">\(u = s = 0\)</span> at <span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>; only
+changes in <span class="math notranslate nohighlight">\(I\)</span> are physically meaningful. See <a class="reference internal" href="fluid.html#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.L_ref">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">L_ref</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.L_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Reference length for non-dimensionalisation <span class="math notranslate nohighlight">\(L_\mathrm{ref}\)</span> [m].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Ma">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Ma</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Ma" title="Link to this definition">¶</a></dt>
+<dd><p>Absolute Mach number <span class="math notranslate nohighlight">\(\mathit{M\kern-0.1ema}\)</span> [-], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Ma_rel">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Ma_rel</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Ma_rel" title="Link to this definition">¶</a></dt>
+<dd><p>Relative-frame Mach number <span class="math notranslate nohighlight">\(\mathit{M\kern-0.1ema}^\mathrm{rel}\)</span> [-], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Mam">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Mam</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Mam" title="Link to this definition">¶</a></dt>
+<dd><p>Meridional Mach number <span class="math notranslate nohighlight">\(\mathit{M\kern-0.1ema}_m\)</span> [-], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Max">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Max</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Max" title="Link to this definition">¶</a></dt>
+<dd><p>Axial Mach number <span class="math notranslate nohighlight">\(\mathit{M\kern-0.1ema}_x\)</span> [-], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Nb">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Nb</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Nb" title="Link to this definition">¶</a></dt>
+<dd><p>Number of blades in the row containing this block <span class="math notranslate nohighlight">\(N_\mathrm{b}\)</span> [-], scalar int.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Omega">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Omega</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Omega" title="Link to this definition">¶</a></dt>
+<dd><p>Reference frame angular velocity <span class="math notranslate nohighlight">\(\Omega\)</span> [rad/s], scalar float.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Omega_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Omega_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Omega_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional angular velocity <span class="math notranslate nohighlight">\(\Omega^*\)</span> [–], scalar float.</p>
+<div class="math notranslate nohighlight">
+\[\Omega^* = \frac{\Omega L_\mathrm{ref}}{V_\mathrm{ref}}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.P">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">P</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.P" title="Link to this definition">¶</a></dt>
+<dd><p>Static pressure <span class="math notranslate nohighlight">\(p\)</span> [Pa], nodal array</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.P_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">P_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.P_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional static pressure <span class="math notranslate nohighlight">\(p^*\)</span> [-], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[p^* = \frac{p}{p_\mathrm{ref}}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.P_rot">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">P_rot</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.P_rot" title="Link to this definition">¶</a></dt>
+<dd><p>Rotation-corrected static pressure <span class="math notranslate nohighlight">\(p_\mathrm{rot}\)</span> [Pa], nodal array.</p>
+<p>Accounts for the pressure changes due to centrifugal and Coriolis forces in a rotating frame. Calculated by subtracting <span class="math notranslate nohighlight">\(\frac{1}{2}U^2\)</span> from static enthalpy and then using the equation of state to get the corresponding pressure in an isentropic process.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Po">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Po</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Po" title="Link to this definition">¶</a></dt>
+<dd><p>Stagnation pressure <span class="math notranslate nohighlight">\(p_0\)</span> [Pa], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Po_rel">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Po_rel</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Po_rel" title="Link to this definition">¶</a></dt>
+<dd><p>Relative-frame stagnation pressure <span class="math notranslate nohighlight">\(p_0^\mathrm{rel}\)</span> [Pa], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Pr">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Pr</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Pr" title="Link to this definition">¶</a></dt>
+<dd><p>Prandtl number [-], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[\mathit{Pr} = \frac{c_p \mu}{k}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Rgas">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Rgas</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Rgas" title="Link to this definition">¶</a></dt>
+<dd><p>Specific gas constant [J/kg/K].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.T">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">T</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.T" title="Link to this definition">¶</a></dt>
+<dd><p>Temperature [K], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.T_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">T_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.T_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional temperature <span class="math notranslate nohighlight">\(T / T_\mathrm{ref}\)</span> [-], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.To">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">To</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.To" title="Link to this definition">¶</a></dt>
+<dd><p>Stagnation temperature <span class="math notranslate nohighlight">\(T_0\)</span> [K], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.To_rel">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">To_rel</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.To_rel" title="Link to this definition">¶</a></dt>
+<dd><p>Relative-frame stagnation temperature <span class="math notranslate nohighlight">\(T_0^\mathrm{rel}\)</span> [K], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.U">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">U</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.U" title="Link to this definition">¶</a></dt>
+<dd><p>Blade speed <span class="math notranslate nohighlight">\(U\)</span> [m/s], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[U = \Omega r\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.V">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">V</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.V" title="Link to this definition">¶</a></dt>
+<dd><p>Absolute velocity magnitude <span class="math notranslate nohighlight">\(V\)</span> [m/s], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.V_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">V_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.V_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional absolute velocity magnitude <span class="math notranslate nohighlight">\(V/V_\mathrm{ref}\)</span> [-], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.V_rel">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">V_rel</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.V_rel" title="Link to this definition">¶</a></dt>
+<dd><p>Relative velocity magnitude <span class="math notranslate nohighlight">\(V^\mathrm{rel}\)</span> [m/s], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[V^\mathrm{rel} = \sqrt{V_x^2 + V_r^2 + (V_\theta - \Omega r)^2}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vm">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vm</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vm" title="Link to this definition">¶</a></dt>
+<dd><p>Meridional velocity magnitude <span class="math notranslate nohighlight">\(V_m\)</span> [m/s], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[V_m = \sqrt{V_x^2 + V_r^2}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vr">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vr</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vr" title="Link to this definition">¶</a></dt>
+<dd><p>Radial velocity [m/s].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vr_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vr_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vr_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Non-dimensional radial velocity <span class="math notranslate nohighlight">\(V_r^*\)</span> [-], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[V_r^* = \frac{V_r}{V_\mathrm{ref}}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vt">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vt</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vt" title="Link to this definition">¶</a></dt>
+<dd><p>Tangential velocity <span class="math notranslate nohighlight">\(V_\theta\)</span> [m/s], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vt_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vt_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vt_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Non-dimensional tangential velocity <span class="math notranslate nohighlight">\(V_\theta/V_\mathrm{ref}\)</span> [-], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vt_rel">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vt_rel</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vt_rel" title="Link to this definition">¶</a></dt>
+<dd><p>Relative-frame tangential velocity <span class="math notranslate nohighlight">\(V_\theta^\mathrm{rel}\)</span> [m/s], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[V_\theta^\mathrm{rel} = V_\theta - \Omega r\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vt_rel_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vt_rel_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vt_rel_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Non-dimensional relative tangential velocity <span class="math notranslate nohighlight">\((V_\theta - \Omega r)/V_\mathrm{ref}\)</span> [-], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vx">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vx</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vx" title="Link to this definition">¶</a></dt>
+<dd><p>Axial velocity <span class="math notranslate nohighlight">\(V_x\)</span> [m/s], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vx_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vx_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vx_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Non-dimensional axial velocity <span class="math notranslate nohighlight">\(V_x/V_\mathrm{ref}\)</span> [-], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vxrt">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vxrt</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vxrt" title="Link to this definition">¶</a></dt>
+<dd><p>Stacked polar velocity vector <span class="math notranslate nohighlight">\(\mathbf{V}\)</span> [m/s, m/s, m/s], three-component nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vxrt_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vxrt_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vxrt_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Stacked nondimensional polar velocity <span class="math notranslate nohighlight">\(\mathbf{V}/V_\mathrm{ref}\)</span> [-], three-component nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vxrt_rel">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vxrt_rel</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vxrt_rel" title="Link to this definition">¶</a></dt>
+<dd><p>Stacked relative-frame velocity vector <span class="math notranslate nohighlight">\(\mathbf{V}^\mathrm{rel}\)</span> [m/s, m/s, m/s], nodal array of three components.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vy">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vy</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vy" title="Link to this definition">¶</a></dt>
+<dd><p>Cartesian y-velocity <span class="math notranslate nohighlight">\(V_y\)</span> [m/s], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[V_y = V_r \cos\theta - V_\theta \sin\theta\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.Vz">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Vz</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.Vz" title="Link to this definition">¶</a></dt>
+<dd><p>Cartesian z-velocity <span class="math notranslate nohighlight">\(V_z\)</span> [m/s], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[V_z = -V_r \sin\theta - V_\theta \cos\theta\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.a">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">a</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.a" title="Link to this definition">¶</a></dt>
+<dd><p>Acoustic speed <span class="math notranslate nohighlight">\(a\)</span> [m/s], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[a^2 = \frac{\partial p}{\partial \rho}\Bigg|_s\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.a_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">a_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.a_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional acoustic speed <span class="math notranslate nohighlight">\(a/V_\mathrm{ref}\)</span> [-], nodal array.</p>
+<p>Derived, not cached: each access allocates. The equation of state call
+is cheap next to a nodal buffer that would live for the whole run, and
+the solver’s one whole-block consumer,
+<a class="reference internal" href="grid.html#ember.grid.Grid.update_timestep" title="ember.grid.Grid.update_timestep"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.update_timestep()</span></code></a>, does not come through here –
+it writes the same expression into <code class="xref py py-attr docutils literal notranslate"><span class="pre">scratch</span></code> instead. What is
+left are the patch-average consumers (the mixing planes, the
+nonreflecting boundaries and the <a class="reference internal" href="perturbation.html#module-ember.perturbation" title="ember.perturbation"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ember.perturbation</span></code></a> matrices
+they drive), whose blocks are a surface rather than a volume. Do not
+put this in a per-node loop over a full block.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.ao">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ao</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.ao" title="Link to this definition">¶</a></dt>
+<dd><p>Stagnation acoustic speed <span class="math notranslate nohighlight">\(a_0\)</span> [m/s], nodal array.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.clear_cache">
+<span class="sig-name descname"><span class="pre">clear_cache</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.clear_cache" title="Link to this definition">¶</a></dt>
+<dd><p>Clear all cached property values.</p>
+<p>This forces all cached properties to recalculate on next access.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.conserved">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">conserved</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.conserved" title="Link to this definition">¶</a></dt>
+<dd><p>Stacked conserved variables <span class="math notranslate nohighlight">\(\mathcal{U}\)</span>, five-component nodal array.</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mathcal{U} = \begin{bmatrix}
+\rho \\
+\rho V_x \\
+\rho V_r \\
+ \rho r V_\theta \\
+\rho e
+\end{bmatrix}\end{split}\]</div>
+<p>Shape <code class="docutils literal notranslate"><span class="pre">(ni,</span> <span class="pre">nj,</span> <span class="pre">nk,</span> <span class="pre">5)</span></code> with components over the last axis.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.conserved_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">conserved_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.conserved_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Stacked non-dimensional conserved variables <span class="math notranslate nohighlight">\(\mathcal{U}^*\)</span>, nodal array with 5 components on last axis.</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mathcal{U}^* = \begin{bmatrix}
+\rho / \rho_\mathrm{ref} \\
+\rho V_x / \rho_\mathrm{ref} V_\mathrm{ref} \\
+\rho V_r / \rho_\mathrm{ref} V_\mathrm{ref} \\
+\rho r V_\theta / \rho_\mathrm{ref} L_\mathrm{ref} V_\mathrm{ref} \\
+\rho e / \rho_\mathrm{ref} u_\mathrm{ref}
+\end{bmatrix}\end{split}\]</div>
+<p>Note that this property is a writable view onto the raw storage array,
+so modifying it will change the flow field without flushing the cache
+of derived properties or performing any validation. It is the low-level
+access point used by the CFD solver hot paths, so it is designed for
+speed rather than safety. Use with caution!</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.copy">
+<span class="sig-name descname"><span class="pre">copy</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.copy" title="Link to this definition">¶</a></dt>
+<dd><p>Take an independent copy of the data.</p>
+<p>Data and metadata dicts are shallow-copied. Beware: mutable metadata
+values (e.g. arrays) edited in place are shared with the original.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>out</strong> – A new instance with copied data.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>same type as <code class="docutils literal notranslate"><span class="pre">self</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.cp">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">cp</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.cp" title="Link to this definition">¶</a></dt>
+<dd><p>Specific heat at constant pressure <span class="math notranslate nohighlight">\(c_p\)</span> [J/kg/K], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[c_p = \frac{\partial h}{\partial T}\Bigg|_p\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.cp_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">cp_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.cp_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Non-dimensional specific heat at constant pressure <span class="math notranslate nohighlight">\(c_p / R_\mathrm{ref}\)</span> [-], nodal array.</p>
+<p>Derived, not cached, like <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.mu_nd" title="ember.unstructured.UnstructuredBlock.mu_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">mu_nd</span></code></a> and <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.kappa_nd" title="ember.unstructured.UnstructuredBlock.kappa_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">kappa_nd</span></code></a>; see
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.mu_nd" title="ember.unstructured.UnstructuredBlock.mu_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">mu_nd</span></code></a> for why the three of them are not kept.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.cv">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">cv</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.cv" title="Link to this definition">¶</a></dt>
+<dd><p>Specific heat at constant volume <span class="math notranslate nohighlight">\(c_v\)</span> [J/kg/K], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[c_v = \frac{\partial u}{\partial T}\Bigg|_\rho\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.dhdP_rho_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dhdP_rho_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.dhdP_rho_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional derivative of enthalpy wrt. pressure at constant density <span class="math notranslate nohighlight">\((\partial h/\partial p)_\rho \, \rho_\mathrm{ref}\)</span> [-].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.dhdrho_P_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dhdrho_P_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.dhdrho_P_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional derivative of enthalpy wrt. density at constant pressure <span class="math notranslate nohighlight">\((\partial h/\partial \rho)_p \, \rho_\mathrm{ref} / V_\mathrm{ref}^2\)</span> [-].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.dsdP_rho_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dsdP_rho_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.dsdP_rho_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional derivative of entropy wrt. pressure at constant density <span class="math notranslate nohighlight">\((\partial s/\partial p)_\rho \, p_\mathrm{ref} / R_\mathrm{ref}\)</span> [-].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.dsdrho_P_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dsdrho_P_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.dsdrho_P_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional derivative of entropy wrt. density at constant pressure <span class="math notranslate nohighlight">\((\partial s/\partial \rho)_p \, \rho_\mathrm{ref} / R_\mathrm{ref}\)</span> [-].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.dudP_rho_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dudP_rho_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.dudP_rho_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional derivative of internal energy wrt. pressure at constant density <span class="math notranslate nohighlight">\((\partial u/\partial p)_\rho \, \rho_\mathrm{ref}\)</span> [-].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.dudrho_P_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dudrho_P_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.dudrho_P_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional derivative of internal energy wrt. density at constant pressure <span class="math notranslate nohighlight">\((\partial u/\partial \rho)_p \, \rho_\mathrm{ref} / V_\mathrm{ref}^2\)</span> [-].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.fac_lam">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">fac_lam</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.fac_lam" title="Link to this definition">¶</a></dt>
+<dd><p>Prescribed laminar fraction <span class="math notranslate nohighlight">\(f_\mathrm{lam}\)</span> [-], nodal array.</p>
+<p>A turbulence prescription, 1 fully laminar and 0 fully turbulent, and
+zero unless <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_fac_lam" title="ember.unstructured.UnstructuredBlock.set_fac_lam"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_fac_lam()</span></code></a> has been called. The viscous kernels
+weight both halves of the turbulence model by it, linearly:</p>
+<div class="math notranslate nohighlight">
+\[\mu_\mathrm{turb} = (1 - f_\mathrm{lam})\,\mu_\mathrm{mix},
+\qquad
+c_f = f_\mathrm{lam}\,\frac{2}{Re} + (1 - f_\mathrm{lam})\,c_{f,\mathrm{law}},\]</div>
+<p>with the mixing-length viscosity taken at the cell (eight-corner mean)
+and the skin friction at the wall face (four-corner mean). Weighting
+the wall shear as well as the eddy viscosity is what makes a region
+prescribed laminar actually laminar: suppressing the mixing length
+alone leaves a log-law wall shear under a laminar layer.</p>
+<p>Dimensionless, so it has no <code class="docutils literal notranslate"><span class="pre">_nd</span></code> counterpart and, unlike
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.wdist" title="ember.unstructured.UnstructuredBlock.wdist"><code class="xref py py-attr docutils literal notranslate"><span class="pre">wdist</span></code></a>, does not rescale with <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.L_ref" title="ember.unstructured.UnstructuredBlock.L_ref"><code class="xref py py-attr docutils literal notranslate"><span class="pre">L_ref</span></code></a>. A block unpickled
+from before the field existed reads zeros.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.flat">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">flat</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.flat" title="Link to this definition">¶</a></dt>
+<dd><p>Flatten all axes into a single axis, not a copy.</p>
+<p>Returns a new instance sharing metadata and data with the original via
+a numpy reshaped view. Writes through either object are visible in the
+other.</p>
+<p>Points are ordered Fortran-style, with the first axis varying fastest,
+matching the column-major layout of the backing array. This is what
+makes the result a view rather than a copy; a C-ordered flattening of
+the same data would have to copy. Any code that flattens a block and
+later reshapes the result back must therefore pass <code class="docutils literal notranslate"><span class="pre">order=&quot;F&quot;</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>out</strong> – A new instance with all points in a single dimension.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>same type as <code class="docutils literal notranslate"><span class="pre">self</span></code>, shape (npoints,)</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.15)"><strong>ValueError</strong></a> – If this instance is a non-contiguous view (for example a strided
+    slice of a larger object) that cannot be flattened without
+    copying. Freshly allocated instances are always flattenable.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.fluid">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">fluid</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.fluid" title="Link to this definition">¶</a></dt>
+<dd><p><a class="reference internal" href="fluid.html#ember.fluid.PerfectFluid" title="ember.fluid.PerfectFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">PerfectFluid</span></code></a> object for equation of state calculations.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.freeze">
+<span class="sig-name descname"><span class="pre">freeze</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.freeze" title="Link to this definition">¶</a></dt>
+<dd><p>Return a read-only copy, whose data and metadata cannot be set.</p>
+<p>A frozen instance is a value. The setters refuse, and the backing array
+is marked read-only, which also closes the writeable views handed out
+for solver hot paths (<a class="reference internal" href="block.html#ember.block.Block.conserved_nd" title="ember.block.Block.conserved_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ember.block.Block.conserved_nd</span></code></a>) –
+those bypass the setters entirely, so a guard written in Python alone
+would not cover them. Derived properties remain readable and cached.</p>
+<p>Freezing copies, so the original stays writeable and code holding it
+cannot reach into what has been handed on. Views taken from the result
+are frozen with it, because they share its array; <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.copy" title="ember.unstructured.UnstructuredBlock.copy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">copy()</span></code></a> and
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.empty" title="ember.unstructured.UnstructuredBlock.empty"><code class="xref py py-meth docutils literal notranslate"><span class="pre">empty()</span></code></a> allocate a new one and are writeable, which is how a
+frozen state becomes the starting point for the next one.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>out</strong> – A read-only copy of this instance.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>same type as <code class="docutils literal notranslate"><span class="pre">self</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.frozen">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">frozen</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.frozen" title="Link to this definition">¶</a></dt>
+<dd><p>Whether this instance is read-only, from <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.freeze" title="ember.unstructured.UnstructuredBlock.freeze"><code class="xref py py-meth docutils literal notranslate"><span class="pre">freeze()</span></code></a>.</p>
+<p>Read off the backing array’s <code class="docutils literal notranslate"><span class="pre">writeable</span></code> flag rather than stored
+alongside it, so the two cannot disagree. Every view shares that array
+and so reports frozen with it, while <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.copy" title="ember.unstructured.UnstructuredBlock.copy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">copy()</span></code></a>, <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.empty" title="ember.unstructured.UnstructuredBlock.empty"><code class="xref py py-meth docutils literal notranslate"><span class="pre">empty()</span></code></a> and the
+reductions allocate their own and report writeable.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.gamma">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">gamma</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.gamma" title="Link to this definition">¶</a></dt>
+<dd><p>Ratio of specific heats <span class="math notranslate nohighlight">\(\gamma\)</span> [-].</p>
+<div class="math notranslate nohighlight">
+\[\gamma = \frac{c_p}{c_v}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.h">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">h</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.h" title="Link to this definition">¶</a></dt>
+<dd><p>Static enthalpy <span class="math notranslate nohighlight">\(h\)</span> [J/kg], nodal array.</p>
+<p>Carries an offset dependent on the arbitrary datum state where
+<span class="math notranslate nohighlight">\(u = s = 0\)</span> at <span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>; only
+changes in <span class="math notranslate nohighlight">\(h\)</span> are physically meaningful, so <span class="math notranslate nohighlight">\(h \neq c_p T\)</span>.
+See <a class="reference internal" href="fluid.html#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.ho">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ho</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.ho" title="Link to this definition">¶</a></dt>
+<dd><p>Stagnation enthalpy <span class="math notranslate nohighlight">\(h_0\)</span> [J/kg], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[h_0 = h + \frac{1}{2}V^2\]</div>
+<p>Carries an offset dependent on the arbitrary datum state where
+<span class="math notranslate nohighlight">\(u = s = 0\)</span> at <span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>; only
+changes in <span class="math notranslate nohighlight">\(h_0\)</span> are physically meaningful, so
+<span class="math notranslate nohighlight">\(h_0 \neq c_p T_0\)</span>. See <a class="reference internal" href="fluid.html#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.ho_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ho_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.ho_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional stagnation enthalpy <span class="math notranslate nohighlight">\(h_0/u_\mathrm{ref}\)</span> [-].</p>
+<p>Derived, not cached: each access allocates. The solver’s one whole-block
+consumer, <code class="docutils literal notranslate"><span class="pre">set_residual</span></code>, does not come through here – it forms the
+same quantity at the face corners it is already walking, from the
+conserved state and the pressure it is already handed:</p>
+<div class="math notranslate nohighlight">
+\[h_0 = u + p/\rho + \tfrac{1}{2}V^2 = e + p/\rho
+    = (\rho e + p) / \rho\]</div>
+<p>which is exact for any fluid, <span class="math notranslate nohighlight">\(h = u + p/\rho\)</span> being the
+definition of enthalpy rather than an approximation of it. What is left
+here are the patch-average and post-processing readers, whose blocks are
+a surface rather than a volume. Do not put this in a per-node loop over
+a full block.</p>
+<p>Carries an offset dependent on the arbitrary datum state where
+<span class="math notranslate nohighlight">\(u = s = 0\)</span> at <span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>; only
+changes are physically meaningful. See <a class="reference internal" href="fluid.html#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.ho_rel">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ho_rel</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.ho_rel" title="Link to this definition">¶</a></dt>
+<dd><p>Relative-frame stagnation enthalpy <span class="math notranslate nohighlight">\(h_0^\mathrm{rel}\)</span> [J/kg], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[h_0^\mathrm{rel} = h + \frac{1}{2}{V^\mathrm{rel}}^2\]</div>
+<p>Carries an offset dependent on the arbitrary datum state where
+<span class="math notranslate nohighlight">\(u = s = 0\)</span> at <span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>; only
+changes in <span class="math notranslate nohighlight">\(h_0^\mathrm{rel}\)</span> are physically meaningful, so
+<span class="math notranslate nohighlight">\(h_0^\mathrm{rel} \neq c_p T_0^\mathrm{rel}\)</span>. See
+<a class="reference internal" href="fluid.html#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.kappa">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">kappa</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.kappa" title="Link to this definition">¶</a></dt>
+<dd><p>Thermal conductivity <span class="math notranslate nohighlight">\(\kappa\)</span> [W/m/K], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.kappa_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">kappa_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.kappa_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Non-dimensional thermal conductivity <span class="math notranslate nohighlight">\(\kappa^*\)</span> [–], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[\kappa^* = \frac{\kappa}
+    {\rho_\mathrm{ref} V_\mathrm{ref} R_\mathrm{ref} L_\mathrm{ref}}\]</div>
+<p>The scaling that leaves <span class="math notranslate nohighlight">\(\mathit{Pr} = \mu^* c_p^* / \kappa^*\)</span>
+dimensionless, so this is what the viscous kernel’s heat flux takes in
+place of the viscosity and Prandtl number it used to be handed.</p>
+<p>Derived, not cached, like <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.mu_nd" title="ember.unstructured.UnstructuredBlock.mu_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">mu_nd</span></code></a> and <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.cp_nd" title="ember.unstructured.UnstructuredBlock.cp_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">cp_nd</span></code></a>; see
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.mu_nd" title="ember.unstructured.UnstructuredBlock.mu_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">mu_nd</span></code></a> for why the three of them are not kept.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.label">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">label</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.label" title="Link to this definition">¶</a></dt>
+<dd><p>String label describing the block.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.masked">
+<span class="sig-name descname"><span class="pre">masked</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mask</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.masked" title="Link to this definition">¶</a></dt>
+<dd><p>Confine subsequent setters to the nodes where <cite>mask</cite> is True.</p>
+<p>Boolean indexing a block (<code class="docutils literal notranslate"><span class="pre">block[mask]</span></code>) cannot be used to write back
+into the original, because numpy advanced indexing returns a copy rather
+than a view. This method works around that: it returns a proxy whose
+<code class="docutils literal notranslate"><span class="pre">set_*</span></code> methods apply to the whole block and then roll back every node
+outside the mask, so only masked nodes are changed and all other state
+(including the velocity field preserved by thermodynamic setters) is
+untouched.</p>
+<p>Any setter is supported. The proxy snapshots this block’s backing array
+on each setter call, so to keep the copy cheap on a large block, narrow
+it first with a basic-index slice – a slice is a view, so writes still
+propagate to the parent:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">block</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">masked</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="mf">1e5</span><span class="p">,</span> <span class="mf">600.0</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>mask</strong> (<em>array-like</em><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a>) – Boolean array matching the block shape. Setters modify only the
+nodes where it is True.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Proxy whose <code class="docutils literal notranslate"><span class="pre">set_*</span></code> methods are confined to the masked nodes.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>_MaskedBlock</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Heat only the cold nodes, leaving the rest of the field alone:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># example: masked</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember.block</span><span class="w"> </span><span class="kn">import</span> <span class="n">Block</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember.fluid</span><span class="w"> </span><span class="kn">import</span> <span class="n">PerfectFluid</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="n">fluid</span> <span class="o">=</span> <span class="n">PerfectFluid</span><span class="p">(</span><span class="n">cp</span><span class="o">=</span><span class="mf">1005.0</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="mf">1.4</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mf">1.8e-5</span><span class="p">,</span> <span class="n">Pr</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+<span class="n">b</span> <span class="o">=</span> <span class="n">Block</span><span class="p">((</span><span class="mi">4</span><span class="p">,))</span>
+<span class="n">b</span><span class="o">.</span><span class="n">set_fluid</span><span class="p">(</span><span class="n">fluid</span><span class="p">)</span>
+<span class="n">b</span><span class="o">.</span><span class="n">set_x</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">b</span><span class="o">.</span><span class="n">set_r</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="n">b</span><span class="o">.</span><span class="n">set_t</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">b</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="mf">1e5</span><span class="p">,</span> <span class="mf">300.0</span><span class="p">)</span>
+<span class="n">b</span><span class="o">.</span><span class="n">set_Vx</span><span class="p">(</span><span class="mf">5.0</span><span class="p">)</span>
+<span class="n">b</span><span class="o">.</span><span class="n">set_Vr</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">b</span><span class="o">.</span><span class="n">set_Vt</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">b</span><span class="o">.</span><span class="n">masked</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">]))</span><span class="o">.</span><span class="n">set_P_T</span><span class="p">(</span><span class="mf">1e5</span><span class="p">,</span> <span class="mf">600.0</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>   <span class="c1"># [600. 300. 600. 300.]</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">Vx</span><span class="p">)</span>  <span class="c1"># [5. 5. 5. 5.]</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.memory_usage">
+<span class="sig-name descname"><span class="pre">memory_usage</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.memory_usage" title="Link to this definition">¶</a></dt>
+<dd><p>Return memory usage of this block’s data, metadata, and cached properties.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>data_usage</strong> (<em>dict</em>) – Bytes per data key (equal share of the contiguous backing array).</p></li>
+<li><p><strong>metadata_usage</strong> (<em>dict</em>) – Bytes per metadata key (nbytes for arrays, sys.getsizeof for others).</p></li>
+<li><p><strong>cache_usage</strong> (<em>dict</em>) – Bytes per cached property (nbytes for arrays, sys.getsizeof for others).</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.mu">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">mu</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.mu" title="Link to this definition">¶</a></dt>
+<dd><p>Dynamic viscosity <span class="math notranslate nohighlight">\(\mu\)</span> [kg/m/s], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.mu_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">mu_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.mu_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Non-dimensional dynamic viscosity <span class="math notranslate nohighlight">\(\mu^*\)</span> [–], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[\mu^*  = \frac{\mu}{\rho_\mathrm{ref}  V_\mathrm{ref} L_\mathrm{ref}}\]</div>
+<p>May be thought of as a reciprocal Reynolds number based on the reference scales.</p>
+<p>Nodal rather than one number for the block, because a real gas’s
+viscosity is a surface over the field. A perfect gas fills the same
+array with one repeated constant, as it already does for
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.cp_nd" title="ember.unstructured.UnstructuredBlock.cp_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">cp_nd</span></code></a>.</p>
+<p>Derived, not cached: each access allocates. The transport trio (this,
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.kappa_nd" title="ember.unstructured.UnstructuredBlock.kappa_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">kappa_nd</span></code></a> and <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.cp_nd" title="ember.unstructured.UnstructuredBlock.cp_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">cp_nd</span></code></a>) is read in one phase of the step
+and nowhere else – the two viscous kernels of
+<a class="reference internal" href="grid.html#ember.grid.Grid.update_sources" title="ember.grid.Grid.update_sources"><code class="xref py py-meth docutils literal notranslate"><span class="pre">ember.grid.Grid.update_sources()</span></code></a> – and that phase borrows all
+three from the scratch arena instead of coming through here, so
+caching them meant three nodal volumes sitting allocated for a whole
+run to serve nothing but diagnostics. What is left here are those
+diagnostics and the tests. Do not put this in a per-node loop over a
+full block.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.mu_turb">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">mu_turb</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.mu_turb" title="Link to this definition">¶</a></dt>
+<dd><p>Turbulent viscosity <span class="math notranslate nohighlight">\(\mu_\mathrm{turb}\)</span> [kg/m/s].</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.ndim">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ndim</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.ndim" title="Link to this definition">¶</a></dt>
+<dd><p>Number of spatial dimensions.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.ni">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ni</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.ni" title="Link to this definition">¶</a></dt>
+<dd><p>Number of points along first axis.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.nj">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">nj</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.nj" title="Link to this definition">¶</a></dt>
+<dd><p>Number of points along second axis.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.nk">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">nk</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.nk" title="Link to this definition">¶</a></dt>
+<dd><p>Number of points along third axis.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.nvar">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">nvar</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.nvar" title="Link to this definition">¶</a></dt>
+<dd><p>Number of variables stored at each spatial point.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.pitch">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">pitch</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.pitch" title="Link to this definition">¶</a></dt>
+<dd><p>Circumferential pitch [rad].</p>
+<div class="math notranslate nohighlight">
+\[\Delta\theta = \frac{2\pi}{N_\mathrm{b}}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.r">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">r</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.r" title="Link to this definition">¶</a></dt>
+<dd><p>Radial coordinate <span class="math notranslate nohighlight">\(r\)</span> [m], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.r_mid_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">r_mid_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.r_mid_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Midspan nondimensional radius, <span class="math notranslate nohighlight">\(\tfrac12(\min r_\mathrm{nd} + \max r_\mathrm{nd})\)</span> [-].</p>
+<p>Derived from the block’s own coordinates (a representative radius for
+this block), not a user-set reference scale – hence <code class="docutils literal notranslate"><span class="pre">_mid</span></code> rather than
+the <code class="docutils literal notranslate"><span class="pre">_ref</span></code> suffix carried by the arbitrary fluid/length scales. Used to
+rescale the angular-momentum (<code class="docutils literal notranslate"><span class="pre">rhorVt</span></code>) residual by a radius so its
+magnitude is comparable to the linear-momentum residuals.</p>
+<p>Cached once: the block geometry is fixed for the lifetime of a solve.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.r_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">r_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.r_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional radial coordinate <span class="math notranslate nohighlight">\(r / L_\mathrm{ref}\)</span> [-], nodal array</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.rho">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rho</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.rho" title="Link to this definition">¶</a></dt>
+<dd><p>Mass density <span class="math notranslate nohighlight">\(\rho\)</span> [kg/m^3], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.rhoVm">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rhoVm</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.rhoVm" title="Link to this definition">¶</a></dt>
+<dd><p>Meridional mass flux <span class="math notranslate nohighlight">\(\rho V_m\)</span> [kg/m^2/s], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.rhoVr">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rhoVr</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.rhoVr" title="Link to this definition">¶</a></dt>
+<dd><p>Volumetric radial momentum <span class="math notranslate nohighlight">\(\rho V_r\)</span> [kg/m^2/s], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.rhoVx">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rhoVx</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.rhoVx" title="Link to this definition">¶</a></dt>
+<dd><p>Volumetric axial momentum <span class="math notranslate nohighlight">\(\rho V_x\)</span> [kg/m^2/s], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.rho_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rho_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.rho_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Non-dimensional mass density <span class="math notranslate nohighlight">\(\rho/\rho_\mathrm{ref}\)</span> [-], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.rhoe">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rhoe</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.rhoe" title="Link to this definition">¶</a></dt>
+<dd><p>Volumetric total energy <span class="math notranslate nohighlight">\(\rho e\)</span> [J/m^3], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[e = u + \tfrac{1}{2}(V_x^2 + V_r^2 + V_\theta^2)\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.rhoo">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rhoo</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.rhoo" title="Link to this definition">¶</a></dt>
+<dd><p>Stagnation density <span class="math notranslate nohighlight">\(\rho_0\)</span> [kg/m^3], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.rhoo_rel">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rhoo_rel</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.rhoo_rel" title="Link to this definition">¶</a></dt>
+<dd><p>Relative-frame stagnation density <span class="math notranslate nohighlight">\(\rho_0^\mathrm{rel}\)</span> [kg/m^3], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.rhorVt">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rhorVt</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.rhorVt" title="Link to this definition">¶</a></dt>
+<dd><p>Volumetric angular momentum <span class="math notranslate nohighlight">\(\rho r V_\theta\)</span> [kg/m^2/s], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.rpm">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rpm</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.rpm" title="Link to this definition">¶</a></dt>
+<dd><p>Reference frame revolutions per minute [rpm]</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.rt">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rt</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.rt" title="Link to this definition">¶</a></dt>
+<dd><p>Pseudo-Cartesian circumferential coordinate <span class="math notranslate nohighlight">\(r\theta\)</span> [m], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.s">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">s</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.s" title="Link to this definition">¶</a></dt>
+<dd><p>Specific entropy <span class="math notranslate nohighlight">\(s\)</span> [J/kg/K], nodal array.</p>
+<p>Defined relative to an arbitrary datum where <span class="math notranslate nohighlight">\(u = s = 0\)</span> at
+<span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>; only changes in <span class="math notranslate nohighlight">\(s\)</span> are
+physically meaningful. See <a class="reference internal" href="fluid.html#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.s_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">s_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.s_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional entropy <span class="math notranslate nohighlight">\(s / R_\mathrm{ref}\)</span> [-].</p>
+<p>Defined relative to an arbitrary datum where <span class="math notranslate nohighlight">\(u = s = 0\)</span> at
+<span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>; only changes are physically
+meaningful. See <a class="reference internal" href="fluid.html#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_L_ref">
+<span class="sig-name descname"><span class="pre">set_L_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">L_ref</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_L_ref" title="Link to this definition">¶</a></dt>
+<dd><p>Set reference length scale preserving existing dimensional values.</p>
+<p>The underlying block data is stored in a nondimensional form for
+reasons of numerical precision. For example, <a class="reference internal" href="block.html#ember.block.Block.r" title="ember.block.Block.r"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Block.r</span></code></a> is
+actually stored as radius normalised by the reference length scale
+with the raw value accessible as <a class="reference internal" href="block.html#ember.block.Block.r_nd" title="ember.block.Block.r_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Block.r_nd</span></code></a>.</p>
+<p>Note that the <a class="reference internal" href="block.html#ember.block.Block.fluid" title="ember.block.Block.fluid"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Block.fluid</span></code></a> instance specifies additional reference scales needed to make thermodynamic properties non-dimensional.</p>
+<p>This method sets a new reference length, rescaling stored
+nondimensional coordinates and angular momentum so that dimensional
+values are preserved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>L_ref</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – Reference length scale [m]. Should be scalar, positive, and finite.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_Nb">
+<span class="sig-name descname"><span class="pre">set_Nb</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Nb</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_Nb" title="Link to this definition">¶</a></dt>
+<dd><p>Set number of blades in the row containing this block.</p>
+<p>Used to determine circumferential periodicity.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>Nb</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – Number of blades in the row containing this block [-].</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_Omega">
+<span class="sig-name descname"><span class="pre">set_Omega</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Omega</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_Omega" title="Link to this definition">¶</a></dt>
+<dd><p>Set reference frame angular velocity.</p>
+<p>Properties suffixed <code class="docutils literal notranslate"><span class="pre">_rel</span></code> are defined in the rotating reference
+frame spinning at this angular velocity.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>Omega</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – Angular velocity of the rotating reference frame [rad/s].</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_P_T">
+<span class="sig-name descname"><span class="pre">set_P_T</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_P_T" title="Link to this definition">¶</a></dt>
+<dd><p>Store static pressure and temperature.</p>
+<p>Set the thermodynamic state by specifying static pressure and temperature. The velocity field, if present, is preserved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>array-like</em>) – Static pressure [Pa]. Must be positive, finite, and broadcast to block shape.</p></li>
+<li><p><strong>T</strong> (<em>array-like</em>) – Temperature [K]. Must be positive, finite, and broadcast to block shape.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_P_h">
+<span class="sig-name descname"><span class="pre">set_P_h</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_P_h" title="Link to this definition">¶</a></dt>
+<dd><p>Store static pressure and enthalpy.</p>
+<p>Set the thermodynamic state by specifying static pressure and specific static
+enthalpy. The velocity field, if present, is preserved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>array-like</em>) – Static pressure [Pa]. Must be positive, finite, and broadcast to block shape.</p></li>
+<li><p><strong>h</strong> (<em>array-like</em>) – Specific static enthalpy [J/kg]. Must be finite and broadcast to block shape.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_P_rho">
+<span class="sig-name descname"><span class="pre">set_P_rho</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_P_rho" title="Link to this definition">¶</a></dt>
+<dd><p>Store static pressure and density.</p>
+<p>Set the thermodynamic state by specifying static pressure and density. The
+velocity field, if present, is preserved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>array-like</em>) – Static pressure [Pa]. Must be positive, finite, and broadcast to block shape.</p></li>
+<li><p><strong>rho</strong> (<em>array-like</em>) – Density [kg/m^3]. Must be positive, finite, and broadcast to block shape.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_P_rho_nd">
+<span class="sig-name descname"><span class="pre">set_P_rho_nd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P_nd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_nd</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_P_rho_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Store static pressure and density, nondimensional inputs.</p>
+<p>Set the thermodynamic state by specifying nondimensional static pressure and
+density. The velocity field, if present, is preserved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P_nd</strong> (<em>array-like</em>) – Static pressure normalised by <code class="docutils literal notranslate"><span class="pre">fluid.P_ref</span></code> [–]. Should be positive and
+finite; no validation is performed as this setter is on the hot path for
+boundary condition application.</p></li>
+<li><p><strong>rho_nd</strong> (<em>array-like</em>) – Density normalised by <code class="docutils literal notranslate"><span class="pre">fluid.rho_ref</span></code> [–]. Should be positive and
+finite; no validation is performed.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_P_s">
+<span class="sig-name descname"><span class="pre">set_P_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">P</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_P_s" title="Link to this definition">¶</a></dt>
+<dd><p>Store static pressure and entropy.</p>
+<p>Set the thermodynamic state by specifying static pressure and entropy per
+unit mass. The velocity field, if present, is preserved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>array-like</em>) – Static pressure [Pa]. Must be positive, finite, and broadcast to block shape.</p></li>
+<li><p><strong>s</strong> (<em>array-like</em>) – Specific entropy [J/kg/K]. Must be finite and broadcast to block shape.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_T_s">
+<span class="sig-name descname"><span class="pre">set_T_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">T</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_T_s" title="Link to this definition">¶</a></dt>
+<dd><p>Store temperature and entropy.</p>
+<p>Set the thermodynamic state by specifying static temperature and entropy per
+unit mass. The velocity field, if present, is preserved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>T</strong> (<em>array-like</em>) – Temperature [K]. Must be positive, finite, and broadcast to block shape.</p></li>
+<li><p><strong>s</strong> (<em>array-like</em>) – Specific entropy [J/kg/K]. Must be finite and broadcast to block shape.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_V_Alpha_Beta">
+<span class="sig-name descname"><span class="pre">set_V_Alpha_Beta</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">V</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Beta</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_V_Alpha_Beta" title="Link to this definition">¶</a></dt>
+<dd><p>Set the velocity vector from speed, yaw angle, and pitch angle.</p>
+<p>The velocity components are</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\begin{aligned}
+V_x      &amp;= V \cos\beta\cos\alpha \\
+V_r      &amp;= V \sin\beta\cos\alpha \\
+V_\theta &amp;= V \sin\alpha
+\end{aligned}\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\alpha\)</span> is the yaw angle and <span class="math notranslate nohighlight">\(\beta\)</span> is the pitch
+angle. Trigonometric identities are used to avoid the
+<span class="math notranslate nohighlight">\(\tan 90^\circ\)</span> singularity.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>V</strong> (<em>array-like</em>) – Velocity magnitude [m/s]. Must broadcast to block shape.</p></li>
+<li><p><strong>Alpha</strong> (<em>array-like</em>) – Yaw angle <span class="math notranslate nohighlight">\(\alpha\)</span> [deg]. Must broadcast to block shape.</p></li>
+<li><p><strong>Beta</strong> (<em>array-like</em>) – Pitch angle <span class="math notranslate nohighlight">\(\beta\)</span> [deg]. Must broadcast to block shape.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_Vr">
+<span class="sig-name descname"><span class="pre">set_Vr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Vr</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_Vr" title="Link to this definition">¶</a></dt>
+<dd><p>Store radial velocity.</p>
+<p>The thermodynamic state (density and internal energy) is preserved, so
+this may be called before or after a thermodynamic setter such as
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_P_T" title="ember.unstructured.UnstructuredBlock.set_P_T"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_T()</span></code></a> when building up a flow field.</p>
+<p>If you are setting all three velocity components, prefer
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_Vxrt" title="ember.unstructured.UnstructuredBlock.set_Vxrt"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_Vxrt()</span></code></a>, which updates the internal energy only once instead
+of three times for all components.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>Vr</strong> (<em>array-like</em>) – Radial velocity [m/s]. Must be finite and broadcast to block shape.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_Vt">
+<span class="sig-name descname"><span class="pre">set_Vt</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Vt</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_Vt" title="Link to this definition">¶</a></dt>
+<dd><p>Store circumferential velocity.</p>
+<p>The thermodynamic state (density and internal energy) is preserved, so
+this may be called before or after a thermodynamic setter such as
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_P_T" title="ember.unstructured.UnstructuredBlock.set_P_T"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_T()</span></code></a> when building up a flow field.</p>
+<p>If you are setting all three velocity components, prefer
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_Vxrt" title="ember.unstructured.UnstructuredBlock.set_Vxrt"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_Vxrt()</span></code></a>, which updates the internal energy only once instead
+of three times for all components.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>Vt</strong> (<em>array-like</em>) – Circumferential velocity [m/s]. Must be finite and broadcast to block shape.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_Vx">
+<span class="sig-name descname"><span class="pre">set_Vx</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Vx</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_Vx" title="Link to this definition">¶</a></dt>
+<dd><p>Store axial velocity.</p>
+<p>The thermodynamic state (density and internal energy) is preserved, so
+this may be called before or after a thermodynamic setter such as
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_P_T" title="ember.unstructured.UnstructuredBlock.set_P_T"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_T()</span></code></a> when building up a flow field.</p>
+<p>If you are setting all three velocity components, prefer
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_Vxrt" title="ember.unstructured.UnstructuredBlock.set_Vxrt"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_Vxrt()</span></code></a>, which updates the internal energy only once instead
+of three times for all components.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>Vx</strong> (<em>array-like</em>) – Axial velocity [m/s]. Must be finite and broadcast to block shape.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_Vxrt">
+<span class="sig-name descname"><span class="pre">set_Vxrt</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">Vxrt</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_Vxrt" title="Link to this definition">¶</a></dt>
+<dd><p>Store polar velocity components from a single array.</p>
+<p>More efficient than three separate <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_Vx" title="ember.unstructured.UnstructuredBlock.set_Vx"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_Vx()</span></code></a>, <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_Vr" title="ember.unstructured.UnstructuredBlock.set_Vr"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_Vr()</span></code></a>,
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_Vt" title="ember.unstructured.UnstructuredBlock.set_Vt"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_Vt()</span></code></a> calls as the energy update is performed only once.</p>
+<p>The thermodynamic state (density and internal energy) is preserved, so
+this may be called before or after a thermodynamic setter such as
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_P_T" title="ember.unstructured.UnstructuredBlock.set_P_T"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_P_T()</span></code></a> when building up a flow field.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>Vxrt</strong> (<em>array-like</em><em>, </em><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.shape" title="ember.unstructured.UnstructuredBlock.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>3</em><em>)</em>) – Polar velocity components [m/s], with Vx, Vr, Vt along the last
+axis. Must be finite and broadcast to block shape.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_conserved">
+<span class="sig-name descname"><span class="pre">set_conserved</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">conserved</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_conserved" title="Link to this definition">¶</a></dt>
+<dd><p>Store conserved variables.</p>
+<p>The conserved variables are density, axial momentum, radial momentum, angular momentum, and total energy:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mathcal{U} = \begin{bmatrix} \rho \\ \rho V_x \\ \rho V_r \\ \rho r V_\theta \\ \rho e \end{bmatrix}\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(e = u + \frac{1}{2}(V_x^2 + V_r^2 + V_\theta^2)\)</span> is the total specific energy.</p>
+<p>Together, the five conserved variables uniquely determine the
+thermodynamic state and velocity field, and being most convenient for
+computational fluid dynamics calculations, are the primary data stored
+in the block. Other variables like pressure and temperature are
+computed from the conserved variables via the equation of state in
+<a class="reference internal" href="block.html#ember.block.Block.fluid" title="ember.block.Block.fluid"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Block.fluid</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>conserved</strong> (<em>array-like</em><em>, </em><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.shape" title="ember.unstructured.UnstructuredBlock.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>5</em><em>)</em>) – Dimensional conserved variables with components along the last axis. Each component must broadcast to block shape and be finite. Density must be &gt;0.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_fac_lam">
+<span class="sig-name descname"><span class="pre">set_fac_lam</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fac_lam</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_fac_lam" title="Link to this definition">¶</a></dt>
+<dd><p>Store the prescribed laminar fraction.</p>
+<p>See <a class="reference internal" href="block.html#ember.block.Block.fac_lam" title="ember.block.Block.fac_lam"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Block.fac_lam</span></code></a> for more details.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>fac_lam</strong> (<em>array-like</em>) – Laminar fraction [-], 1 fully laminar and 0 fully turbulent. Must
+lie in [0, 1] and broadcast to block shape.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_fluid">
+<span class="sig-name descname"><span class="pre">set_fluid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fluid_new</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_fluid" title="Link to this definition">¶</a></dt>
+<dd><p>Set equation of state preserving any existing flow field.</p>
+<p>An equation of state, encapsulated in a <a class="reference internal" href="fluid.html#ember.fluid.PerfectFluid" title="ember.fluid.PerfectFluid"><code class="xref py py-class docutils literal notranslate"><span class="pre">PerfectFluid</span></code></a> instance, must
+be set before any thermodynamic properties can be computed.</p>
+<p>If an old fluid is already set, dimensional density, temperature, and
+velocities are read out, the fluid instance is swapped, and the
+stored flow field is rewritten using the new fluid’s reference scales and
+datum levels.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>fluid_new</strong> (<a class="reference internal" href="fluid.html#ember.fluid.Fluid" title="ember.fluid.Fluid"><em>Fluid</em></a>) – New fluid / equation of state object.</p>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<dl class="simple">
+<dt><a class="reference internal" href="grid.html#ember.grid.Grid.set_fluid" title="ember.grid.Grid.set_fluid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ember.grid.Grid.set_fluid</span></code></a></dt><dd><p>Apply to every block in a Grid at once. Prefer this when the block is part of a Grid, rather than looping over blocks and calling this method individually.</p>
+</dd>
+</dl>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_h_s">
+<span class="sig-name descname"><span class="pre">set_h_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_h_s" title="Link to this definition">¶</a></dt>
+<dd><p>Store enthalpy and entropy.</p>
+<p>Set the thermodynamic state by specifying static enthalpy and entropy per unit mass. The velocity field, if present, is preserved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>h</strong> (<em>array-like</em>) – Specific static enthalpy [J/kg]. Must be finite and broadcast to block shape.</p></li>
+<li><p><strong>s</strong> (<em>array-like</em>) – Specific entropy [J/kg/K]. Must be finite and broadcast to block shape.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_label">
+<span class="sig-name descname"><span class="pre">set_label</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">label</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_label" title="Link to this definition">¶</a></dt>
+<dd><p>Set a string label describing the block.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>label</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – Descriptive label for the block.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_mu_turb">
+<span class="sig-name descname"><span class="pre">set_mu_turb</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mu_turb</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_mu_turb" title="Link to this definition">¶</a></dt>
+<dd><p>Store turbulent viscosity.</p>
+<p>See <a class="reference internal" href="block.html#ember.block.Block.mu_turb" title="ember.block.Block.mu_turb"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Block.mu_turb</span></code></a> for more details.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>mu_turb</strong> (<em>array-like</em>) – Turbulent viscosity [kg/m/s]. Must be &gt;=0 and finite, and broadcast to block shape.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_r">
+<span class="sig-name descname"><span class="pre">set_r</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">r</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_r" title="Link to this definition">¶</a></dt>
+<dd><p>Store radial coordinates.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>r</strong> (<em>array-like</em>) – Radial coordinates [m]. Must be &gt;0 and finite, and broadcast to block shape.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_rho_s">
+<span class="sig-name descname"><span class="pre">set_rho_s</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_rho_s" title="Link to this definition">¶</a></dt>
+<dd><p>Store density and entropy.</p>
+<p>Set the thermodynamic state by specifying density and entropy per unit mass.
+The velocity field, if present, is preserved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array-like</em>) – Density [kg/m^3]. Must be positive, finite, and broadcast to block shape.</p></li>
+<li><p><strong>s</strong> (<em>array-like</em>) – Specific entropy [J/kg/K]. Must be finite and broadcast to block shape.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_rho_u">
+<span class="sig-name descname"><span class="pre">set_rho_u</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_rho_u" title="Link to this definition">¶</a></dt>
+<dd><p>Store density and internal energy.</p>
+<p>Set the thermodynamic state by specifying density and internal energy
+per unit mass. The velocity field, if present, is preserved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>array-like</em>) – Density [kg/m^3]. Must be positive, finite, and broadcast to block shape.</p></li>
+<li><p><strong>u</strong> (<em>array-like</em>) – Specific internal energy [J/kg]. Must be finite and broadcast to block shape.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_rpm">
+<span class="sig-name descname"><span class="pre">set_rpm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rpm</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_rpm" title="Link to this definition">¶</a></dt>
+<dd><p>Set reference frame angular velocity in revolutions per minute.</p>
+<p>Converts to rad/s and calls <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.set_Omega" title="ember.unstructured.UnstructuredBlock.set_Omega"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_Omega()</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rpm</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – Angular velocity of the rotating reference frame [rpm].</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_t">
+<span class="sig-name descname"><span class="pre">set_t</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">t</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_t" title="Link to this definition">¶</a></dt>
+<dd><p>Store circumferential coordinates.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>t</strong> (<em>array-like</em>) – Circumferential coordinates [rad]. Must be finite and broadcast to block shape.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_wdist">
+<span class="sig-name descname"><span class="pre">set_wdist</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">wdist</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_wdist" title="Link to this definition">¶</a></dt>
+<dd><p>Store distance to nearest wall.</p>
+<p>See <a class="reference internal" href="block.html#ember.block.Block.wdist" title="ember.block.Block.wdist"><code class="xref py py-attr docutils literal notranslate"><span class="pre">Block.wdist</span></code></a> for more details.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>wdist</strong> (<em>array-like</em>) – Distance to nearest viscous wall [m]. Must be &gt;=0 and finite,
+and broadcast to block shape.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_x">
+<span class="sig-name descname"><span class="pre">set_x</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_x" title="Link to this definition">¶</a></dt>
+<dd><p>Store axial coordinates.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>x</strong> (<em>array-like</em>) – Axial coordinates [m]. Must be finite and broadcast to block shape.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_xrt">
+<span class="sig-name descname"><span class="pre">set_xrt</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xrt</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_xrt" title="Link to this definition">¶</a></dt>
+<dd><p>Store polar coordinates from a single array.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>xrt</strong> (<em>array-like</em><em>, </em><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.shape" title="ember.unstructured.UnstructuredBlock.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>3</em><em>)</em>) – Polar coordinates, with x [m], r [m], t [rad] along the last axis.
+Must be finite and broadcast to block shape.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.set_xyz">
+<span class="sig-name descname"><span class="pre">set_xyz</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xyz</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.set_xyz" title="Link to this definition">¶</a></dt>
+<dd><p>Store Cartesian coordinates, converted to polar on write.</p>
+<p>Converts to polar coordinates via:</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}r = \sqrt{y^2 + z^2}\\\theta = \mathrm{arctan2}(-z,\, y)\end{aligned}\end{align} \]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>xyz</strong> (<em>array-like</em><em>, </em><a class="reference internal" href="#ember.unstructured.UnstructuredBlock.shape" title="ember.unstructured.UnstructuredBlock.shape"><em>shape</em></a><em> (</em><em>...</em><em>, </em><em>3</em><em>)</em>) – Cartesian coordinates [m], with x, y, z along the last axis. Must be finite and broadcast to block shape.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.shape">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.shape" title="Link to this definition">¶</a></dt>
+<dd><p>Shape of the grid points.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.shape_cell">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">shape_cell</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.shape_cell" title="Link to this definition">¶</a></dt>
+<dd><p>Shape of cell-centred arrays <cite>(ni-1, nj-1, nk-1)</cite>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.shape_iface">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">shape_iface</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.shape_iface" title="Link to this definition">¶</a></dt>
+<dd><p>Shape of i-face arrays <cite>(ni, nj-1, nk-1)</cite>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.shape_jface">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">shape_jface</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.shape_jface" title="Link to this definition">¶</a></dt>
+<dd><p>Shape of j-face arrays <cite>(ni-1, nj, nk-1)</cite>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.shape_kface">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">shape_kface</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.shape_kface" title="Link to this definition">¶</a></dt>
+<dd><p>Shape of k-face arrays <cite>(ni-1, nj-1, nk)</cite>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.sinBeta">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">sinBeta</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.sinBeta" title="Link to this definition">¶</a></dt>
+<dd><p>Sine of pitch angle <span class="math notranslate nohighlight">\(\sin\beta\)</span> [-], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[\sin\beta = \frac{V_r}{V_m}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.size">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">size</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.size" title="Link to this definition">¶</a></dt>
+<dd><p>Total number of spatial points.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.t">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">t</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.t" title="Link to this definition">¶</a></dt>
+<dd><p>Circumferential coordinate <span class="math notranslate nohighlight">\(\theta\)</span> [rad], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.tanAlpha">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">tanAlpha</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.tanAlpha" title="Link to this definition">¶</a></dt>
+<dd><p>Tangent of absolute yaw angle <span class="math notranslate nohighlight">\(\tan\alpha\)</span> [-], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[\tan\alpha = \frac{V_\theta}{V_m}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.tanAlpha_rel">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">tanAlpha_rel</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.tanAlpha_rel" title="Link to this definition">¶</a></dt>
+<dd><p>Tangent of relative-frame yaw angle <span class="math notranslate nohighlight">\(\tan\alpha^\mathrm{rel}\)</span> [-], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[\tan\alpha^\mathrm{rel} = \frac{V_\theta^\mathrm{rel}}{V_m}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.tanBeta">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">tanBeta</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.tanBeta" title="Link to this definition">¶</a></dt>
+<dd><p>Tangent of pitch angle <span class="math notranslate nohighlight">\(\tan\beta\)</span> [-], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[\tan\beta = \frac{V_r}{V_x}\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.u">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">u</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.u" title="Link to this definition">¶</a></dt>
+<dd><p>Specific internal energy <span class="math notranslate nohighlight">\(u\)</span> [J/kg], nodal array.</p>
+<p>Defined relative to an arbitrary datum where <span class="math notranslate nohighlight">\(u = s = 0\)</span> at
+<span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>; only changes in <span class="math notranslate nohighlight">\(u\)</span> are
+physically meaningful, so <span class="math notranslate nohighlight">\(u \neq c_v T\)</span>. See <a class="reference internal" href="fluid.html#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.u_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">u_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.u_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional specific internal energy <span class="math notranslate nohighlight">\(u/u_\mathrm{ref}\)</span> [-], nodal array.</p>
+<p>Raises if the thermodynamic state is unset.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.uo">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">uo</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.uo" title="Link to this definition">¶</a></dt>
+<dd><p>Stagnation internal energy <span class="math notranslate nohighlight">\(u_0\)</span> [J/kg], nodal array.</p>
+<p>Carries an offset dependent on the arbitrary datum state where
+<span class="math notranslate nohighlight">\(u = s = 0\)</span> at <span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>; only
+changes in <span class="math notranslate nohighlight">\(u_0\)</span> are physically meaningful, so
+<span class="math notranslate nohighlight">\(u_0 \neq c_v T_0\)</span>. See <a class="reference internal" href="fluid.html#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.uo_rel">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">uo_rel</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.uo_rel" title="Link to this definition">¶</a></dt>
+<dd><p>Relative-frame stagnation internal energy <span class="math notranslate nohighlight">\(u_0^\mathrm{rel}\)</span> [J/kg], nodal array.</p>
+<p>Carries an offset dependent on the arbitrary datum state where
+<span class="math notranslate nohighlight">\(u = s = 0\)</span> at <span class="math notranslate nohighlight">\((p_\mathrm{dtm}, T_\mathrm{dtm})\)</span>; only
+changes in <span class="math notranslate nohighlight">\(u_0^\mathrm{rel}\)</span> are physically meaningful, so
+<span class="math notranslate nohighlight">\(u_0^\mathrm{rel} \neq c_v T_0^\mathrm{rel}\)</span>. See
+<a class="reference internal" href="fluid.html#datum-state"><span class="std std-ref">Datum state</span></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.update_cached_conserved">
+<span class="sig-name descname"><span class="pre">update_cached_conserved</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.update_cached_conserved" title="Link to this definition">¶</a></dt>
+<dd><p>Refresh caches that depend on the conserved variables.</p>
+<p>Bumps the conserved-variable versions so every cached property keyed on
+them recomputes on next access. Only needed if you modify
+<a class="reference internal" href="#ember.unstructured.UnstructuredBlock.conserved_nd" title="ember.unstructured.UnstructuredBlock.conserved_nd"><code class="xref py py-attr docutils literal notranslate"><span class="pre">conserved_nd</span></code></a> directly, as that bypasses the usual cache
+invalidation that happens in the setter methods.</p>
+<p>Unlike <a class="reference internal" href="#ember.unstructured.UnstructuredBlock.clear_cache" title="ember.unstructured.UnstructuredBlock.clear_cache"><code class="xref py py-meth docutils literal notranslate"><span class="pre">clear_cache()</span></code></a>, this does not clear cached geometry
+such as <code class="xref py py-attr docutils literal notranslate"><span class="pre">vol_nd</span></code>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.view">
+<span class="sig-name descname"><span class="pre">view</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.view" title="Link to this definition">¶</a></dt>
+<dd><p>Create a new instance sharing the same data and metadata, not a copy.</p>
+<p>Returns a new instance of the same class sharing the underlying data
+array, metadata dict, and version counters with the original. Mutations
+to data (i.e. writing to the array) are visible through both
+objects. Derived properties are held in a separate per-instance cache,
+so each view starts cold.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>out</strong> – A new instance sharing all data and metadata with the original.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>same type as <code class="docutils literal notranslate"><span class="pre">self</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.wdist">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">wdist</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.wdist" title="Link to this definition">¶</a></dt>
+<dd><p>Distance to nearest wall <span class="math notranslate nohighlight">\(w\)</span> [m], nodal array.</p>
+<p>Defined as the distance from each grid node to the nearest viscous
+wall. Used by the turbulence models to compute turbulent viscosity;
+only required for viscous runs. Usually populated automatically by
+<a class="reference internal" href="grid.html#ember.grid.Grid.calculate_wdist" title="ember.grid.Grid.calculate_wdist"><code class="xref py py-meth docutils literal notranslate"><span class="pre">calculate_wdist()</span></code></a> rather than called directly.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.wdist_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">wdist_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.wdist_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Nondimensional distance to nearest wall <span class="math notranslate nohighlight">\(w/L_\mathrm{ref}\)</span> [-], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.x">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">x</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.x" title="Link to this definition">¶</a></dt>
+<dd><p>Axial coordinate <span class="math notranslate nohighlight">\(x\)</span> [m], nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.xr">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">xr</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.xr" title="Link to this definition">¶</a></dt>
+<dd><p>Stacked meridional coordinates <span class="math notranslate nohighlight">\((x, r)\)</span> [m, m], two-component nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.xrrt">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">xrrt</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.xrrt" title="Link to this definition">¶</a></dt>
+<dd><p>Stacked pseudo-Cartesian coordinates <span class="math notranslate nohighlight">\((x, r, r\theta)\)</span> [m, m, m], three-component nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.xrt">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">xrt</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.xrt" title="Link to this definition">¶</a></dt>
+<dd><p>Stacked polar coordinates <span class="math notranslate nohighlight">\((x, r, \theta)\)</span> [m, m, rad], three-component nodal array.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.xrt_nd">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">xrt_nd</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.xrt_nd" title="Link to this definition">¶</a></dt>
+<dd><p>Stacked nondimensional polar coordinates <span class="math notranslate nohighlight">\((x/L_\mathrm{ref}, r/L_\mathrm{ref}, \theta)\)</span> [-, -, rad], nodal array of three components.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.y">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">y</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.y" title="Link to this definition">¶</a></dt>
+<dd><p>Cartesian y-coordinate <span class="math notranslate nohighlight">\(y\)</span> [m], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[y = r \cos\theta\]</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ember.unstructured.UnstructuredBlock.z">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">z</span></span><a class="headerlink" href="#ember.unstructured.UnstructuredBlock.z" title="Link to this definition">¶</a></dt>
+<dd><p>Cartesian z-coordinate <span class="math notranslate nohighlight">\(z\)</span> [m], nodal array.</p>
+<div class="math notranslate nohighlight">
+\[z = -r \sin\theta\]</div>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/unstructured.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

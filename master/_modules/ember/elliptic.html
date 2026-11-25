@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ember.elliptic &#8212; ember 0.4.10.dev7+g21aeca744 documentation</title>
+    <title>ember.elliptic &#8212; ember 0.4.11.dev20+g87aaec6a5 documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../../_static/documentation_options.js?v=a9693e87"></script>
+    <script src="../../_static/documentation_options.js?v=364d5ad8"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.10.dev7+g21aeca744</p>
+<p class="blurb">Version 0.4.11.dev20+g87aaec6a5</p>
 
 
 
@@ -69,6 +69,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/unstructured.html">Unstructured blocks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/elliptic.html">Elliptic grid generation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
@@ -243,6 +244,7 @@
     <span class="n">orth_lines</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="n">relax</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
     <span class="n">floors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">ceilings</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Point-Jacobi sweeps of Winslow&#39;s equations, in single precision.</span>
 
@@ -324,6 +326,12 @@
 <span class="sd">        every node nearer the node inside it than that pushed out along the</span>
 <span class="sd">        cell between them to it, line by line out, so the lines keep their</span>
 <span class="sd">        thickness where the sweeps would draw them in. None for no floor.</span>
+<span class="sd">    ceilings : tuple, optional</span>
+<span class="sd">        ``(w_max, on_max)``, shaped as `floors`: the most length of each of</span>
+<span class="sd">        those cells. Each node further from the node inside it than that is</span>
+<span class="sd">        pulled in along the cell between them to it, in the same pass as the</span>
+<span class="sd">        floors push out, so the lines keep their thickness where the sweeps</span>
+<span class="sd">        would spread them out. None for no ceiling.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -381,11 +389,16 @@
             <span class="mi">0</span><span class="p">,</span>
         <span class="p">)</span>
     <span class="n">on_n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">on_n</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">i32</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">floors</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">m_on</span><span class="p">:</span>
+    <span class="n">w_min</span><span class="p">,</span> <span class="n">on_min</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">on_n</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">on_n</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+    <span class="n">big</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">f32</span><span class="p">)</span><span class="o">.</span><span class="n">max</span>  <span class="c1"># not inf: the kernel is built assuming finite values</span>
+    <span class="n">w_max</span><span class="p">,</span> <span class="n">on_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">on_n</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">big</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">on_n</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">big</span><span class="p">)</span>
+    <span class="n">m_min</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">m_on</span> <span class="ow">and</span> <span class="n">floors</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">w_min</span><span class="p">,</span> <span class="n">on_min</span> <span class="o">=</span> <span class="n">floors</span>
         <span class="n">m_min</span> <span class="o">=</span> <span class="mi">1</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">w_min</span><span class="p">,</span> <span class="n">on_min</span><span class="p">,</span> <span class="n">m_min</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">on_n</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">on_n</span><span class="o">.</span><span class="n">shape</span><span class="p">),</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">m_on</span> <span class="ow">and</span> <span class="n">ceilings</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">w_max</span><span class="p">,</span> <span class="n">on_max</span> <span class="o">=</span> <span class="n">ceilings</span>
+        <span class="n">m_min</span> <span class="o">=</span> <span class="mi">1</span>
     <span class="n">on_dy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">on_dy</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="p">(</span>
         <span class="n">stencil_g</span><span class="p">,</span>
@@ -445,6 +458,8 @@
         <span class="n">m_on</span><span class="p">,</span>
         <span class="n">reals</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">w_min</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">),</span> <span class="p">(</span><span class="n">on_n</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],))),</span>
         <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">on_min</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">),</span> <span class="n">on_n</span><span class="o">.</span><span class="n">shape</span><span class="p">)),</span>
+        <span class="n">reals</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">w_max</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">),</span> <span class="p">(</span><span class="n">on_n</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],))),</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">asfortranarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">on_max</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">f32</span><span class="p">),</span> <span class="n">on_n</span><span class="o">.</span><span class="n">shape</span><span class="p">)),</span>
         <span class="n">m_min</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="k">if</span> <span class="n">status</span><span class="p">:</span>

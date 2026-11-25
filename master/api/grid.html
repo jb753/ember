@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Grid &#8212; ember 0.4.10.dev7+g21aeca744 documentation</title>
+    <title>Grid &#8212; ember 0.4.11.dev20+g87aaec6a5 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f6a572b4" />
@@ -13,7 +13,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="../_static/documentation_options.js?v=a9693e87"></script>
+    <script src="../_static/documentation_options.js?v=364d5ad8"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
@@ -38,7 +38,7 @@
 
 
 
-<p class="blurb">Version 0.4.10.dev7+g21aeca744</p>
+<p class="blurb">Version 0.4.11.dev20+g87aaec6a5</p>
 
 
 
@@ -163,6 +163,7 @@
 <li class="toctree-l1"><a class="reference internal" href="patch.html">Patch</a></li>
 <li class="toctree-l1"><a class="reference internal" href="average.html">Averaging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="unstructured.html">Unstructured blocks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="elliptic.html">Elliptic grid generation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="solver.html">Solver</a></li>
 <li class="toctree-l1"><a class="reference internal" href="convergence_history.html">Convergence history</a></li>
@@ -292,7 +293,7 @@ regridded onto a new node count.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#ember.grid.Grid.copy" title="ember.grid.Grid.copy"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.copy</span></code></a>([keep_patches])</p></td>
 <td><p>Create a deep copy of the grid with copied blocks.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.resample" title="ember.grid.Grid.resample"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.resample</span></code></a>(factors)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#ember.grid.Grid.resample" title="ember.grid.Grid.resample"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Grid.resample</span></code></a>(factors[, mult])</p></td>
 <td><p>Resample all blocks, returning a new Grid at the new resolution.</p></td>
 </tr>
 </tbody>
@@ -906,8 +907,27 @@ different entropy and energy datums – with no conversion needed.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="ember.grid.Grid.resample">
-<span class="sig-name descname"><span class="pre">resample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">factors</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.resample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.resample" title="Link to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">resample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">factors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mult</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ember/grid.html#Grid.resample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ember.grid.Grid.resample" title="Link to this definition">¶</a></dt>
 <dd><p>Resample all blocks, returning a new Grid at the new resolution.</p>
+<p>Each block keeps the nodes at its ends and patch boundaries, and shares
+the rest out between the segments those cut it into. Two blocks that
+meet node for node across a periodic or cusp interface must be cut into
+the same segments along it, or the shares differ and the nodes no
+longer meet: so a block’s critical indices are first carried across
+every such interface onto its neighbour, and on through the grid until
+none is new.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>factors</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a><em> of </em><em>3 floats</em>) – Resampling factor, or one per index direction.</p></li>
+<li><p><strong>mult</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a><em>, </em><em>optional</em>) – Give each segment a multiple of this many cells, the nearest to its
+span times the factor and at least <cite>mult</cite>, so that multigrid can
+halve every block however the factor divides; eight keeps three
+levels on a grid whose segments are all multiples of eight. One,
+the default, rounds to the nearest cell.</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">

@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Index &#8212; ember 0.4.10.dev7+g21aeca744 documentation</title>
+    <title>Index &#8212; ember 0.4.11.dev20+g87aaec6a5 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f6a572b4" />
@@ -12,7 +12,7 @@
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-binder.css?v=f4aeca0c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-dataframe.css?v=2082cf3c" />
     <link rel="stylesheet" type="text/css" href="_static/sg_gallery-rendered-html.css?v=1277b6f3" />
-    <script src="_static/documentation_options.js?v=a9693e87"></script>
+    <script src="_static/documentation_options.js?v=364d5ad8"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/sg-tags.js?v=d80f6fa4"></script>
@@ -34,7 +34,7 @@
 
 
 
-<p class="blurb">Version 0.4.10.dev7+g21aeca744</p>
+<p class="blurb">Version 0.4.11.dev20+g87aaec6a5</p>
 
 
 
@@ -69,6 +69,7 @@
 <li class="toctree-l1"><a class="reference internal" href="api/patch.html">Patch</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/average.html">Averaging</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/unstructured.html">Unstructured blocks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/elliptic.html">Elliptic grid generation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/solver.html">Solver</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/convergence_history.html">Convergence history</a></li>
@@ -198,9 +199,17 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.a">a (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.a">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.a_nd">a_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.a_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/grid.html#ember.grid.Grid.accumulate_avg">accumulate_avg() (ember.grid.Grid method)</a>
 </li>
       <li><a href="api/solver.html#ember.solver.Solver.adaptive_smoothing">adaptive_smoothing (ember.solver.Solver attribute)</a>
@@ -226,13 +235,25 @@
       <ul>
         <li><a href="api/patch.html#ember.patch.InletPatch.Alpha">(ember.patch.InletPatch property)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Alpha">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.Alpha_rel">Alpha_rel (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Alpha_rel">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/util.html#ember.util.angles_to_components">angles_to_components() (in module ember.util)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.ao">ao (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.ao">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/grid.html#ember.grid.Grid.append">append() (ember.grid.Grid method)</a>
 
       <ul>
@@ -251,8 +272,6 @@
         <li><a href="api/communicators.html#ember.periodic_communicator.PeriodicCommunicator.apply">(ember.periodic_communicator.PeriodicCommunicator method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/grid.html#ember.grid.Grid.apply_bconds">apply_bconds() (ember.grid.Grid method)</a>
 </li>
       <li><a href="api/grid.html#ember.grid.Grid.apply_guess_meridional">apply_guess_meridional() (ember.grid.Grid method)</a>
@@ -304,11 +323,13 @@
       <ul>
         <li><a href="api/patch.html#ember.patch.InletPatch.Beta">(ember.patch.InletPatch property)</a>
 </li>
-      </ul></li>
-      <li><a href="api/block.html#ember.block.Block">Block (class in ember.block)</a>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Beta">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block">Block (class in ember.block)</a>
+</li>
       <li><a href="api/patch.html#ember.patch.Patch.block">block (ember.patch.Patch property)</a>
 </li>
       <li><a href="api/patch.html#ember.patch.RevolutionPatch.block_avg">block_avg (ember.patch.RevolutionPatch property)</a>
@@ -327,6 +348,8 @@
 <h2 id="C">C</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.patch.OutletPatch.calc_radial_equilibrium">calc_radial_equilibrium() (ember.patch.OutletPatch method)</a>
+</li>
       <li><a href="api/grid.html#ember.grid.Grid.calculate_wdist">calculate_wdist() (ember.grid.Grid method)</a>
 </li>
       <li><a href="api/util.html#ember.util.cart_to_pol">cart_to_pol() (in module ember.util)</a>
@@ -395,12 +418,16 @@
         <li><a href="api/patch.html#ember.patch.BlockPatchCollection.clear">(ember.patch.BlockPatchCollection method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.clear_cache">clear_cache() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.clear_cache">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/util.html#ember.util.cluster">cluster() (in module ember.util)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/util.html#ember.util.cluster_symmetric">cluster_symmetric() (in module ember.util)</a>
 </li>
       <li><a href="api/util.html#ember.util.components_to_angles">components_to_angles() (in module ember.util)</a>
@@ -410,13 +437,21 @@
       <li><a href="api/grid.html#ember.grid.Grid.connectivity">connectivity (ember.grid.Grid property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.conserved">conserved (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.conserved">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.conserved_avg_nd">conserved_avg_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.conserved_filt_nd">conserved_filt_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.conserved_nd">conserved_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.conserved_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/perturbation.html#ember.perturbation.conserved_to_flux">conserved_to_flux() (in module ember.perturbation)</a>
 </li>
       <li><a href="api/perturbation.html#ember.perturbation.conserved_to_primitive">conserved_to_primitive() (in module ember.perturbation)</a>
@@ -442,13 +477,23 @@
 </li>
         <li><a href="api/patch.html#ember.patch.Patch.copy">(ember.patch.Patch method)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.copy">(ember.unstructured.UnstructuredBlock method)</a>
+</li>
       </ul></li>
       <li><a href="api/util.html#ember.util.cosine_cluster">cosine_cluster() (in module ember.util)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.cp">cp (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.cp">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.cp_nd">cp_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.cp_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/grid.html#ember.grid.GridConnectivityManager.cusp">cusp (ember.grid.GridConnectivityManager property)</a>
 
       <ul>
@@ -460,20 +505,24 @@
       <li><a href="api/cut.html#ember.cut.CUT_EXTEND">CUT_EXTEND (in module ember.cut)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.cv">cv (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.cv">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
 <h2 id="D">D</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.dA">dA (ember.unstructured.UnstructuredBlock property)</a>
+</li>
+      <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.dA_nd">dA_nd (ember.unstructured.UnstructuredBlock property)</a>
+</li>
       <li><a href="api/block.html#ember.block.Block.dA_quad">dA_quad (ember.block.Block property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.dA_quad_nd">dA_quad_nd (ember.block.Block property)</a>
-</li>
-      <li><a href="api/block.html#ember.block.Block.dA_tri">dA_tri (ember.block.Block property)</a>
-</li>
-      <li><a href="api/block.html#ember.block.Block.dA_tri_nd">dA_tri_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.dAi">dAi (ember.block.Block property)</a>
 </li>
@@ -496,11 +545,19 @@
       <li><a href="api/solver.html#ember.solver.Solver.delta_filt">delta_filt (ember.solver.Solver attribute)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.dhdP_rho_nd">dhdP_rho_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.dhdP_rho_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.dhdrho_P_nd">dhdrho_P_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.dhdrho_P_nd">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/block.html#ember.block.Block.dhdrho_P_nd">dhdrho_P_nd (ember.block.Block property)</a>
-</li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.diverged">diverged (ember.convergence_history.ConvergenceHistory property)</a>
 </li>
       <li><a href="api/grid.html#ember.grid.DivergenceError">DivergenceError</a>
@@ -528,15 +585,31 @@
       <li><a href="api/grid.html#ember.grid.ConvergenceStep.dP_throttle">dP_throttle (ember.grid.ConvergenceStep attribute)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.dsdP_rho_nd">dsdP_rho_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.dsdP_rho_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.dsdrho_P_nd">dsdrho_P_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.dsdrho_P_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.dt_vol_nd">dt_vol_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.dudP_rho_nd">dudP_rho_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.dudP_rho_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.dudrho_P_nd">dudrho_P_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.dudrho_P_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -627,8 +700,6 @@
         <li><a href="api/communicators.html#module-ember.periodic_communicator">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     ember.perturbation
 
@@ -636,6 +707,8 @@
         <li><a href="api/perturbation.html#module-ember.perturbation">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     ember.realgas_fit
 
@@ -658,6 +731,13 @@
 </li>
       </ul></li>
       <li>
+    ember.unstructured
+
+      <ul>
+        <li><a href="api/unstructured.html#module-ember.unstructured">module</a>
+</li>
+      </ul></li>
+      <li>
     ember.util
 
       <ul>
@@ -674,6 +754,8 @@
       <li><a href="api/block.html#ember.block.Block.empty">empty() (ember.block.Block method)</a>
 
       <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.empty">(ember.unstructured.UnstructuredBlock method)</a>
+</li>
         <li><a href="api/util.html#ember.util.empty">(in module ember.util)</a>
 </li>
       </ul></li>
@@ -712,10 +794,16 @@
       <li><a href="api/block.html#ember.block.Block.F_body_nd">F_body_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.fac_lam">fac_lam (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.fac_lam">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/solver.html#ember.solver.Solver.fac_mgrid">fac_mgrid (ember.solver.Solver attribute)</a>
 </li>
       <li><a href="api/solver.html#ember.solver.Solver.fac_visc">fac_visc (ember.solver.Solver attribute)</a>
+</li>
+      <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.faces">faces (ember.unstructured.UnstructuredBlock property)</a>
 </li>
       <li><a href="api/grid.html#ember.grid.Grid.finalise_average">finalise_average() (ember.grid.Grid method)</a>
 </li>
@@ -728,9 +816,17 @@
       <li><a href="api/realgas_fit.html#ember.realgas_fit.FitResult">FitResult (class in ember.realgas_fit)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.flat">flat (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.flat">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.flip">flip() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.flip">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/average.html#ember.average.flow_conserved">flow_conserved() (in module ember.average)</a>
 </li>
       <li><a href="api/average.html#ember.average.flow_conserved_nd">flow_conserved_nd() (in module ember.average)</a>
@@ -744,7 +840,11 @@
       <li><a href="api/fluid.html#ember.fluid.Fluid">Fluid (class in ember.fluid)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.fluid">fluid (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.fluid">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/patch.html#ember.patch.MixingPatch.flux_avg_nd">flux_avg_nd (ember.patch.MixingPatch property)</a>
 </li>
       <li><a href="api/perturbation.html#ember.perturbation.flux_to_conserved">flux_to_conserved() (in module ember.perturbation)</a>
@@ -756,13 +856,21 @@
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.format_timing">format_timing() (ember.convergence_history.ConvergenceHistory method)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.freeze">freeze() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.freeze">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.Fluid.from_dict">from_dict() (ember.fluid.Fluid class method)</a>
 </li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.from_grid">from_grid() (ember.convergence_history.ConvergenceHistory class method)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.frozen">frozen (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.frozen">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/util.html#ember.util.full">full() (in module ember.util)</a>
 </li>
   </ul></td>
@@ -774,7 +882,11 @@
       <li><a href="api/solver.html#ember.solver.Solver.gain_filt">gain_filt (ember.solver.Solver attribute)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.gamma">gamma (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.gamma">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.Fluid.get_a">get_a() (ember.fluid.Fluid method)</a>
 
       <ul>
@@ -960,11 +1072,17 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.h">h (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.h">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.ho">ho (ember.block.Block property)</a>
 
       <ul>
         <li><a href="api/grid.html#ember.grid.ConvergenceStep.ho">(ember.grid.ConvergenceStep attribute)</a>
+</li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.ho">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
       </ul></li>
   </ul></td>
@@ -976,9 +1094,15 @@
 </li>
         <li><a href="api/patch.html#ember.patch.NonReflectingPatch.ho_nd">(ember.patch.NonReflectingPatch attribute)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.ho_nd">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.ho_rel">ho_rel (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.ho_rel">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -986,7 +1110,11 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.I">I (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.I">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.i_cusp">i_cusp (ember.block.Block property)</a>
 </li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.i_log">i_log (ember.convergence_history.ConvergenceHistory property)</a>
@@ -1013,10 +1141,10 @@
       </ul></li>
       <li><a href="api/realgas_fit.html#ember.realgas_fit.FitResult.info_s">info_s (ember.realgas_fit.FitResult attribute)</a>
 </li>
-      <li><a href="api/realgas_fit.html#ember.realgas_fit.FitResult.info_Z">info_Z (ember.realgas_fit.FitResult attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/realgas_fit.html#ember.realgas_fit.FitResult.info_Z">info_Z (ember.realgas_fit.FitResult attribute)</a>
+</li>
       <li><a href="api/patch.html#ember.patch.BlockPatchCollection.inlet">inlet (ember.patch.BlockPatchCollection property)</a>
 
       <ul>
@@ -1076,13 +1204,21 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.kappa">kappa (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.kappa">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.kappa_nd">kappa_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.kappa_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
-      <li><a href="api/patch.html#ember.patch.Patch.ken">ken (ember.patch.Patch property)</a>
-</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/patch.html#ember.patch.Patch.ken">ken (ember.patch.Patch property)</a>
+</li>
       <li><a href="api/patch.html#ember.patch.OutletPatch.Ki">Ki (ember.patch.OutletPatch property)</a>
 </li>
       <li><a href="api/patch.html#ember.patch.OutletPatch.Kp">Kp (ember.patch.OutletPatch property)</a>
@@ -1098,11 +1234,17 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.L_ref">L_ref (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.L_ref">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.label">label (ember.block.Block property)</a>
 
       <ul>
         <li><a href="api/patch.html#ember.patch.Patch.label">(ember.patch.Patch property)</a>
+</li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.label">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
       </ul></li>
   </ul></td>
@@ -1124,17 +1266,33 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.Ma">Ma (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Ma">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/communicators.html#ember.mixing_communicator.MixingCommunicator.Ma_clip">Ma_clip (ember.mixing_communicator.MixingCommunicator attribute)</a>
 </li>
       <li><a href="api/communicators.html#ember.mixing_communicator.MixingCommunicator.Ma_clip_max">Ma_clip_max (ember.mixing_communicator.MixingCommunicator attribute)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.Ma_rel">Ma_rel (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Ma_rel">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.Mam">Mam (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Mam">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.masked">masked() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.masked">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/average.html#ember.average.mass_average">mass_average() (in module ember.average)</a>
 </li>
       <li><a href="api/average.html#ember.average.mass_band">mass_band() (in module ember.average)</a>
@@ -1144,7 +1302,11 @@
       <li><a href="api/util.html#ember.util.matvec">matvec() (in module ember.util)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.Max">Max (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Max">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/grid.html#ember.grid.ConvergenceStep.mdot">mdot (ember.grid.ConvergenceStep attribute)</a>
 </li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.mdot_nd">mdot_nd (ember.convergence_history.ConvergenceHistory property)</a>
@@ -1164,9 +1326,17 @@
 </li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.mean">mean() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.mean">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.memory_usage">memory_usage() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.memory_usage">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/util.html#ember.util.meshgrid3">meshgrid3() (in module ember.util)</a>
 </li>
       <li><a href="api/solver.html#ember.solver.mg_coarse_shapes">mg_coarse_shapes() (in module ember.solver)</a>
@@ -1179,10 +1349,10 @@
 </li>
       <li><a href="api/solver.html#ember.solver.Solver.mix_reflective">mix_reflective (ember.solver.Solver attribute)</a>
 </li>
-      <li><a href="api/perturbation.html#ember.perturbation.mix_to_conserved">mix_to_conserved() (in module ember.perturbation)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/perturbation.html#ember.perturbation.mix_to_conserved">mix_to_conserved() (in module ember.perturbation)</a>
+</li>
       <li><a href="api/perturbation.html#ember.perturbation.mix_to_primitive">mix_to_primitive() (in module ember.perturbation)</a>
 </li>
       <li><a href="api/grid.html#ember.grid.GridConnectivityManager.mixing">mixing (ember.grid.GridConnectivityManager property)</a>
@@ -1233,23 +1403,39 @@
 </li>
         <li><a href="api/solver.html#module-ember.solver">ember.solver</a>
 </li>
+        <li><a href="api/unstructured.html#module-ember.unstructured">ember.unstructured</a>
+</li>
         <li><a href="api/util.html#module-ember.util">ember.util</a>
 </li>
         <li><a href="api/yaml_util.html#module-ember.yaml_util">ember.yaml_util</a>
 </li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.mu">mu (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.mu">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.mu_nd">mu_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.mu_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.mu_turb">mu_turb (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.mu_turb">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
 <h2 id="N">N</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.n_face">n_face (ember.unstructured.UnstructuredBlock property)</a>
+</li>
       <li><a href="api/solver.html#ember.solver.Solver.n_levels">n_levels (ember.solver.Solver attribute)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.n_levels_max">n_levels_max (ember.block.Block property)</a>
@@ -1270,20 +1456,46 @@
 </li>
       <li><a href="api/solver.html#ember.solver.Solver.n_step_log">n_step_log (ember.solver.Solver attribute)</a>
 </li>
+      <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.n_vert">n_vert (ember.unstructured.UnstructuredBlock property)</a>
+</li>
       <li><a href="api/block.html#ember.block.Block.nanmean">nanmean() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.nanmean">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.Nb">Nb (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Nb">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.ndim">ndim (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.ndim">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.ni">ni (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.ni">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.nj">nj (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.nj">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.nk">nk (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.nk">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/grid.html#ember.grid.GridConnectivityManager.nonmatch">nonmatch (ember.grid.GridConnectivityManager property)</a>
 </li>
       <li><a href="api/communicators.html#ember.nonmatch_communicator.NonMatchCommunicator">NonMatchCommunicator (class in ember.nonmatch_communicator)</a>
@@ -1299,7 +1511,11 @@
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.now">now (ember.convergence_history.ConvergenceHistory property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.nvar">nvar (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.nvar">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -1311,13 +1527,19 @@
       <ul>
         <li><a href="api/patch.html#ember.patch.RotatingPatch.Omega">(ember.patch.RotatingPatch property)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Omega">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.Omega_nd">Omega_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Omega_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
-      <li><a href="api/block.html#ember.block.Block.Omega_wall">Omega_wall (ember.block.Block property)</a>
-</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/block.html#ember.block.Block.Omega_wall">Omega_wall (ember.block.Block property)</a>
+</li>
       <li><a href="api/block.html#ember.block.Block.Omega_wall_nd">Omega_wall_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/patch.html#ember.patch.BlockPatchCollection.outlet">outlet (ember.patch.BlockPatchCollection property)</a>
@@ -1339,6 +1561,8 @@
       <ul>
         <li><a href="api/patch.html#ember.patch.OutletPatch.P">(ember.patch.OutletPatch property)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.P">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
       <li><a href="api/fluid.html#ember.fluid.Fluid.P_dtm">P_dtm (ember.fluid.Fluid property)</a>
 </li>
@@ -1347,13 +1571,19 @@
       <ul>
         <li><a href="api/patch.html#ember.patch.NonReflectingPatch.P_nd">(ember.patch.NonReflectingPatch attribute)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.P_nd">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.P_offset_nd">P_offset_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/fluid.html#ember.fluid.Fluid.P_ref">P_ref (ember.fluid.Fluid property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.P_rot">P_rot (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.P_rot">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/patch.html#ember.patch.OutletPatch.P_throttle">P_throttle (ember.patch.OutletPatch property)</a>
 </li>
       <li><a href="api/grid.html#ember.grid.GridConnectivity.pair">pair() (ember.grid.GridConnectivity method)</a>
@@ -1395,7 +1625,11 @@
       <li><a href="api/patch.html#ember.patch.BlockPatchCollection.permeable">permeable (ember.patch.BlockPatchCollection property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.pitch">pitch (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.pitch">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/patch.html#ember.patch.RevolutionPatch.pitch_dim">pitch_dim (ember.patch.RevolutionPatch property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.Po">Po (ember.block.Block property)</a>
@@ -1403,9 +1637,15 @@
       <ul>
         <li><a href="api/patch.html#ember.patch.InletPatch.Po">(ember.patch.InletPatch property)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Po">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.Po_rel">Po_rel (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Po_rel">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/util.html#ember.util.pol_to_cart">pol_to_cart() (in module ember.util)</a>
 </li>
       <li><a href="api/util.html#ember.util.pol_to_pseudocart">pol_to_pseudocart() (in module ember.util)</a>
@@ -1419,7 +1659,11 @@
 </li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.Pr">Pr (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Pr">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/perturbation.html#ember.perturbation.primitive_to_bcond">primitive_to_bcond() (in module ember.perturbation)</a>
 </li>
       <li><a href="api/perturbation.html#ember.perturbation.primitive_to_chic">primitive_to_chic() (in module ember.perturbation)</a>
@@ -1449,13 +1693,25 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.r">r (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.r">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/realgas_fit.html#ember.realgas_fit.FitInfo.R2">R2 (ember.realgas_fit.FitInfo attribute)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.r_mid_nd">r_mid_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.r_mid_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.r_nd">r_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.r_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.read_cnv">read_cnv() (ember.convergence_history.ConvergenceHistory class method)</a>
 </li>
       <li><a href="api/grid.html#ember.grid.Grid.read_emb">read_emb() (ember.grid.Grid class method)</a>
@@ -1485,7 +1741,11 @@
 </li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.reshape">reshape() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.reshape">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.residual">residual (ember.convergence_history.ConvergenceHistory property)</a>
 
       <ul>
@@ -1516,38 +1776,78 @@
 </li>
       <li><a href="api/solver.html#ember.solver.Solver.rf_mix">rf_mix (ember.solver.Solver attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/solver.html#ember.solver.Solver.rf_outlet">rf_outlet (ember.solver.Solver attribute)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.Rgas">Rgas (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Rgas">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.Fluid.Rgas_ref">Rgas_ref (ember.fluid.Fluid property)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.rho">rho (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.rho">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.RealFluid.rho_lim_nd">rho_lim_nd (ember.fluid.RealFluid property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.rho_nd">rho_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.rho_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.Fluid.rho_ref">rho_ref (ember.fluid.Fluid property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.rhoe">rhoe (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.rhoe">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.rhoo">rhoo (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.rhoo">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.rhoo_rel">rhoo_rel (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.rhoo_rel">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.rhorVt">rhorVt (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.rhorVt">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.Fluid.rhoV_ref">rhoV_ref (ember.fluid.Fluid property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.rhoVm">rhoVm (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.rhoVm">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.rhoVr">rhoVr (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.rhoVr">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.rhoVx">rhoVx (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.rhoVx">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/solver.html#ember.solver.rk_step">rk_step() (in module ember.solver)</a>
 </li>
       <li><a href="api/realgas_fit.html#ember.realgas_fit.FitInfo.rmse">rmse (ember.realgas_fit.FitInfo attribute)</a>
@@ -1571,11 +1871,17 @@
       <ul>
         <li><a href="api/patch.html#ember.patch.RotatingPatch.rpm">(ember.patch.RotatingPatch property)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.rpm">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
       <li><a href="api/util.html#ember.util.rss_bytes">rss_bytes() (in module ember.util)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.rt">rt (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.rt">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/solver.html#ember.solver.BaseSolver.run">run() (ember.solver.BaseSolver method)</a>
 
       <ul>
@@ -1595,6 +1901,8 @@
       <ul>
         <li><a href="api/grid.html#ember.grid.ConvergenceStep.s">(ember.grid.ConvergenceStep attribute)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.s">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.s_nd">s_nd (ember.block.Block property)</a>
 
@@ -1602,6 +1910,8 @@
         <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.s_nd">(ember.convergence_history.ConvergenceHistory property)</a>
 </li>
         <li><a href="api/patch.html#ember.patch.NonReflectingPatch.s_nd">(ember.patch.NonReflectingPatch attribute)</a>
+</li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.s_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
       </ul></li>
       <li><a href="api/realgas_fit.html#ember.realgas_fit.sample_coolprop">sample_coolprop() (in module ember.realgas_fit)</a>
@@ -1631,17 +1941,29 @@
 </li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_conserved">set_conserved() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_conserved">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/grid.html#ember.grid.Grid.set_conserved_cart_unstr">set_conserved_cart_unstr() (ember.grid.Grid method)</a>
 </li>
       <li><a href="api/patch.html#ember.patch.CoolingPatch.set_cool">set_cool() (ember.patch.CoolingPatch method)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.set_fac_lam">set_fac_lam() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_fac_lam">(ember.unstructured.UnstructuredBlock method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_faces">set_faces() (ember.unstructured.UnstructuredBlock method)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.set_fluid">set_fluid() (ember.block.Block method)</a>
 
       <ul>
         <li><a href="api/grid.html#ember.grid.Grid.set_fluid">(ember.grid.Grid method)</a>
+</li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_fluid">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
       </ul></li>
       <li><a href="api/patch.html#ember.patch.MixingPatch.set_flux_avg">set_flux_avg() (ember.patch.MixingPatch method)</a>
@@ -1654,6 +1976,8 @@
         <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_h_s">(ember.fluid.PerfectFluid method)</a>
 </li>
         <li><a href="api/fluid.html#ember.fluid.RealFluid.set_h_s">(ember.fluid.RealFluid method)</a>
+</li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_h_s">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
       </ul></li>
       <li><a href="api/patch.html#ember.patch.InletPatch.set_ho_s">set_ho_s() (ember.patch.InletPatch method)</a>
@@ -1677,21 +2001,35 @@
       <ul>
         <li><a href="api/grid.html#ember.grid.Grid.set_L_ref">(ember.grid.Grid method)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_L_ref">(ember.unstructured.UnstructuredBlock method)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_label">set_label() (ember.block.Block method)</a>
 
       <ul>
         <li><a href="api/patch.html#ember.patch.Patch.set_label">(ember.patch.Patch method)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_label">(ember.unstructured.UnstructuredBlock method)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_mu_turb">set_mu_turb() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_mu_turb">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_Nb">set_Nb() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_Nb">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_Omega">set_Omega() (ember.block.Block method)</a>
 
       <ul>
         <li><a href="api/patch.html#ember.patch.RotatingPatch.set_Omega">(ember.patch.RotatingPatch method)</a>
+</li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_Omega">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
       </ul></li>
       <li><a href="api/patch.html#ember.patch.OutletPatch.set_P">set_P() (ember.patch.OutletPatch method)</a>
@@ -1705,6 +2043,8 @@
 </li>
         <li><a href="api/fluid.html#ember.fluid.RealFluid.set_P_h">(ember.fluid.RealFluid method)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_P_h">(ember.unstructured.UnstructuredBlock method)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_P_rho">set_P_rho() (ember.block.Block method)</a>
 
@@ -1715,9 +2055,15 @@
 </li>
         <li><a href="api/fluid.html#ember.fluid.RealFluid.set_P_rho">(ember.fluid.RealFluid method)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_P_rho">(ember.unstructured.UnstructuredBlock method)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_P_rho_nd">set_P_rho_nd() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_P_rho_nd">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_P_s">set_P_s() (ember.block.Block method)</a>
 
       <ul>
@@ -1726,6 +2072,8 @@
         <li><a href="api/fluid.html#ember.fluid.PerfectFluid.set_P_s">(ember.fluid.PerfectFluid method)</a>
 </li>
         <li><a href="api/fluid.html#ember.fluid.RealFluid.set_P_s">(ember.fluid.RealFluid method)</a>
+</li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_P_s">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_P_T">set_P_T() (ember.block.Block method)</a>
@@ -1737,17 +2085,23 @@
 </li>
         <li><a href="api/fluid.html#ember.fluid.RealFluid.set_P_T">(ember.fluid.RealFluid method)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_P_T">(ember.unstructured.UnstructuredBlock method)</a>
+</li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/patch.html#ember.patch.InletPatch.set_Po_To">set_Po_To() (ember.patch.InletPatch method)</a>
 </li>
       <li><a href="api/set_iterative.html#ember.set_iterative.set_Po_To_Ma_rel_Alpha_rel_Beta">set_Po_To_Ma_rel_Alpha_rel_Beta() (in module ember.set_iterative)</a>
 </li>
       <li><a href="api/grid.html#ember.grid.Grid.set_primitive_cart_unstr">set_primitive_cart_unstr() (ember.grid.Grid method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.set_r">set_r() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_r">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_rho_s">set_rho_s() (ember.block.Block method)</a>
 
       <ul>
@@ -1757,9 +2111,15 @@
 </li>
         <li><a href="api/fluid.html#ember.fluid.RealFluid.set_rho_s">(ember.fluid.RealFluid method)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_rho_s">(ember.unstructured.UnstructuredBlock method)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_rho_u">set_rho_u() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_rho_u">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_rho_u_Vxrt_nd">set_rho_u_Vxrt_nd() (ember.block.Block method)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.set_rpm">set_rpm() (ember.block.Block method)</a>
@@ -1767,9 +2127,15 @@
       <ul>
         <li><a href="api/patch.html#ember.patch.RotatingPatch.set_rpm">(ember.patch.RotatingPatch method)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_rpm">(ember.unstructured.UnstructuredBlock method)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_t">set_t() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_t">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.Fluid.set_T_rho">set_T_rho() (ember.fluid.Fluid method)</a>
 
       <ul>
@@ -1787,33 +2153,69 @@
 </li>
         <li><a href="api/fluid.html#ember.fluid.RealFluid.set_T_s">(ember.fluid.RealFluid method)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_T_s">(ember.unstructured.UnstructuredBlock method)</a>
+</li>
       </ul></li>
       <li><a href="api/patch.html#ember.patch.MixingPatch.set_target">set_target() (ember.patch.MixingPatch method)</a>
 </li>
       <li><a href="api/patch.html#ember.patch.OutletPatch.set_throttle">set_throttle() (ember.patch.OutletPatch method)</a>
 </li>
-      <li><a href="api/block.html#ember.block.Block.set_triangulated">set_triangulated() (ember.block.Block method)</a>
-</li>
       <li><a href="api/patch.html#ember.patch.MixingPatch.set_uniform">set_uniform() (ember.patch.MixingPatch method)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.set_V_Alpha_Beta">set_V_Alpha_Beta() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_V_Alpha_Beta">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_Vr">set_Vr() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_Vr">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_Vt">set_Vt() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_Vt">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_Vx">set_Vx() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_Vx">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_Vxrt">set_Vxrt() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_Vxrt">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_wdist">set_wdist() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_wdist">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_x">set_x() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_x">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_xrt">set_xrt() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_xrt">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.set_xyz">set_xyz() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.set_xyz">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/solver.html#ember.solver.Solver.sf2">sf2 (ember.solver.Solver attribute)</a>
 </li>
       <li><a href="api/solver.html#ember.solver.Solver.sf2_T">sf2_T (ember.solver.Solver attribute)</a>
@@ -1827,15 +2229,33 @@
       <ul>
         <li><a href="api/patch.html#ember.patch.Patch.shape">(ember.patch.Patch property)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.shape">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.shape_cell">shape_cell (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.shape_cell">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.shape_iface">shape_iface (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.shape_iface">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.shape_jface">shape_jface (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.shape_jface">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.shape_kface">shape_kface (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.shape_kface">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/patch.html#ember.patch.NonReflectingPatch.sigma">sigma (ember.patch.NonReflectingPatch attribute)</a>
 </li>
       <li><a href="api/cut.html#ember.cut.signed_distance">signed_distance() (in module ember.cut)</a>
@@ -1845,6 +2265,8 @@
       <ul>
         <li><a href="api/patch.html#ember.patch.NonReflectingPatch.sinBeta">(ember.patch.NonReflectingPatch attribute)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.sinBeta">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.size">size (ember.block.Block property)</a>
 
@@ -1852,6 +2274,8 @@
         <li><a href="api/grid.html#ember.grid.Grid.size">(ember.grid.Grid property)</a>
 </li>
         <li><a href="api/patch.html#ember.patch.Patch.size">(ember.patch.Patch property)</a>
+</li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.size">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
       </ul></li>
       <li><a href="api/patch.html#ember.patch.Patch.slice">slice (ember.patch.Patch property)</a>
@@ -1875,7 +2299,11 @@
       <li><a href="api/patch.html#ember.patch.RevolutionPatch.spf">spf (ember.patch.RevolutionPatch property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.squeeze">squeeze() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.squeeze">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block_util.html#ember.block_util.STATE">STATE (in module ember.block_util)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.store">store (ember.block.Block property)</a>
@@ -1892,10 +2320,18 @@
 </li>
       <li><a href="api/block.html#ember.block.Block.t">t (ember.block.Block property)</a>
 </li>
+      <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.T">T (ember.unstructured.UnstructuredBlock property)</a>
+</li>
+      <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.t">t (ember.unstructured.UnstructuredBlock property)</a>
+</li>
       <li><a href="api/fluid.html#ember.fluid.Fluid.T_dtm">T_dtm (ember.fluid.Fluid property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.T_nd">T_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.T_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.Fluid.T_ref">T_ref (ember.fluid.Fluid property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.tanAlpha">tanAlpha (ember.block.Block property)</a>
@@ -1903,15 +2339,27 @@
       <ul>
         <li><a href="api/patch.html#ember.patch.NonReflectingPatch.tanAlpha">(ember.patch.NonReflectingPatch attribute)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.tanAlpha">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.tanAlpha_rel">tanAlpha_rel (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.tanAlpha_rel">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.tanBeta">tanBeta (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.tanBeta">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.tau_q_faces">tau_q_faces (ember.block.Block property)</a>
 </li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.throttle">throttle (ember.convergence_history.ConvergenceHistory property)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.time">time (ember.convergence_history.ConvergenceHistory property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.To">To (ember.block.Block property)</a>
@@ -1919,15 +2367,19 @@
       <ul>
         <li><a href="api/patch.html#ember.patch.InletPatch.To">(ember.patch.InletPatch property)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.To">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/fluid.html#ember.fluid.Fluid.to_dict">to_dict() (ember.fluid.Fluid method)</a>
 </li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.to_json">to_json() (ember.convergence_history.ConvergenceHistory method)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.To_rel">To_rel (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.To_rel">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block_util.html#ember.block_util.to_tm3">to_tm3() (in module ember.block_util)</a>
 </li>
       <li><a href="api/average.html#ember.average.total_area">total_area() (in module ember.average)</a>
@@ -1937,10 +2389,12 @@
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.tpnps">tpnps (ember.convergence_history.ConvergenceHistory property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.transpose">transpose() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.transpose">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/cut.html#ember.cut.triangulate_to_unstructured">triangulate_to_unstructured() (in module ember.cut)</a>
-</li>
-      <li><a href="api/block.html#ember.block.Block.triangulated">triangulated (ember.block.Block property)</a>
 </li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.trim">trim() (ember.convergence_history.ConvergenceHistory method)</a>
 </li>
@@ -1956,20 +2410,40 @@
 </li>
       <li><a href="api/block.html#ember.block.Block.u">u (ember.block.Block property)</a>
 </li>
+      <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.U">U (ember.unstructured.UnstructuredBlock property)</a>
+</li>
+      <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.u">u (ember.unstructured.UnstructuredBlock property)</a>
+</li>
       <li><a href="api/fluid.html#ember.fluid.RealFluid.u_lim_nd">u_lim_nd (ember.fluid.RealFluid property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.u_nd">u_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.u_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.Fluid.u_ref">u_ref (ember.fluid.Fluid property)</a>
 </li>
       <li><a href="api/cut.html#ember.cut.unstructured">unstructured() (in module ember.cut)</a>
 </li>
+      <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock">UnstructuredBlock (class in ember.unstructured)</a>
+</li>
       <li><a href="api/util.html#ember.util.unwrap_meridional">unwrap_meridional() (in module ember.util)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.uo">uo (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.uo">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.uo_rel">uo_rel (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.uo_rel">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/grid.html#ember.grid.Grid.update_bconds">update_bconds() (ember.grid.Grid method)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.update_cached_conserved">update_cached_conserved() (ember.block.Block method)</a>
@@ -1977,9 +2451,9 @@
       <ul>
         <li><a href="api/grid.html#ember.grid.Grid.update_cached_conserved">(ember.grid.Grid method)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.update_cached_conserved">(ember.unstructured.UnstructuredBlock method)</a>
+</li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.update_primitive">update_primitive() (ember.block.Block method)</a>
 </li>
       <li><a href="api/patch.html#ember.patch.NonReflectingPatch.update_ref_scales">update_ref_scales() (ember.patch.NonReflectingPatch method)</a>
@@ -2015,59 +2489,127 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.V">V (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.V">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.V_nd">V_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.V_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/fluid.html#ember.fluid.Fluid.V_ref">V_ref (ember.fluid.Fluid property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.V_rel">V_rel (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.V_rel">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/util.html#ember.util.vecnorm">vecnorm() (in module ember.util)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.view">view() (ember.block.Block method)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.view">(ember.unstructured.UnstructuredBlock method)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.Vm">Vm (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vm">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.vol">vol (ember.block.Block property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.vol_nd">vol_nd (ember.block.Block property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.Vr">Vr (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vr">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.Vr_nd">Vr_nd (ember.block.Block property)</a>
 
       <ul>
         <li><a href="api/patch.html#ember.patch.NonReflectingPatch.Vr_nd">(ember.patch.NonReflectingPatch attribute)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vr_nd">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
+      </ul></li>
+      <li><a href="api/block.html#ember.block.Block.Vt">Vt (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vt">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/block.html#ember.block.Block.Vt">Vt (ember.block.Block property)</a>
-</li>
       <li><a href="api/block.html#ember.block.Block.Vt_nd">Vt_nd (ember.block.Block property)</a>
 
       <ul>
         <li><a href="api/patch.html#ember.patch.NonReflectingPatch.Vt_nd">(ember.patch.NonReflectingPatch attribute)</a>
 </li>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vt_nd">(ember.unstructured.UnstructuredBlock property)</a>
+</li>
       </ul></li>
       <li><a href="api/block.html#ember.block.Block.Vt_rel">Vt_rel (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vt_rel">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.Vt_rel_nd">Vt_rel_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vt_rel_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.Vx">Vx (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vx">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.Vx_nd">Vx_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vx_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.Vxrt">Vxrt (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vxrt">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.Vxrt_nd">Vxrt_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vxrt_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.Vxrt_rel">Vxrt_rel (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vxrt_rel">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.Vy">Vy (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vy">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.Vz">Vz (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.Vz">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -2079,15 +2621,23 @@
       <li><a href="api/block_util.html#ember.block_util.wall_yplus">wall_yplus() (in module ember.block_util)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.wdist">wdist (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.wdist">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.wdist_nd">wdist_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.wdist_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/patch.html#ember.patch.RevolutionPatch.weight_pitch">weight_pitch (ember.patch.RevolutionPatch property)</a>
-</li>
-      <li><a href="api/elliptic.html#ember.elliptic.winslow_sweeps">winslow_sweeps() (in module ember.elliptic)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/elliptic.html#ember.elliptic.winslow_sweeps">winslow_sweeps() (in module ember.elliptic)</a>
+</li>
       <li><a href="api/grid.html#ember.grid.DivergenceError.with_traceback">with_traceback() (ember.grid.DivergenceError method)</a>
 </li>
       <li><a href="api/convergence_history.html#ember.convergence_history.ConvergenceHistory.write_cnv">write_cnv() (ember.convergence_history.ConvergenceHistory method)</a>
@@ -2107,19 +2657,39 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.x">x (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.x">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.xr">xr (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.xr">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/block.html#ember.block.Block.xrrt">xrrt (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.xrrt">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.xrt">xrt (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.xrt">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
       <li><a href="api/patch.html#ember.patch.Patch.xrt_centre">xrt_centre (ember.patch.Patch property)</a>
 </li>
       <li><a href="api/block.html#ember.block.Block.xrt_nd">xrt_nd (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.xrt_nd">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -2127,7 +2697,11 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.y">y (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.y">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -2135,7 +2709,11 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/block.html#ember.block.Block.z">z (ember.block.Block property)</a>
+
+      <ul>
+        <li><a href="api/unstructured.html#ember.unstructured.UnstructuredBlock.z">(ember.unstructured.UnstructuredBlock property)</a>
 </li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/util.html#ember.util.zeros">zeros() (in module ember.util)</a>
