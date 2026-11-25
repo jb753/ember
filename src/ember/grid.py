@@ -1411,7 +1411,7 @@ class Grid(_LabelledList):
         the same segments along it, or the shares differ and the nodes no
         longer meet: so a block's critical indices are first carried across
         every such interface onto its neighbour, and on through the grid until
-        none is new. See :func:`_resample_crit`.
+        none is new.
 
         Parameters
         ----------
