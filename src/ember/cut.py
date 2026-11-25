@@ -2,7 +2,8 @@
 
 This module implements the marching cubes algorithm for extracting isosurfaces from 3D
 structured grids, along with utilities for creating both structured meridional cuts and
-unstructured triangulated cuts. The marching cubes implementation uses a precomputed lookup
+unstructured triangulated cuts, returned as
+:class:`~ember.unstructured.UnstructuredBlock`. The marching cubes implementation uses a precomputed lookup
 table (TRITABLE) to determine how to triangulate the cell edges an isosurface intersects.
 Key functionality includes extracting
 unstructured triangular cuts using signed distance fields, creating structured 2D meridional
@@ -28,6 +29,7 @@ import ember.fortran
 import ember.grid
 from ember import util
 from ember.block import Block
+from ember.unstructured import _like
 
 _TRITABLE = np.array(
     [
@@ -347,82 +349,100 @@ def _eijk(i, j, k, e):
 # of a cell's 8 vertices and of the two ends of its 12 edges. All are derived
 # from the table and helpers above rather than written out again, and are
 # handed to the Fortran kernels so that they hold no copy of their own.
-_NTRITABLE = np.count_nonzero(_TRITABLE != -1, axis=1) // 3
 _VERT_IJK = np.array(
     [[s.start for s in _vijk((2, 2, 2), v)] for v in range(8)], dtype=np.int32
 )
 _EDGE_IJK = np.array([_eijk(0, 0, 0, e) for e in range(12)], dtype=np.int32)
 
 
-def _cube_index(d):
-    """For a 3D array of signed distances, get cube indices."""
-    ni, nj, nk = d.shape
-    ind = np.zeros((ni - 1, nj - 1, nk - 1), dtype=np.int32, order="F")
-    ember.fortran.marching_cubes_index(d, _VERT_IJK, ind)
-    return ind
-
-
-def _marching_cubes(data, dist):
+def _marching_cubes(data, a, b=None, coeffs=(1.0, 0.0, 0.0)):
     """Take an unstructured cut of 3D data using a signed distance field.
+
+    The kernel forms the distance ``na * a + nb * b - c0`` at each node as it
+    goes. With only `a` given, that is `a` itself, a distance field already
+    worked out; a straight cut instead passes the meridional coordinates and
+    its line's coefficients, and no field is ever built.
 
     Parameters
     ----------
     data: (ni, nj, nk, nvar) array
         Data variables arranged on a three-dimensional structured grid
         following ember convention with components in last axis.
-    dist: (ni, nj, nk) array
-        The signed distance field at each grid point, `dist=0` sets the cut location.
+    a, b: (ni, nj, nk) array
+        Fields the signed distance is formed from, zero on the cut.
+    coeffs: tuple of float
+        ``(na, nb, c0)``. The default makes the distance `a`.
 
     Returns
     -------
-    triangles: (ntri, 3, nvar) array
-        The unstructured cut is composed of `ntri` triangles, each with 3
-        vertices, holding values for each of the `nvar` data variables.
+    verts: (n_vert, nvar) array
+        Data variables at each vertex of the cut, one vertex per cut edge
+        however many triangles share it.
+    faces: (n_face, 3) int32 array
+        Indices into `verts` of the three vertices of each triangle.
 
+    Returns None if nothing is cut.
     """
+    a = np.asfortranarray(a, dtype=np.float32)
+    b = a if b is None else np.asfortranarray(b, dtype=np.float32)
+    na, nb, c0 = coeffs
 
-    # Which of the 256 corner sign patterns each cell has, and so how many
-    # triangles it contributes
-    icube = _cube_index(dist)
-    ntri_cell = _NTRITABLE[icube]
-
-    # Where each cell's triangles start in the output. Counting in C order
-    # walks the cells i first, which is the order the triangles come back in.
-    ntri_flat = ntri_cell.ravel(order="C")
-    offsets = np.cumsum(ntri_flat) - ntri_flat
-    ntri = int(ntri_flat.sum())
+    # Room for one triangle per cell, which a cut through a 3D block, crossing
+    # a few percent of its cells, comes nowhere near. Pages of an empty array
+    # are only mapped in when written, so the room left over costs nothing.
+    # A cut that does make more is counted in full, and then run again with
+    # room for all of it.
+    cap = max(int(np.prod(np.subtract(a.shape, 1))), 1)
+    ic_row = np.empty(a.shape[0] - 1, dtype=np.int32)
+    i_cut = np.empty_like(ic_row)
+    while True:
+        lo = np.empty((3, cap), dtype=np.int32, order="F")
+        hi = np.empty((3, cap), dtype=np.int32, order="F")
+        frac = np.empty((3, cap), dtype=np.float32, order="F")
+        n_face = ember.fortran.marching_cubes(
+            a,
+            b,
+            na,
+            nb,
+            c0,
+            _VERT_IJK,
+            _TRITABLE,
+            _EDGE_IJK,
+            lo,
+            hi,
+            frac,
+            ic_row,
+            i_cut,
+        )
+        if n_face <= cap:
+            break
+        cap = n_face
 
     # Nothing is cut
-    if ntri == 0:
+    if n_face == 0:
         return None
 
-    # Only the cells that contribute a triangle reach the kernel, which for a
-    # cut of a 3D block is a couple of percent of them
-    cells = np.argwhere(ntri_cell > 0)
-
-    ijk_lo = np.zeros((ntri, 3, 3), dtype=np.int32, order="F")
-    ijk_hi = np.zeros((ntri, 3, 3), dtype=np.int32, order="F")
-    frac = np.zeros((ntri, 3), order="F")
-
-    ember.fortran.marching_cubes_edges(
-        dist,
-        cells,
-        offsets.reshape(ntri_cell.shape)[tuple(cells.T)],
-        icube[tuple(cells.T)],
-        _TRITABLE,
-        _EDGE_IJK,
-        ijk_lo,
-        ijk_hi,
-        frac,
+    # One vertex per cut edge, however many triangles share it. The kernel
+    # gives each edge as its pair of nodes, lower first, so the pair is the
+    # same from every cell around the edge and keys it. Transposed, the
+    # vertices run face by face.
+    lo = lo[:, :n_face].T.ravel()
+    hi = hi[:, :n_face].T.ravel()
+    frac = frac[:, :n_face].T.ravel()
+    _, first, inverse = np.unique(
+        lo.astype(np.int64) * a.size + hi, return_index=True, return_inverse=True
     )
+    faces = inverse.reshape(n_face, 3).astype(np.int32)
 
     # Interpolate every variable onto the vertices the kernel located. Done
     # here rather than in the kernel so that the data keeps whatever precision
-    # it arrived in, and never has to be handed over in bulk.
-    data_lo = data[ijk_lo[..., 0], ijk_lo[..., 1], ijk_lo[..., 2]]
-    data_hi = data[ijk_hi[..., 0], ijk_hi[..., 1], ijk_hi[..., 2]]
+    # it arrived in, and never has to be handed over in bulk. The node indices
+    # flatten i fastest, as a block's data is stored, so this is a view.
+    flat = data.reshape(-1, data.shape[-1], order="F")
+    data_lo = flat[lo[first]]
+    data_hi = flat[hi[first]]
 
-    return data_lo + (data_hi - data_lo) * frac[..., np.newaxis]
+    return data_lo + (data_hi - data_lo) * frac[first, np.newaxis], faces
 
 
 def signed_distance(xr, xr_query):
@@ -442,7 +462,8 @@ def signed_distance(xr, xr_query):
     Returns
     -------
     Array, shape (...)
-        Signed distance above or below the cut.
+        Signed distance above or below the cut, in single precision like the
+        coordinates it is measured from.
 
     """
 
@@ -455,21 +476,111 @@ def signed_distance(xr, xr_query):
     # A single node spans no segment, so nothing is ever nearer than the
     # sentinel.  The kernel would return its own, so screen the case out here.
     if xr.shape[0] < 2:
-        return np.full(shape, np.inf)
+        return np.full(shape, np.inf, dtype=np.float32)
 
     # The kernel indexes points fastest and components slowest, which is the
     # Fortran ordering ember stores nodal arrays in, so the reshape below is a
-    # view for a block coordinate array rather than a repack.  Widening to
-    # double is a copy, since those arrays are single precision, but it is one
-    # pass against the numpy version's ten per segment, and it keeps the return
-    # dtype this function has always had.
-    xr_query = np.asfortranarray(xr_query, dtype=np.float64)
+    # view for a block coordinate array rather than a repack. They are single
+    # precision, as the kernel takes them, so they reach it without a copy.
+    xr_query = np.asfortranarray(xr_query, dtype=np.float32)
     d = ember.fortran.signed_distance(
-        np.asfortranarray(xr, dtype=np.float64),
+        np.asfortranarray(xr, dtype=np.float32),
         xr_query.reshape(-1, 2, order="F"),
     )
 
     return d.reshape(shape, order="F")
+
+
+def _line_normal(xr_cut):
+    """Unit normal and offset of the line through a single segment.
+
+    Returns ``(nx, nr, c)`` such that ``nx * x + nr * r - c`` is the signed
+    distance from the line, with the sign :func:`signed_distance` gives.
+    """
+    (x0, r0), (x1, r1) = np.asarray(xr_cut, dtype=np.float64)
+    bx, br = x1 - x0, r1 - r0
+    length = np.sqrt(max(bx * bx + br * br, 1e-9))
+    nx, nr = -br / length, bx / length
+    return nx, nr, x0 * nx + r0 * nr
+
+
+def _line_distance(xr_cut, xr_query):
+    """Signed distance from the line through a single segment, past both ends.
+
+    Agrees with :func:`signed_distance` wherever the foot of the perpendicular
+    falls on the segment, sign included, and carries the same values on along
+    the line beyond its ends. Linear in the coordinates, so a few array passes
+    rather than the kernel's search over segments. In single precision, as
+    the coordinates are.
+    """
+    nx, nr, c = (np.float32(v) for v in _line_normal(xr_cut))
+    xr_query = np.asarray(xr_query, dtype=np.float32)
+    d = xr_query[..., 0] * nx
+    d += xr_query[..., 1] * nr
+    d -= c
+    return d
+
+
+def _distance_args(xr_cut, block):
+    """Fields and coefficients the kernels form a block's cut distance from.
+
+    The cut is the zero level of a signed distance. Only its sign and the
+    fraction along a grid edge where it vanishes are used, neither of which a
+    uniform scaling changes, so it is measured in the block's nondimensional
+    coordinates, a view of its data, rather than in scaled copies of them.
+
+    The cut runs on past both ends of the curve, straight along its end
+    segments, so through a block it reaches it is the curve and those two
+    rays, and the distance is to all three. A single straight segment is
+    then just its line, whose distance is linear in the coordinates, so the
+    kernels form it node by node from ``(x, r)`` and the line's coefficients
+    and no field is built. A polyline cut is :func:`_cut_field`, which the
+    default coefficients take as it is.
+
+    Returns the positional arguments ``(a, [b, coeffs])`` that follow the
+    data in :func:`_marching_cubes` and :func:`_first_j_crossing`.
+    """
+    xr_cut_nd = xr_cut / block.L_ref
+    xrt_nd = block.xrt_nd
+    if len(xr_cut) == 2:
+        return xrt_nd[..., 0], xrt_nd[..., 1], _line_normal(xr_cut_nd)
+    return (_cut_field(xr_cut_nd, xrt_nd[..., :2]),)
+
+
+def _cut_field(xr_cut, xr_query):
+    """Signed distance to a cut curve and its end rays, exact near the cut.
+
+    The curve is carried on past both ends as straight rays along its end
+    segments. Each node is signed by the side of the curve and rays it lies
+    on, positive on the left of the direction the curve runs, as
+    :func:`signed_distance` signs it near the curve. Unlike
+    :func:`signed_distance`, which signs a node by the segment nearest it,
+    the sign changes only across the cut itself, never where the nearest
+    segment switches.
+
+    The distance is exact wherever the cutting kernels use it, at the nodes
+    of every grid edge the cut crosses, and at all nodes near the cut. Further
+    off only the sign is worked out, and the magnitude is the largest single
+    precision number. See ``cut_distance`` in ``_fortran/distance.f90``.
+
+    Parameters
+    ----------
+    xr_cut : array_like, shape (n_points, 2)
+        Cut curve, of at least two points; neither it nor its rays may cross
+        themselves.
+    xr_query : Array, shape (ni, nj, nk, 2)
+        Meridional coordinates of a block's nodes.
+
+    Returns
+    -------
+    Array, shape (ni, nj, nk)
+        Signed distance, in single precision.
+    """
+    xr_cut = np.asfortranarray(xr_cut, dtype=np.float32)
+    keep = np.empty(xr_cut.shape[0] + 1, dtype=np.int32)
+    return ember.fortran.cut_distance(
+        xr_cut, np.asfortranarray(xr_query, dtype=np.float32), keep
+    )
 
 
 def _cut_reaches_block(xr_cut, block):
@@ -509,6 +620,13 @@ def _cut_reaches_block(xr_cut, block):
     assert xr_cut.shape[-1] == 2, "Segments must have shape (..., 2)"
     assert xr_cut.ndim >= 2, "Segments must be at least 2D"
 
+    # A single segment cuts along the whole of its line, which reaches the box
+    # if the box's corners are not all on one side of it
+    if len(xr_cut) == 2:
+        corners = np.array([[lo[0], lo[1]], [lo[0], hi[1]], [hi[0], lo[1]], hi])
+        d = _line_distance(xr_cut, corners)
+        return bool(d.min() <= 0.0 <= d.max())
+
     seg_start = xr_cut[:-1]
     seg_delta = xr_cut[1:] - seg_start
 
@@ -538,9 +656,11 @@ def _cut_reaches_block(xr_cut, block):
 
 
 CUT_EXTEND = 0.1
-"""How far :func:`unstructured` carries a cut curve on past each end, as a
-fraction of the end segment's length. Enough to cover the wall cells straddling
-a hub-to-casing line; short enough not to reach back into the fluid."""
+"""How far past each end of a cut curve :func:`unstructured` looks for the
+blocks it reaches, as a fraction of the end segment's length. Enough to take in
+a block whose wall cells straddle the end of a hub-to-casing line; short enough
+not to reach back into the fluid. Within a block it does reach, the cut runs
+on along the end segments' lines regardless."""
 
 
 def _extend_ends(xr_cut, frac):
@@ -559,9 +679,12 @@ def unstructured(grid, xr_cut):
     Extracts a triangulated isosurface where the meridional cut curve
     intersects the grid, by running the marching cubes algorithm on the
     signed distance field of each block. Triangles from all intersected
-    blocks are concatenated into a single unstructured block. The curve's end
-    segments are carried on by :data:`CUT_EXTEND` of their length, so a curve
-    ending on an endwall cuts the wall cells cleanly.
+    blocks are concatenated into a single unstructured block. Within each
+    block the curve reaches, or comes within :data:`CUT_EXTEND` of its end
+    segments' length of reaching, the cut runs on past both ends straight
+    along those segments, so a curve ending on an endwall cuts the wall cells
+    cleanly. A single straight segment is thus its whole line, which is also
+    the quicker case to evaluate.
 
     Parameters
     ----------
@@ -572,7 +695,7 @@ def unstructured(grid, xr_cut):
 
     Returns
     -------
-    cut : Block, shape (ntri, 3) or None
+    cut : UnstructuredBlock or None
         Unstructured triangulated cut, or None if the curve does not
         intersect any block.
     """
@@ -581,51 +704,42 @@ def unstructured(grid, xr_cut):
         grid = [grid]
 
     # A cut curve usually ends on an endwall, but where that wall is sloped the
-    # wall cells straddling the cut have nodes past the end of the curve. Their
-    # distance is then to the end point rather than across the line, which is
-    # larger, so marching cubes puts the vertices on those edges off the line,
-    # tens of microns on a spinner, differently at every theta. Carry the end
-    # segments on straight so the zero level stays the line through the walls.
+    # wall cells straddling the cut have nodes past the end of the curve. The
+    # cut runs on along the end segments in any block it reaches, so those
+    # cells are cut on the line through the walls. Carry the curve on a little
+    # before screening the blocks too, so that one whose wall cells are all
+    # that straddle it is still reached.
     xr_cut = _extend_ends(np.asarray(xr_cut, dtype=float), CUT_EXTEND)
 
     # Loop over blocks
-    triangles = []
+    verts = []
+    faces = []
+    n_vert = 0
     last_block = None
     for block in grid:
         # Reject the blocks the curve does not reach before building any
-        # distance field. This also keeps out a block that the curve misses
-        # but whose field still changes sign, which happens across the medial
-        # axis between two segments, where the nearest segment switches and
-        # takes the sign with it without the distance passing through zero.
+        # distance field. This also keeps out a block that only the rays
+        # running on from the curve's ends would cut.
         if not _cut_reaches_block(xr_cut, block):
             continue
 
-        # Scaled from the nondimensional coordinates rather than read from
-        # block.xrt, which also copies the circumferential component
-        xr_coords = block.xrt_nd[..., :2] * block.L_ref
+        # Get triangles for this block, or None if the cut misses it
+        cut_block = _marching_cubes(block._data, *_distance_args(xr_cut, block))
 
-        # Evaluate signed distance for all points in the block
-        dist = signed_distance(xr_cut, xr_coords)
-
-        # Skip blocks that do not intersect the cut
-        if np.all(dist >= 0) or np.all(dist <= 0):
-            continue
-
-        # Get triangles for this block
-        triangles_block = _marching_cubes(block._data, dist)
-
-        # Add triangles to the list
-        if triangles_block is not None:
-            triangles.append(triangles_block)
+        # Add them to the list, numbering this block's vertices after those
+        # of the blocks before. Vertices on an interface between blocks are
+        # kept once per block.
+        if cut_block is not None:
+            verts.append(cut_block[0])
+            faces.append(cut_block[1] + n_vert)
+            n_vert += cut_block[0].shape[0]
             last_block = block
 
-    # Join all blocks into one array
-    if triangles:
-        triangles = np.concatenate(triangles)  # Shape (ntri, 3, nvar)
-
-        out = last_block.empty(shape=triangles.shape[:-1])  # Shape (ntri, 3)
-        out._data[:] = triangles
-        out.set_triangulated(True)
+    # Join all blocks into one
+    if verts:
+        out = _like(last_block, n_vert)
+        out._data[:] = np.concatenate(verts)
+        out.set_faces(np.concatenate(faces))
 
         return out
 
@@ -633,7 +747,7 @@ def unstructured(grid, xr_cut):
     return None
 
 
-def _first_j_crossing(data, dist):
+def _first_j_crossing(data, a, b=None, coeffs=(1.0, 0.0, 0.0)):
     r"""Interpolate a block's data to the first sign change along ``j``.
 
     Walks every :math:`(i, k)` grid line, finds the first ``j`` interval over
@@ -641,12 +755,17 @@ def _first_j_crossing(data, dist):
     to the zero. Lines with no sign change, and lines whose bracketing
     distances are too close together to interpolate between, come back as NaN.
 
+    The kernel forms the distance ``na * a + nb * b - c0`` node by node, as
+    :func:`_marching_cubes` does, so with only `a` given that is `a` itself.
+
     Parameters
     ----------
     data : Array, shape (ni, nj, nk, nvar)
         Nodal block data to interpolate.
-    dist : Array, shape (ni, nj, nk)
-        Signed distance to the cut curve at every node.
+    a, b : Array, shape (ni, nj, nk)
+        Fields the signed distance is formed from, zero on the cut.
+    coeffs : tuple of float
+        ``(na, nb, c0)``. The default makes the distance `a`.
 
     Returns
     -------
@@ -654,47 +773,29 @@ def _first_j_crossing(data, dist):
         Data on the cut, NaN on the lines that do not cross it.
 
     """
-    ni, nj, nk = dist.shape
+    a = np.asfortranarray(a, dtype=np.float32)
+    b = a if b is None else np.asfortranarray(b, dtype=np.float32)
+    ni, nj, nk = a.shape
 
-    cut_data = np.full((ni, nk, data.shape[-1]), np.nan)
+    j_cut = np.empty((ni, nk), dtype=np.int32, order="F")
+    frac = np.empty((ni, nk), dtype=np.float32, order="F")
+    d_lo = np.empty(ni, dtype=np.float32)
+    n_cut = ember.fortran.first_j_crossing(a, b, *coeffs, j_cut, frac, d_lo)
 
-    # A single j station spans no interval to cross, so no line can cut
-    if nj < 2:
-        return cut_data
-
-    # Comparing signs rather than differencing them keeps a node sitting
-    # exactly on the curve a sign change on both sides of itself, which is
-    # what walking the line one interval at a time gives.
-    sgn = np.sign(dist)
-    changes = sgn[:, 1:, :] != sgn[:, :-1, :]  # Shape (ni, nj-1, nk)
-
-    # First sign change along j. argmax reports the first True, and zero for a
-    # line with no sign change at all, which found masks off below.
-    found = changes.any(axis=1)  # Shape (ni, nk)
-    j_cut = changes.argmax(axis=1)  # Shape (ni, nk)
-
-    # Distances bracketing the cut, gathered from each line's own j_cut
-    j_gather = j_cut[:, np.newaxis, :]  # Put back the j axis to gather along
-    d1 = np.take_along_axis(dist, j_gather, axis=1)[:, 0, :]
-    d2 = np.take_along_axis(dist, j_gather + 1, axis=1)[:, 0, :]
-
-    # A line whose bracketing distances are too close to interpolate between
-    # is left uncut, rather than moved on to its next crossing
-    delta = d2 - d1
-    valid = found & (np.abs(delta) >= 1e-12)
-
-    # Linear interpolation, clamped to the interval it came from.  The invalid
-    # lines divide by a zero delta here, and are masked off immediately after.
-    with np.errstate(divide="ignore", invalid="ignore"):
-        frac = np.clip(-d1 / delta, 0.0, 1.0)
-
-    # Interpolate every variable across the bracketing pair of j stations
-    j_gather = j_gather[..., np.newaxis]  # Broadcast over the variables
-    data1 = np.take_along_axis(data, j_gather, axis=1)[:, 0, :, :]
-    data2 = np.take_along_axis(data, j_gather + 1, axis=1)[:, 0, :, :]
-    cut_data[valid] = (
-        data1[valid] + (data2[valid] - data1[valid]) * frac[valid, np.newaxis]
-    )
+    cut_data = util.full((ni, nk, data.shape[-1]), np.nan)
+    if n_cut:
+        # Interpolate every variable across each crossed line's bracketing
+        # pair of j stations, done here so the data keeps its own precision.
+        # Lines and nodes are both flattened i fastest, as the data is
+        # stored, so the flattened data are a view.
+        line = np.flatnonzero(j_cut.ravel(order="F") >= 0)
+        i, k = line % ni, line // ni
+        lo = i + ni * (j_cut.ravel(order="F")[line] + nj * k)
+        flat = data.reshape(-1, data.shape[-1], order="F")
+        data_lo = flat[lo]
+        data_hi = flat[lo + ni]
+        out = cut_data.reshape(-1, data.shape[-1], order="F")
+        out[line] = data_lo + (data_hi - data_lo) * frac.ravel(order="F")[line, None]
 
     return cut_data
 
@@ -705,7 +806,10 @@ def structured_meridional(grid, xr_cut):
     For each block, walks every :math:`(i, k)` grid line and linearly
     interpolates to the first ``j`` location where the signed distance to the
     cut curve changes sign, producing one structured ``(ni, nk)`` cut per
-    intersected block.
+    intersected block. Within a block the curve reaches, the cut runs on
+    past both ends straight along the end segments, as in
+    :func:`unstructured`, so a single straight segment cuts along its whole
+    line.
 
     Parameters
     ----------
@@ -725,6 +829,7 @@ def structured_meridional(grid, xr_cut):
     if isinstance(grid, Block):
         grid = [grid]
 
+    xr_cut = np.asarray(xr_cut, dtype=float)
     cut_blocks = []
 
     for block in grid:
@@ -733,21 +838,10 @@ def structured_meridional(grid, xr_cut):
         if not _cut_reaches_block(xr_cut, block):
             continue
 
-        # Get meridional coordinates, scaled from the nondimensional ones
-        # rather than read from block.xrt, which also copies theta
-        xr_coords = block.xrt_nd[..., :2] * block.L_ref
-
-        # Get signed distance
-        dist = signed_distance(xr_cut, xr_coords)
-
-        # Check for intersection
-        if np.all(dist >= 0) or np.all(dist <= 0):
-            continue
-
         ni, _, nk = block.shape
 
         # Interpolate to the first j crossing on every (i, k) line
-        cut_data = _first_j_crossing(block._data, dist)
+        cut_data = _first_j_crossing(block._data, *_distance_args(xr_cut, block))
 
         # Check if we found any valid cuts
         if not np.all(np.isnan(cut_data[..., 0])):
@@ -790,7 +884,7 @@ def interpolate_to_structured(
 
     Parameters
     ----------
-    unstructured_block : Block, shape (ntri, 3)
+    unstructured_block : UnstructuredBlock
         Unstructured triangulated cut, for example from :func:`unstructured`.
     interp_shape : tuple of int
         Target structured grid shape ``(ni, nj)``.
@@ -811,17 +905,23 @@ def interpolate_to_structured(
     Returns
     -------
     cut : Block, shape (ni, nj)
-        Structured block with data interpolated onto the line-conforming grid.
+        Structured block with the coordinates and conserved variables
+        interpolated onto the line-conforming grid, and the fluid, length
+        scale, rotation, blade count and label of the cut. Solver fields such
+        as the wall distance are not carried over.
     """
     ni, nj = interp_shape
 
-    # Flatten triangle vertices to a point cloud, shape (ntri*3, nvar).
-    triangle_data = unstructured_block._data
-    _, _, nvar = triangle_data.shape
-    points = triangle_data.reshape(-1, nvar)
-    xr = points[:, :2].astype(np.float64)
-    t_src = points[:, 2].astype(np.float64)
-    variables = points[:, 3:]
+    # Gather the vertices onto the corners of each face, as a point cloud of
+    # n_face*3 points. The periodic wrap below moves whole faces by whole
+    # pitches, so a vertex shared by faces either side of the seam takes a
+    # different theta in each and cannot be wrapped once for all of them.
+    faces = unstructured_block.faces
+    n_face = faces.shape[0]
+    xrt = np.asarray(unstructured_block.xrt, dtype=np.float64)[faces].reshape(-1, 3)
+    xr = xrt[:, :2]
+    t_src = xrt[:, 2]
+    variables = np.asarray(unstructured_block.conserved)[faces].reshape(-1, 5)
 
     # Project the whole cloud onto the meridional line's principal direction
     # with a single SVD. The first right-singular vector is the line's dominant
@@ -934,11 +1034,10 @@ def interpolate_to_structured(
     # rather than re-triangulating the cloud. Reshape the per-vertex unfolded
     # coords and variables back into triangles, tiling +/- one period in the
     # periodic case so the seam stays continuous (mirrors the src_pts tiling).
-    ntri_src = triangle_data.shape[0]
     nvar_var = variables.shape[1]
-    tri_zeta = zeta_src.reshape(ntri_src, 3)
-    tri_tn = tn_src.reshape(ntri_src, 3)
-    tri_var = variables.reshape(ntri_src, 3, nvar_var)
+    tri_zeta = zeta_src.reshape(n_face, 3)
+    tri_tn = tn_src.reshape(n_face, 3)
+    tri_var = variables.reshape(n_face, 3, nvar_var)
     if periodic:
         tri_xy = np.concatenate(
             [np.stack([tri_zeta, tri_tn + d], axis=-1) for d in (-1.0, 0.0, 1.0)]
@@ -958,16 +1057,18 @@ def interpolate_to_structured(
     near = src_vars[idx.ravel()]
     interp = np.where(np.isnan(interp), near, interp)
 
-    # Assemble the structured output block.
-    output_data = np.full((ni, nj, nvar), np.nan)
-    output_data[..., 0] = x_t[:, None]
-    output_data[..., 1] = r_t[:, None]
-    output_data[..., 2] = theta_out
-    output_data[..., 3:] = interp.reshape(ni, nj, -1)
-
-    result_block = unstructured_block.empty(shape=(ni, nj))
-    result_block._data = output_data
-    return result_block
+    # Assemble the structured output block, with the metadata of the cut
+    result = Block(shape=(ni, nj))
+    result.set_fluid(unstructured_block.fluid)
+    result.set_L_ref(unstructured_block.L_ref)
+    result.set_Omega(unstructured_block.Omega)
+    result.set_Nb(unstructured_block.Nb)
+    result.set_label(unstructured_block.label)
+    result.set_x(np.broadcast_to(x_t[:, None], (ni, nj)))
+    result.set_r(np.broadcast_to(r_t[:, None], (ni, nj)))
+    result.set_t(theta_out)
+    result.set_conserved(interp.reshape(ni, nj, 5))
+    return result
 
 
 N_REF_BIN = 1000
@@ -1024,7 +1125,7 @@ def _pitchwise_fluid(zeta_t, tri_zeta, tri_tn, tol=1e-3):
     ----------
     zeta_t : ndarray, shape (ni,)
         Arc-length coordinate of each pitchwise line.
-    tri_zeta, tri_tn : ndarray, shape (ntri, 3)
+    tri_zeta, tri_tn : ndarray, shape (n_face, 3)
         Vertex arc length and theta, in pitches, of each triangle.
     tol : float
         Uncovered arcs narrower than this, in pitches, are round-off between
@@ -1124,8 +1225,8 @@ def _periodic_gaps(lo, hi, tol):
 def triangulate_to_unstructured(block):
     """Convert a structured 2D cut into a triangulated unstructured cut.
 
-    Splits every structured quad face into two triangles, producing an
-    unstructured block with ``ntri = 2 (ni - 1) (nj - 1)`` triangles.
+    Every node becomes a vertex, and every structured quad face is split into
+    two triangles, giving ``n_face = 2 (ni - 1) (nj - 1)`` faces.
 
     Parameters
     ----------
@@ -1134,8 +1235,8 @@ def triangulate_to_unstructured(block):
 
     Returns
     -------
-    cut : Block, shape (ntri, 3)
-        Unstructured block with triangle-vertex data.
+    cut : UnstructuredBlock
+        Unstructured block with ``n_vert = ni * nj`` vertices.
     """
     # Only work on 2D cuts
     assert block.ndim == 2
@@ -1149,38 +1250,23 @@ def triangulate_to_unstructured(block):
     #
 
     ni, nj = block.shape
-    ntri = (ni - 1) * (nj - 1) * 2
+    nvar = block._data.shape[-1]
 
-    # Create index arrays for vectorized access
-    i_indices, j_indices = np.meshgrid(range(ni - 1), range(nj - 1), indexing="ij")
-    i_flat = i_indices.ravel()
-    j_flat = j_indices.ravel()
+    # Vertices in Fortran order, so node (i, j) is vertex i + ni * j
+    out = _like(block, ni * nj)
+    out._data[:] = block._data.reshape(ni * nj, nvar, order="F")
 
-    # Preallocate output data
-    out = block.empty(shape=(ntri, 3))
+    # Corner vertices of every quad, i varying slowest
+    i, j = np.meshgrid(np.arange(ni - 1), np.arange(nj - 1), indexing="ij")
+    v00 = (i + ni * j).ravel()
+    v01 = v00 + ni
+    v11 = v00 + ni + 1
+    v10 = v00 + 1
 
-    # Extract vertex data for all quads at once
-    # Triangle A vertices: (i,j), (i,j+1), (i+1,j+1)
-    v1_A = block._data[i_flat, j_flat, :]  # Shape: (nquads, nvar)
-    v2_A = block._data[i_flat, j_flat + 1, :]
-    v3_A = block._data[i_flat + 1, j_flat + 1, :]
-
-    # Triangle B vertices: (i,j), (i+1,j+1), (i+1,j)
-    v1_B = block._data[i_flat, j_flat, :]
-    v2_B = block._data[i_flat + 1, j_flat + 1, :]
-    v3_B = block._data[i_flat + 1, j_flat, :]
-
-    # Assign triangle data - interleave A and B triangles
-
-    # Triangle A data
-    out._data[0::2, 0, :] = v1_A  # First vertex of triangle A
-    out._data[0::2, 1, :] = v2_A  # Second vertex of triangle A
-    out._data[0::2, 2, :] = v3_A  # Third vertex of triangle A
-
-    # Triangle B data
-    out._data[1::2, 0, :] = v1_B  # First vertex of triangle B
-    out._data[1::2, 1, :] = v2_B  # Second vertex of triangle B
-    out._data[1::2, 2, :] = v3_B  # Third vertex of triangle B
-
-    out.set_triangulated(True)
+    # Triangle A is (i,j), (i,j+1), (i+1,j+1); B is (i,j), (i+1,j+1), (i+1,j).
+    # Interleave A and B quad by quad.
+    faces = np.empty((2 * v00.size, 3), dtype=np.int32)
+    faces[0::2] = np.column_stack([v00, v01, v11])
+    faces[1::2] = np.column_stack([v00, v11, v10])
+    out.set_faces(faces)
     return out

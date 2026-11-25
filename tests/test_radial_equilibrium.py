@@ -1,21 +1,20 @@
-"""Tests for the shared radial-equilibrium pressure profile.
+"""Tests for the outlet's radial-equilibrium pressure profile.
 
-Function tested: ember.outlet.calc_radial_equilibrium
+Method tested: ember.patch.OutletPatch.calc_radial_equilibrium
 
-Both outlet conditions build their spanwise pressure adjustment from this one
-integration, so it is tested directly against closed-form solutions of
-dp/dr = rho Vt^2 / r rather than only through the patches that call it.
+The outlet builds its spanwise pressure adjustment from this one integration,
+so it is tested directly against closed-form solutions of
+dp/dr = rho Vt^2 / r rather than only through the outlet's pressure target.
 
 Test cases:
 - Closed forms: constant swirl, free vortex, no swirl
-- Properties: hub anchor, second-order convergence, patch-type independence
+- Properties: hub anchor, second-order convergence, scaling with swirl
 - Inputs: reads the first interior layer, weights the pitch mean by area
 """
 
 import numpy as np
-import pytest
 
-from ember.outlet import OutletPatch, calc_radial_equilibrium
+from ember.outlet import OutletPatch
 from nonreflecting_util import PITCH, P_MEAN, make_block, pitch_coords
 
 # Swirl scale for the analytic cases; large enough that the profile is well
@@ -23,10 +22,10 @@ from nonreflecting_util import PITCH, P_MEAN, make_block, pitch_coords
 VT_SWIRL = 120.0
 
 
-def _attached(patch_type=OutletPatch, **kwargs):
-    """Outlet patch of the given type on the i=-1 face of a fresh block."""
+def _attached(**kwargs):
+    """Outlet patch on the i=-1 face of a fresh block."""
     block = make_block(**kwargs)
-    patch = patch_type(i=-1)
+    patch = OutletPatch(i=-1)
     block.patches.append(patch)
     return block, patch
 
@@ -49,7 +48,7 @@ def _interior(patch):
 def test_constant_swirl_matches_log_profile():
     """Uniform Vt integrates to rho Vt^2 ln(r / r_hub)."""
     block, patch = _attached(nspan=41, Vt=VT_SWIRL)
-    got = calc_radial_equilibrium(patch)
+    got = patch.calc_radial_equilibrium()
 
     rho, r = _interior(patch)
     Vt_nd = VT_SWIRL / block.fluid.V_ref
@@ -69,7 +68,7 @@ def test_free_vortex_matches_inverse_square_profile():
     # with the constant-swirl case.
     r_mid = 0.5 * (block.r.min() + block.r.max())
     block.set_Vt(VT_SWIRL * r_mid / block.r)
-    got = calc_radial_equilibrium(patch)
+    got = patch.calc_radial_equilibrium()
 
     rho, r = _interior(patch)
     C = VT_SWIRL * r_mid / block.fluid.V_ref / block.L_ref
@@ -80,7 +79,7 @@ def test_free_vortex_matches_inverse_square_profile():
 def test_no_swirl_gives_no_profile():
     """Without swirl there is no centrifugal gradient to balance."""
     _, patch = _attached(Vt=0.0)
-    assert np.abs(calc_radial_equilibrium(patch)).max() == 0.0
+    assert np.abs(patch.calc_radial_equilibrium()).max() == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +90,7 @@ def test_no_swirl_gives_no_profile():
 def test_anchored_at_the_hub():
     """The profile is exactly zero at the first span station."""
     _, patch = _attached(Vt=VT_SWIRL)
-    assert calc_radial_equilibrium(patch)[0] == 0.0
+    assert patch.calc_radial_equilibrium()[0] == 0.0
 
 
 def test_second_order_in_span_spacing():
@@ -106,7 +105,7 @@ def test_second_order_in_span_spacing():
         rho, r = _interior(patch)
         Vt_nd = VT_SWIRL / block.fluid.V_ref
         expect = rho * Vt_nd**2 * np.log(r / r[0])
-        errs.append(np.abs(calc_radial_equilibrium(patch) - expect).max())
+        errs.append(np.abs(patch.calc_radial_equilibrium() - expect).max())
     assert errs[0] / errs[1] > 3.0, f"not second order: {errs}"
 
 
@@ -122,7 +121,7 @@ def test_outlet_patch_target_carries_the_profile():
     patch.update_target()
 
     got = patch.P_nd - P_MEAN / block.fluid.P_ref
-    expect = patch._span_bcast(calc_radial_equilibrium(patch))
+    expect = patch._span_bcast(patch.calc_radial_equilibrium())
     assert np.abs(got - expect).max() < 1e-5 * np.abs(expect).max()
 
 
@@ -138,18 +137,18 @@ def test_reads_the_interior_layer_not_the_face():
     or by whatever the boundary condition last wrote, so it is worth pinning.
     """
     block, patch = _attached(nspan=21, Vt=VT_SWIRL)
-    expect = calc_radial_equilibrium(patch)
+    expect = patch.calc_radial_equilibrium()
 
     # Wipe the swirl on the face alone; the profile must not notice.
     Vt = block.Vt.copy()
     Vt[-1] = 0.0
     block.set_Vt(Vt)
-    np.testing.assert_allclose(calc_radial_equilibrium(patch), expect, rtol=1e-6)
+    np.testing.assert_allclose(patch.calc_radial_equilibrium(), expect, rtol=1e-6)
 
     # Wipe it on the layer behind the face instead; now it must.
     Vt[-2] = 0.0
     block.set_Vt(Vt)
-    assert np.abs(calc_radial_equilibrium(patch)).max() < 1e-3 * np.abs(expect).max()
+    assert np.abs(patch.calc_radial_equilibrium()).max() < 1e-3 * np.abs(expect).max()
 
 
 def test_pitch_mean_is_area_weighted():
@@ -164,7 +163,7 @@ def test_pitch_mean_is_area_weighted():
     Vt = VT_SWIRL * (1.0 + 0.5 * np.cos(2.0 * np.pi * theta / PITCH))
     block.set_Vt(np.broadcast_to(Vt, block.shape))
 
-    got = calc_radial_equilibrium(patch)
+    got = patch.calc_radial_equilibrium()
     rho, r = _interior(patch)
     w = patch.weight_pitch.ravel()
     Vt_nd = Vt / block.fluid.V_ref
@@ -176,10 +175,11 @@ def test_pitch_mean_is_area_weighted():
     assert np.abs(plain - weighted).max() > 1e-2 * np.abs(weighted).max()
 
 
-@pytest.mark.parametrize("patch_type", [OutletPatch, OutletPatch])
-def test_profile_scales_with_swirl_squared(patch_type):
+def test_profile_scales_with_swirl_squared():
     """Doubling the swirl quadruples the profile, as rho Vt^2 / r demands."""
-    _, patch_1 = _attached(patch_type=patch_type, nspan=21, Vt=VT_SWIRL)
-    _, patch_2 = _attached(patch_type=patch_type, nspan=21, Vt=2.0 * VT_SWIRL)
-    ratio = calc_radial_equilibrium(patch_2)[1:] / calc_radial_equilibrium(patch_1)[1:]
+    _, patch_1 = _attached(nspan=21, Vt=VT_SWIRL)
+    _, patch_2 = _attached(nspan=21, Vt=2.0 * VT_SWIRL)
+    ratio = (
+        patch_2.calc_radial_equilibrium()[1:] / patch_1.calc_radial_equilibrium()[1:]
+    )
     np.testing.assert_allclose(ratio, 4.0, rtol=1e-4)

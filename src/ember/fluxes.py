@@ -13,6 +13,8 @@ structured grids in polar coordinates and support both 2D and 3D domains.
 
 import numpy as np
 
+from ember.unstructured import UnstructuredBlock
+
 f32 = np.float32
 
 
@@ -127,12 +129,12 @@ def get_flux_quad_nd(block):
     Array
         Shape (ni-1, nj-1, 3, 5) - flux at each quad cell
     """
+    if isinstance(block, UnstructuredBlock):
+        raise ValueError(
+            "get_flux_quad_nd only for structured blocks, use get_flux_tri_nd for unstructured"
+        )
     if block.ndim != 2:
         raise ValueError(f"get_flux_quad_nd only for 2D blocks, got {block.ndim}D")
-    if block.triangulated:
-        raise ValueError(
-            "get_flux_quad_nd only for structured blocks, use get_flux_tri_nd for triangulated"
-        )
 
     # Compute mass flux vector at nodes: rho * V
     mass_flux = block.Vxrt_nd * block.rho_nd[..., None]  # Shape: (ni, nj, 3)
@@ -204,11 +206,11 @@ def get_mass_flux(block):
     4-corner average is exactly 1.0) and the pressure terms only touch the
     momentum/energy columns.
 
-    Triangulated and 0D/1D blocks fall back to the general
+    Unstructured and 0D/1D blocks fall back to the general
     :func:`get_flux_nd`, which is cold post-processing rather than the logged
     path.
     """
-    if block.ndim == 2 and not block.triangulated:
+    if block.ndim == 2 and not isinstance(block, UnstructuredBlock):
         # 4-corner average of nodal rho*V onto quad-cell centres.
         mass_flux = block.Vxrt * block.rho[..., None]  # (ni, nj, 3)
         return (
@@ -221,35 +223,31 @@ def get_mass_flux(block):
 
 
 def get_flux_tri_nd(block):
-    """Calculate nondimensional flux for triangulated 2D blocks.
+    """Calculate nondimensional flux on the faces of an unstructured block.
 
-    See :func:`flux_ref` for the scaling to dimensional units.
+    Vertex values are averaged onto each triangular face, as
+    :func:`get_flux_quad_nd` averages the corners of a quad. See
+    :func:`flux_ref` for the scaling to dimensional units.
 
     Parameters
     ----------
-    block : Block
-        The block to calculate fluxes for (ndim 2, triangulated)
+    block : UnstructuredBlock
+        The block to calculate fluxes for.
 
     Returns
     -------
     Array
-        Shape (ntri, 3, 5) - flux at each triangle edge
+        Shape (n_face, 3, 5) - flux at each face
     """
-    if block.ndim != 2:
-        raise ValueError(f"get_flux_tri_nd only for 2D blocks, got {block.ndim}D")
-    if not block.triangulated:
+    if not isinstance(block, UnstructuredBlock):
         raise ValueError(
-            "get_flux_tri_nd only for triangulated blocks, use get_flux_quad_nd for structured"
-        )
-    if block.shape[1] != 3:
-        raise ValueError(
-            f"Triangulated blocks must have shape (ntri, 3), got {block.shape}"
+            "get_flux_tri_nd only for unstructured blocks, use get_flux_quad_nd for structured"
         )
 
-    # Compute mass flux at nodes
+    # Compute mass flux at vertices
     mass_flux = block.Vxrt_nd * block.rho_nd[..., None]
 
-    # Conserved variables per unit mass at nodes
+    # Conserved variables per unit mass at vertices
     cons_per_mass = np.stack(
         (
             np.ones_like(block.rho_nd),  # mass per unit mass
@@ -261,16 +259,16 @@ def get_flux_tri_nd(block):
         axis=-1,
     )
 
-    # Triangle-averaged mass flux and conserved quantities per unit mass
-    mass_flux_avg = mass_flux.mean(axis=1)  # (ntri, 3)
-    cons_per_mass_avg = cons_per_mass.mean(axis=1)  # (ntri, 5)
+    # Face-averaged mass flux and conserved quantities per unit mass
+    mass_flux_avg = block._to_faces(mass_flux)  # (n_face, 3)
+    cons_per_mass_avg = block._to_faces(cons_per_mass)  # (n_face, 5)
 
     # Compute flux by broadcasting and multiplying
     flux = mass_flux_avg[..., None] * cons_per_mass_avg[:, None, :]
 
     # Add pressure contributions
-    p_avg = block.P_nd.mean(axis=1)  # (ntri,)
-    r_avg = block.r_nd.mean(axis=1)  # (ntri,)
+    p_avg = block._to_faces(block.P_nd)  # (n_face,)
+    r_avg = block._to_faces(block.r_nd)  # (n_face,)
     flux[:, 0, 1] += p_avg  # x-momentum flux
     flux[:, 1, 2] += p_avg  # r-momentum flux
     flux[:, 2, 3] += p_avg * r_avg  # angular momentum flux (with radius factor)
@@ -283,13 +281,13 @@ def get_flux_nd(block):
     """Calculate nondimensional flux for 0D, 1D, or 2D blocks using pure Python.
 
     Dispatcher that delegates to appropriate pure Python implementation based on
-    block dimensionality and triangulation. See :func:`flux_ref` for the scaling
+    block dimensionality, structured or unstructured. See :func:`flux_ref` for the scaling
     to dimensional units.
 
     Parameters
     ----------
-    block : Block
-        The block to calculate fluxes for (ndim 0, 1, or 2)
+    block : Block or UnstructuredBlock
+        The block to calculate fluxes for (ndim 0, 1, or 2, or unstructured)
 
     Returns
     -------
@@ -297,21 +295,20 @@ def get_flux_nd(block):
         0D blocks: (3, 5) - flux vector
         1D blocks: (ni-1, 3, 5) - flux at each i-face
         2D structured: (ni-1, nj-1, 3, 5) - flux at each quad cell
-        2D triangulated: (ntri, 3, 5) - flux at each triangle
+        Unstructured: (n_face, 3, 5) - flux at each face
 
     Raises
     ------
     ValueError
         If block is 3D (use Fortran implementation via SolverBlock instead)
     """
-    if block.ndim == 3:
+    # Dispatch to appropriate pure Python implementation
+    if isinstance(block, UnstructuredBlock):
+        return get_flux_tri_nd(block)
+    elif block.ndim == 3:
         raise ValueError(
             "For 3D blocks, use fluxi, fluxj, fluxk directly instead of flux"
         )
-
-    # Dispatch to appropriate pure Python implementation
-    if block.triangulated:
-        return get_flux_tri_nd(block)
     elif block.ndim <= 1:
         return get_flux_node_nd(block)
     else:  # ndim == 2, structured
@@ -327,8 +324,8 @@ def get_flux(block):
 
     Parameters
     ----------
-    block : Block
-        The block to calculate fluxes for (ndim 0, 1, or 2)
+    block : Block or UnstructuredBlock
+        The block to calculate fluxes for (ndim 0, 1, or 2, or unstructured)
 
     Returns
     -------

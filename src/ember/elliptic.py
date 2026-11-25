@@ -79,6 +79,7 @@ def winslow_sweeps(
     orth_lines=None,
     relax=1.0,
     floors=None,
+    ceilings=None,
 ):
     r"""Point-Jacobi sweeps of Winslow's equations, in single precision.
 
@@ -160,6 +161,12 @@ def winslow_sweeps(
         every node nearer the node inside it than that pushed out along the
         cell between them to it, line by line out, so the lines keep their
         thickness where the sweeps would draw them in. None for no floor.
+    ceilings : tuple, optional
+        ``(w_max, on_max)``, shaped as `floors`: the most length of each of
+        those cells. Each node further from the node inside it than that is
+        pulled in along the cell between them to it, in the same pass as the
+        floors push out, so the lines keep their thickness where the sweeps
+        would spread them out. None for no ceiling.
 
     Returns
     -------
@@ -217,11 +224,16 @@ def winslow_sweeps(
             0,
         )
     on_n = np.asfortranarray(on_n, dtype=i32)
-    if floors is not None and m_on:
+    w_min, on_min = np.zeros(on_n.shape[0]), np.zeros(on_n.shape)
+    big = np.finfo(f32).max  # not inf: the kernel is built assuming finite values
+    w_max, on_max = np.full(on_n.shape[0], big), np.full(on_n.shape, big)
+    m_min = 0
+    if m_on and floors is not None:
         w_min, on_min = floors
         m_min = 1
-    else:
-        w_min, on_min, m_min = np.zeros(on_n.shape[0]), np.zeros(on_n.shape), 0
+    if m_on and ceilings is not None:
+        w_max, on_max = ceilings
+        m_min = 1
     on_dy = np.asfortranarray(on_dy, dtype=f32)
     for g in (
         stencil_g,
@@ -281,6 +293,8 @@ def winslow_sweeps(
         m_on,
         reals(np.broadcast_to(np.asarray(w_min, dtype=f32), (on_n.shape[0],))),
         np.asfortranarray(np.broadcast_to(np.asarray(on_min, dtype=f32), on_n.shape)),
+        reals(np.broadcast_to(np.asarray(w_max, dtype=f32), (on_n.shape[0],))),
+        np.asfortranarray(np.broadcast_to(np.asarray(on_max, dtype=f32), on_n.shape)),
         m_min,
     )
     if status:

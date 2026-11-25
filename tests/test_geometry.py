@@ -377,14 +377,14 @@ def test_get_dA_tri_integration():
     # Triangulate the block
     tri_block = triangulate_to_unstructured(block)
 
-    # Extract coordinate data for get_dA_tri
-    tri_coords = tri_block._data[..., :3]  # Shape (ntri, 3, 3)
+    # Gather the vertex coordinates onto each face, shape (n_face, 3, 3)
+    tri_coords = tri_block._data[..., :3][tri_block.faces]
 
     # Calculate triangle areas
     dA_tri = ember.block._get_da_tri(tri_coords)
 
     # Verify output shape and properties
-    ntri = tri_block.shape[0]
+    ntri = tri_block.n_face
     assert dA_tri.shape == (ntri, 3), f"Wrong area shape: {dA_tri.shape} != ({ntri}, 3)"
 
     # All area magnitudes should be positive
@@ -417,8 +417,8 @@ def test_get_dA_tri_integration():
 
 
 def test_geometry_dA_tri_property():
-    """Test the dA_tri property in Geometry class."""
-    print("Testing Geometry.dA_tri property...")
+    """Test the dA property of an UnstructuredBlock."""
+    print("Testing UnstructuredBlock.dA property...")
 
     # Create triangular block using triangulate_to_unstructured
     from ember.block import Block
@@ -442,38 +442,19 @@ def test_geometry_dA_tri_property():
     # Get triangular block
     tri_block = triangulate_to_unstructured(block_2d)
 
-    # Test dA_tri property access
-    dA_tri = tri_block.dA_tri
+    # Test dA property access
+    dA_tri = tri_block.dA
 
     # Verify correct shape and properties
-    ntri = tri_block.shape[0]
-    assert dA_tri.shape == (ntri, 3), f"Wrong dA_tri shape: {dA_tri.shape}"
+    ntri = tri_block.n_face
+    assert dA_tri.shape == (ntri, 3), f"Wrong dA shape: {dA_tri.shape}"
 
     # Areas should be positive
     area_mags = util.vecnorm(dA_tri)
     assert np.all(area_mags > 0), "All triangle areas should be positive"
 
-    # Test error behavior with wrong block shapes
-    # Test 3D block (should fail)
-    shape_3d = (3, 3, 3)
-    block_3d = Block(shape=shape_3d)
-
-    with pytest.raises(AssertionError, match="dA_tri requires triangular block"):
-        _ = block_3d.dA_tri
-
-    # Test 2D block but wrong second dimension (should fail)
-    shape_wrong = (5, 4)  # Not (ntri, 3)
-    block_wrong = Block(shape=shape_wrong)
-
-    with pytest.raises(AssertionError, match="dA_tri requires triangular block"):
-        _ = block_wrong.dA_tri
-
-    # Test 1D block (should fail)
-    shape_1d = (10,)
-    block_1d = Block(shape=shape_1d)
-
-    with pytest.raises(AssertionError, match="dA_tri requires triangular block"):
-        _ = block_1d.dA_tri
+    # Structured blocks have no triangle areas
+    assert not hasattr(Block(shape=(3, 3, 3)), "dA_tri")
 
     print("  ✓ dA_tri property works correctly for triangular blocks")
     print(f"  ✓ Calculated areas for {ntri} triangles")
@@ -482,9 +463,10 @@ def test_geometry_dA_tri_property():
 
 
 def test_geometry_dA_dispatch():
-    """Test that _get_dA correctly dispatches to dA_quad or dA_tri based on triangulated."""
+    """Test that _get_dA dispatches to dA_quad or dA on the block type."""
     from ember.block import Block
     from ember.average import _get_dA
+    from ember.cut import triangulate_to_unstructured
 
     # Create 2D block for testing
     ni, nj = 4, 3
@@ -498,14 +480,12 @@ def test_geometry_dA_dispatch():
     block.set_r(r)
     block.set_t(t)
 
-    # Test quadrilateral dispatch (default)
-    assert not block.triangulated, "Block should default to non-triangulated"
+    # Test quadrilateral dispatch
     np.testing.assert_array_equal(_get_dA(block), block.dA_quad)
 
     # Test triangular dispatch
-    block.set_triangulated(True)
-    assert block.triangulated, "Block should be triangulated after setting"
-    np.testing.assert_array_equal(_get_dA(block), block.dA_tri)
+    tri_block = triangulate_to_unstructured(block)
+    np.testing.assert_array_equal(_get_dA(tri_block), tri_block.dA)
 
 
 def test_structured_vs_triangulated_total_area():
@@ -546,7 +526,7 @@ def test_structured_vs_triangulated_total_area():
     tri_block = triangulate_to_unstructured(block_structured)
 
     # Calculate triangulated total area
-    area_triangulated = np.sum(tri_block.dA_tri, axis=0)
+    area_triangulated = np.sum(tri_block.dA, axis=0)
 
     # Areas should match within reasonable numerical precision
     np.testing.assert_allclose(
@@ -669,7 +649,7 @@ def test_radial_momentum_flux_pressure():
     radial_momentum_flux_tri = flux_tri[
         :, 1, 2
     ]  # component [1,2] is r-momentum in r-direction
-    pressure_tri = tri_block.P.mean(axis=1)  # Average pressure per triangle
+    pressure_tri = tri_block.P[tri_block.faces].mean(axis=1)  # Per triangle
     print(f"2D triangulated radial momentum flux: {radial_momentum_flux_tri[0]:.1f}")
     print(f"2D triangulated pressure: {pressure_tri[0]:.1f}")
 

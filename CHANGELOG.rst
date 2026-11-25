@@ -5,6 +5,40 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
+.. _v0.5.0:
+
+0.5.0 (2026-11-25)
+------------------
+
+* Make ``ember.outlet.calc_radial_equilibrium(patch)`` a method
+  ``OutletPatch.calc_radial_equilibrium()``
+* Fix ``Grid.resample`` leaving nodes unmatched across periodic and cusp
+  interfaces between blocks, at any factor but a whole number: critical
+  indices are now carried across every patch including mixing planes
+* ``Grid.resample`` places new coordinates on monotone cubics through the old
+  grid lines, not straight lines, so a   stretched grid stays smoothly
+  stretched and a curved wall is not faceted
+* Add ``mult`` to ``Grid.resample``, ``block_util.resample`` and
+  ``util.resample``: each segment between critical indices gets a multiple of
+  that many cells, for rounding to a multigrid depth
+* Add ``ceilings`` to ``elliptic.winslow_sweeps``: the most length of each
+  cell of the lines out from a wall, as ``floors`` is the least, each sweep
+  pulling in a node further than that from the one inside it
+* Add ``ember.unstructured.UnstructuredBlock`` storing flow data at the
+  vertices of a triangulated surface, replacing the old ``Block.triangulated``
+  flag which duplicated data at shared vertices
+* Fix ``average.mass_average`` raising on an unstructured cut
+* ``cut.interpolate_to_structured`` carries the coordinates, conserved
+  variables and metadata of the cut, but not solver fields such as the wall
+  distance; ``average.mix_out`` no longer shares the cut's patches
+* A cut along a single straight segment, in ``cut.unstructured`` and
+  ``cut.structured_meridional``, now runs along the whole of its line across
+  every block it reaches, rather than stopping near the segment's ends
+* Speedup ``cut.unstructured`` and ``cut.structured_meridional``:
+  calculating distances only near the cut line in single precision;
+  fused kernels for both cut types in single precision;
+  a straight cut does no search over segments
+
 .. _v0.4.10:
 
 0.4.10 (2026-11-19)

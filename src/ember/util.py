@@ -700,7 +700,7 @@ def unwrap_meridional(xr_curve, xr_query):
 
     Query points are projected onto the curve and their perpendicular offset
     discarded, so points lying near it rather than exactly on it --- the
-    triangulated output of :func:`ember.cut.unstructured`, say, or a blade
+    vertices of an unstructured cut from :func:`ember.cut.unstructured`, say, or a blade
     surface --- are handled without special-casing. A point beyond either end
     clamps to that end.
 
@@ -1133,7 +1133,7 @@ def matvec(A, b, out=None):
     return np.asfortranarray(result.astype(f32))
 
 
-def resample(factor, vector, i_crit=None):
+def resample(factor, vector, i_crit=None, mult=1):
     """Resampled a vector with specified factor, optionally preserving critical points.
 
     Creates a new vector by resampling with a given factor. The new length equals
@@ -1150,6 +1150,12 @@ def resample(factor, vector, i_crit=None):
     i_crit : array_like, optional
         Critical indices that must be preserved in the output.
         Must be sorted and within [0, len(vector)-1]. If None, uses [0, len(vector)-1].
+    mult : int, optional
+        Give each segment between critical indices a multiple of this many
+        cells, the nearest to its span times `factor` and at least `mult`, so
+        that a multigrid level can halve every segment however the factor
+        divides: eight keeps three levels. One, the default, rounds to the
+        nearest cell.
 
     Returns
     -------
@@ -1176,6 +1182,9 @@ def resample(factor, vector, i_crit=None):
     # Input validation
     if factor <= 0:
         raise ValueError("factor must be positive")
+    if int(mult) != mult or mult < 1:
+        raise ValueError(f"mult must be a positive integer, got {mult!r}")
+    mult = int(mult)
 
     vector = np.asarray(vector, dtype=np.float32)
     ni = len(vector)
@@ -1200,46 +1209,13 @@ def resample(factor, vector, i_crit=None):
     # Calculate spans between consecutive critical indices
     spans = np.diff(i_crit)
 
-    # Allocate per-segment cell counts by largest remainder (Hare quota):
-    # floor each segment's ideal count, then give the leftover cells to the
-    # largest fractional remainders. This makes the segments sum exactly to the
-    # target total; rounding each independently can overshoot by a node and
-    # break the multigrid invariant n_coarse == (n_fine - 1) // 2 + 1.
-    # Segments are clamped to >= 1 cell so the critical-index mapping stays
-    # strictly increasing.
-    total_cells = int(np.round((ni - 1) * factor))
-    seg_float = spans * factor
-    seg_cells = np.floor(seg_float).astype(int)
-    seg_cells = np.maximum(seg_cells, 1)
-    remainder = seg_float - np.floor(seg_float)
-    deficit = total_cells - seg_cells.sum()
-    if deficit > 0:
-        # Award extras to segments with largest fractional remainder.
-        order = np.argsort(-remainder, kind="stable")
-        seg_cells[order[:deficit]] += 1
-    elif deficit < 0:
-        # Trim from segments with smallest remainder, but never below 1.
-        # Sweep repeatedly: a single pass removes at most one cell per
-        # segment, so when the surplus exceeds the number of trimmable
-        # segments it must keep sweeping the large segments down. A sweep
-        # that trims nothing means every segment is already at 1 -- the
-        # target genuinely cannot be met without collapsing a segment.
-        order = np.argsort(remainder, kind="stable")
-        while deficit != 0:
-            trimmed = False
-            for idx in order:
-                if deficit == 0:
-                    break
-                if seg_cells[idx] > 1:
-                    seg_cells[idx] -= 1
-                    deficit += 1
-                    trimmed = True
-            if not trimmed:
-                raise ValueError(
-                    f"resample: cannot allocate {total_cells} cells across "
-                    f"{len(spans)} segments without collapsing a segment "
-                    f"(spans={spans.tolist()}, factor={factor})"
-                )
+    # Each segment gets its own span times the factor, rounded half up to a
+    # multiple of mult, at least mult: a count of the segment alone, not of its
+    # place or the other segments, so two blocks cut into the same segments
+    # across a matched interface (see Grid.resample) agree whichever way their
+    # indices run. Largest remainder on a fixed total would not. The total can
+    # be off round((ni - 1) * factor) where segments do not divide.
+    seg_cells = mult * np.maximum(np.floor(spans * factor / mult + 0.5).astype(int), 1)
 
     # Generate fractional indices for each segment
     fractional_indices = []

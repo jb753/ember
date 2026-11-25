@@ -123,9 +123,8 @@ def test_frozen_data_setter_raises(frozen):
         lambda b: b.set_Nb(41),
         lambda b: b.set_Omega(100.0),
         lambda b: b.set_label("stator"),
-        lambda b: b.set_triangulated(False),
     ],
-    ids=["fluid", "L_ref", "Nb", "Omega", "label", "triangulated"],
+    ids=["fluid", "L_ref", "Nb", "Omega", "label"],
 )
 def test_frozen_metadata_setter_raises(frozen, write):
     """Metadata is shared by every view, so freezing data alone is not enough."""

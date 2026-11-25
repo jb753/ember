@@ -16,7 +16,9 @@ Test cases:
 - Winslow sweeps raise on a coordinate that is NaN or infinite, as given
   or made so by the sweeps
 - Floors of zero on the lines out from the wall change nothing, and floors
-  above every cell hold each cell of those lines at least as long
+  above every cell hold each cell of those lines at least as long; ceilings
+  above every cell change nothing, ceilings below every cell hold each cell
+  of those lines no longer, and both together hold each cell between them
 - The polish cost and its gradient match the same terms written out in
   numpy, on a perturbed grid with a folded cell and pitch shifts, and the
   gradient matches finite differences of the cost
@@ -509,3 +511,55 @@ def test_sweeps_hold_the_lines_out_from_the_wall_to_their_floors():
     assert np.all(cells(out_floors) >= floor * (1.0 - 1e-5))
     # The wall nodes stay where they slid, on the wall
     np.testing.assert_allclose(np.linalg.norm(out_floors[wn0], axis=1), 1.0, atol=1e-5)
+
+
+def _ring_chain():
+    """The ring case, its lines out from the wall, and a function of a grid
+    returning the length of every cell along those lines."""
+    X, g, s, irregular, slide, corner, wall = ring_case()
+    nodes, dy = ring_lines()
+    lines = (nodes, dy, np.zeros(nodes.shape[1]))
+    args = (X, g, s, 0.0, irregular, slide, corner, wall, 3)
+    chain = np.column_stack((wall[0], wall[1], nodes))[:-1]
+
+    def cells(Y):
+        return np.linalg.norm(np.diff(Y[chain], axis=1), axis=-1)
+
+    return args, lines, wall, nodes, cells
+
+
+def test_sweeps_unchanged_by_ceilings_above_every_cell():
+    args, lines, wall, nodes, cells = _ring_chain()
+    out, _, _ = winslow_sweeps(*args, orth=1.0, orth_lines=lines)
+    big = (np.full(len(nodes), 1e30), np.full(nodes.shape, 1e30))
+    out_big, _, _ = winslow_sweeps(*args, orth=1.0, orth_lines=lines, ceilings=big)
+    np.testing.assert_array_equal(out_big, out)
+
+
+def test_sweeps_hold_the_lines_out_from_the_wall_to_their_ceilings():
+    # Ceilings below every cell of the lines out: each cell ends no longer
+    args, lines, wall, nodes, cells = _ring_chain()
+    out, _, _ = winslow_sweeps(*args, orth=1.0, orth_lines=lines)
+    cap = 0.5 * cells(out).min()
+    assert np.all(cells(out) > cap)
+
+    ceilings = (np.full(len(nodes), cap), np.full(nodes.shape, cap))
+    out_cap, _, _ = winslow_sweeps(*args, orth=1.0, orth_lines=lines, ceilings=ceilings)
+    assert np.all(cells(out_cap) <= cap * (1.0 + 1e-5))
+    # The wall nodes stay where they slid, on the wall
+    np.testing.assert_allclose(np.linalg.norm(out_cap[wall[0]], axis=1), 1.0, atol=1e-5)
+
+
+def test_sweeps_hold_the_lines_out_from_the_wall_between_floor_and_ceiling():
+    args, lines, wall, nodes, cells = _ring_chain()
+    w_min, on_min = np.full(len(nodes), 0.25), np.full(nodes.shape, 0.3)
+    floor = np.column_stack((w_min, on_min))[:-1]
+    out, _, _ = winslow_sweeps(
+        *args,
+        orth=1.0,
+        orth_lines=lines,
+        floors=(w_min, on_min),
+        ceilings=(1.1 * w_min, 1.1 * on_min),
+    )
+    assert np.all(cells(out) >= floor * (1.0 - 1e-5))
+    assert np.all(cells(out) <= 1.1 * floor * (1.0 + 1e-5))

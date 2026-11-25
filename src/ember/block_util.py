@@ -52,6 +52,7 @@ import ember.collections
 import ember.fortran
 from ember import util
 from ember.block import Block
+from ember.unstructured import UnstructuredBlock
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,10 @@ def concatenate(*blocks, axis=0):
     """
     if len(blocks) == 0:
         raise ValueError("At least 1 block required for concatenation")
+    elif any(isinstance(b, UnstructuredBlock) for b in blocks):
+        raise TypeError(
+            "Cannot concatenate an UnstructuredBlock: its faces index its own vertices."
+        )
     elif len(blocks) == 1:
         return blocks[0].copy()
 
@@ -407,7 +412,7 @@ def resolve_from_interface(block, rot_from):
     return _rotate_meridional(block, rot_from)
 
 
-def resample(block, factors):
+def resample(block, factors, ijk_crit=None, mult=1):
     """Resample 3D block with vectorized interpolation while preserving patch connectivity.
 
     Creates a new block by resampling with given factor(s). Critical indices from
@@ -421,6 +426,14 @@ def resample(block, factors):
     factors : float or tuple of 3 floats
         Resampling factor(s). Values > 1 increase resolution, < 1 decrease resolution.
         If scalar, same factor applied to all three dimensions.
+    ijk_crit : sequence of 3 iterables of int, optional
+        Further critical indices in each direction, beyond the block's ends and
+        its own patch boundaries. :meth:`ember.grid.Grid.resample` passes those its
+        neighbours impose across a matched interface, so that both sides of it
+        are cut into the same segments and get the same nodes.
+    mult : int, optional
+        Give each segment between critical indices, in every direction, a
+        multiple of this many cells; see :func:`ember.util.resample`.
 
     Returns
     -------
@@ -434,10 +447,12 @@ def resample(block, factors):
     old_shape = block.shape
 
     # 1. Collect critical indices using list comprehension
+    extra = ijk_crit if ijk_crit is not None else ([], [], [])
     ijk_crit = [
         np.unique(
             [0, old_shape[dim] - 1]
             + [idx for patch in block.patches for idx in patch.ijk_lim_abs[dim]]
+            + [int(idx) for idx in extra[dim]]
         )
         for dim in range(3)
     ]
@@ -445,19 +460,27 @@ def resample(block, factors):
     # 2. Resample each direction with mappings
     ijk_new, ijk_mappings = zip(
         *[
-            util.resample(factors[dim], np.arange(old_shape[dim]), ijk_crit[dim])
+            util.resample(factors[dim], np.arange(old_shape[dim]), ijk_crit[dim], mult)
             for dim in range(3)
         ]
     )
 
     new_shape = tuple(len(coords) for coords in ijk_new)
 
-    # 3. Interpolate all variables in a single Fortran call
-    data_new = ember.fortran.map_coordinates_3d(
-        block._data,
-        ijk_new[0].astype(np.float32),
-        ijk_new[1].astype(np.float32),
-        ijk_new[2].astype(np.float32),
+    # 3. Interpolate all variables trilinearly in a single Fortran call, then
+    # the coordinates again by monotone cubics, so a stretched grid stays
+    # smoothly stretched and a curved wall is not faceted. The cubics run one
+    # segment between critical indices at a time, so a block meeting only part
+    # of a line sees the same curve. Coordinates are the first data columns.
+    ijk_f32 = [c.astype(np.float32) for c in ijk_new]
+    data_new = ember.fortran.map_coordinates_3d(block._data, *ijk_f32)
+    segments = [_segment_bounds(ijk_crit[d], old_shape[d]) for d in range(3)]
+    slopes = np.empty(old_shape + (6,), dtype=np.float32, order="F")
+    data_new[..., :3] = ember.fortran.pchip_resample_3d(
+        block._data[..., :3],
+        *ijk_f32,
+        *(bound for seg in segments for bound in seg),
+        slopes,
     )
 
     # Get all old patch limits before creating new block
@@ -502,6 +525,23 @@ def resample(block, factors):
         new_patch.attach_to_block_resampled(new_block, old_patch)
 
     return new_block
+
+
+def _segment_bounds(crit, n):
+    """First and last node of the segment holding each interval, one-based.
+
+    Entry ``m`` is for the interval from node ``m`` to the next, between the
+    critical indices `crit` (zero-based, sorted, including both ends); the
+    last entry repeats the one before. A line of one node is its own segment.
+    """
+    lo = np.ones(n, dtype=np.int32)
+    hi = np.ones(n, dtype=np.int32)
+    for a, b in zip(crit[:-1], crit[1:]):
+        lo[a:b] = a + 1
+        hi[a:b] = b + 1
+    if n > 1:
+        lo[-1], hi[-1] = lo[-2], hi[-2]
+    return lo, hi
 
 
 def _patch_crit(block, src):
@@ -789,12 +829,12 @@ def wall_yplus(block, wall_law="fit"):
 
 
 def to_tm3(block, filename, clip_quantile=0.01, **kwargs):
-    """Write a triangulated cut to a tm3 binary file.
+    """Write an unstructured cut to a tm3 binary file.
 
     Parameters
     ----------
-    block : Block
-        Triangulated block with shape ``(ntri, 3)``.
+    block : UnstructuredBlock
+        Unstructured triangulated cut.
     filename : str or path-like
         Output file path.
     clip_quantile : float, optional
@@ -802,20 +842,18 @@ def to_tm3(block, filename, clip_quantile=0.01, **kwargs):
         to [q, 1-q] percentiles so that extreme outliers do not dominate
         the colour scale. Default is 0.01 (1%). Set to 0 to use the
         full min/max range.
-    **kwargs : array_like, shape (ntri, 3)
+    **kwargs : array_like, shape (n_vert,)
         Exactly one keyword argument: the key is used as the property name
         in the file, the value is the per-vertex scalar array.
 
     Raises
     ------
     ValueError
-        If the block is not triangulated, kwargs count != 1, or the value
+        If the block is not unstructured, kwargs count != 1, or the value
         shape does not match the block shape.
     """
-    if not block.triangulated:
-        raise ValueError("to_tm3 requires a triangulated block")
-    if len(block.shape) != 2 or block.shape[1] != 3:
-        raise ValueError(f"to_tm3 requires shape (ntri, 3), got {block.shape}")
+    if not isinstance(block, UnstructuredBlock):
+        raise ValueError("to_tm3 requires an UnstructuredBlock")
     if len(kwargs) != 1:
         raise ValueError(
             f"to_tm3 requires exactly one keyword argument (property name=array), "
@@ -829,15 +867,12 @@ def to_tm3(block, filename, clip_quantile=0.01, **kwargs):
             f"Property array shape {values.shape} does not match block shape {block.shape}"
         )
 
-    ntri = block.shape[0]
-    nverts = ntri * 3
+    n_face = block.n_face
+    n_vert = block.n_vert
 
-    # Cartesian vertex coordinates, shape (ntri, 3, 3): [tri, node, xyz]
-    xyz = np.stack([block.x, block.y, block.z], axis=-1)  # (ntri, 3, 3)
-    nodes = xyz.reshape(-1, 3).astype(np.float32)  # (nverts, 3)
-
-    # Each triangle's vertices are consecutive — no shared vertices
-    indices = np.arange(nverts, dtype=np.int32).reshape(ntri, 3)
+    # Cartesian vertex coordinates, shape (n_vert, 3)
+    nodes = np.stack([block.x, block.y, block.z], axis=-1).astype(np.float32)
+    indices = block.faces
 
     # Bounding geometry
     rmax = np.sqrt((nodes**2).sum(axis=1)).max()
@@ -856,8 +891,8 @@ def to_tm3(block, filename, clip_quantile=0.01, **kwargs):
         f.write(np.int32(1).tobytes())  # nsteps
         f.write(np.int32(1).tobytes())  # nsurfaces
         f.write(np.array(surface_name, dtype="S96").tobytes())  # surface name
-        f.write(np.int32(nverts).tobytes())  # nverts
-        f.write(np.int32(ntri).tobytes())  # ntris
+        f.write(np.int32(n_vert).tobytes())  # nverts
+        f.write(np.int32(n_face).tobytes())  # ntris
         f.write(np.int32(1).tobytes())  # nprops
         f.write(np.float32(rmax).tobytes())  # rmax
         f.write(xrange_.tobytes())  # xrange

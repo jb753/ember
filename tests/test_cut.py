@@ -5,7 +5,6 @@ Module tested: ember.cut
 Test cases:
 - test_vijk: _vijk function for vertex indexing
 - test_eijk: _eijk function for edge indexing
-- test_cube_index: _cube_index function
 - test_no_cut: Case where no cut occurs
 - test_simple_cut: Simple cutting case
 - test_multiple_variables: Marching cubes with multiple data variables
@@ -29,8 +28,8 @@ Test cases:
 - test_data_preservation: Data values are preserved through cutting
 - test_triangle_validity: Generated triangles are valid
 - test_block_inheritance: Result inherits properties from source block
-- test_unstructured_sets_triangulated_flag: Verify unstructured() sets triangulated flag
-- test_unstructured_multiblock_triangulated_flag: Verify triangulated flag for multi-block
+- test_unstructured_sets_triangulated_flag: Verify unstructured() returns an UnstructuredBlock
+- test_unstructured_multiblock_triangulated_flag: Same, for multi-block
 - test_large_grid_handling: Unstructured function with larger grid
 - test_horizontal_cut: Structured meridional cut with horizontal line
 - test_vertical_cut: Structured meridional cut with vertical line
@@ -54,8 +53,9 @@ Test cases:
 - test_triangulate_larger_grid: Triangulation on larger 2D grid
 - test_triangulate_invalid_input: Triangulate with invalid inputs
 - test_triangulate_minimal_grid: Triangulation on minimal 2x2 grid
-- test_triangulate_sets_triangulated_property: Verify triangulated property is set correctly
-- test_triangulate_shape_calculation: Verify shape follows (ni-1)*(nj-1)*2 formula
+- test_triangulate_sets_triangulated_property: Verify the result is an UnstructuredBlock
+- test_triangulate_shape_calculation: Verify n_face follows the (ni-1)*(nj-1)*2 formula
+- TestCutField: the narrow-band field the cutting kernels take a polyline from
 """
 
 import numpy as np
@@ -65,6 +65,7 @@ import ember.grid
 import ember.block
 import ember.fluid
 from ember import util
+from ember.unstructured import UnstructuredBlock
 from ember.cut import (
     _marching_cubes,
     _TRITABLE,
@@ -72,13 +73,15 @@ from ember.cut import (
     structured_meridional,
     interpolate_to_structured,
     triangulate_to_unstructured,
-    _cube_index,
     _vijk,
     _eijk,
     signed_distance,
     _cut_reaches_block,
     _first_j_crossing,
     _pitchwise_fluid,
+    _line_distance,
+    _line_normal,
+    _cut_field,
 )
 
 
@@ -175,21 +178,6 @@ class TestMarchingCubesHelper:
         assert start == (1, 2, 3)
         assert end == (1, 2, 4)
 
-    def test_cube_index(self):
-        """Test _cube_index function."""
-        # Simple 2x2x2 case where only corner 0 is negative
-        d = np.ones((2, 2, 2))
-        d[0, 0, 0] = -1.0
-
-        ind = _cube_index(d)
-        assert ind.shape == (1, 1, 1)
-        assert ind[0, 0, 0] == 1  # Only bit 0 set
-
-        # Case where all corners are negative
-        d_all_neg = -np.ones((2, 2, 2))
-        ind_all = _cube_index(d_all_neg)
-        assert ind_all[0, 0, 0] == 255  # All 8 bits set
-
 
 class TestMarchingCubes:
     """Test marching_cubes function."""
@@ -213,7 +201,9 @@ class TestMarchingCubes:
 
         result = _marching_cubes(data, dist)
         assert result is not None
-        assert result.shape[1:] == (3, 1)  # triangles with 3 vertices, 1 variable
+        verts, faces = result
+        assert faces.shape[1] == 3  # triangles with 3 vertices
+        assert verts.shape[1] == 1  # 1 variable
 
     def test_multiple_variables(self):
         """Test marching cubes with multiple data variables."""
@@ -228,7 +218,7 @@ class TestMarchingCubes:
 
         result = _marching_cubes(data, dist)
         assert result is not None
-        assert result.shape[2] == 3  # Should preserve all 3 variables
+        assert result[0].shape[1] == 3  # Should preserve all 3 variables
 
 
 class TestUnstructured:
@@ -245,8 +235,8 @@ class TestUnstructured:
 
         if result is not None:
             # Check result shape
-            assert result.ndim == 2
-            assert result.shape[1] == 3  # 3 vertices per triangle
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3  # 3 vertices per triangle
             # Check that we have valid data (ignoring possible NaN in unused components)
             valid_data = result._data[..., :8]  # First 8 components should be valid
             assert not np.any(np.isnan(valid_data))
@@ -261,8 +251,8 @@ class TestUnstructured:
         result = unstructured(grid, xr_cut)
 
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
             valid_data = result._data[..., :8]
             assert not np.any(np.isnan(valid_data))
 
@@ -276,8 +266,8 @@ class TestUnstructured:
         result = unstructured(grid, xr_cut)
 
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
 
     def test_no_intersection(self, simple_block):
         """Test case where cut line doesn't intersect the grid."""
@@ -290,7 +280,7 @@ class TestUnstructured:
         # May return None or empty result when no intersection
         if result is not None:
             # If not None, should be empty or very small
-            assert result.shape[0] == 0 or result.shape[0] < 5
+            assert result.n_face < 5
 
     def test_multi_block_cut(self, multi_block_grid):
         """Test unstructured cut across multiple blocks."""
@@ -300,8 +290,8 @@ class TestUnstructured:
         result = unstructured(multi_block_grid, xr_cut)
 
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
             # Should have triangles from potentially both blocks
             valid_data = result._data[..., :8]
             assert not np.any(np.isnan(valid_data))
@@ -316,8 +306,8 @@ class TestUnstructured:
         result = unstructured(grid, xr_cut)
         # May or may not return triangles depending on numerical precision
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
             valid_data = result._data[..., :8]
             assert not np.any(np.isnan(valid_data))
 
@@ -334,12 +324,12 @@ class TestUnstructured:
 
         # Both should either be None or have similar structure
         if result1 is None:
-            assert result2 is None or result2.shape[0] == 0
+            assert result2 is None or result2.n_face == 0
         elif result2 is None:
-            assert result1.shape[0] == 0
+            assert result1.n_face == 0
         else:
             # If both have results, they should have similar number of triangles
-            assert abs(result1.shape[0] - result2.shape[0]) <= 2
+            assert abs(result1.n_face - result2.n_face) <= 2
 
     def test_data_interpolation(self, simple_block):
         """Test that data is correctly interpolated at cut surface."""
@@ -401,7 +391,7 @@ class TestUnstructuredEdgeCases:
         try:
             result = unstructured(grid, xr_cut)
             if result is not None:
-                assert result.ndim == 2
+                assert isinstance(result, UnstructuredBlock)
         except (ValueError, IndexError, AssertionError):
             # Acceptable for degenerate input
             pass
@@ -445,7 +435,9 @@ class TestMarchingCubesEdgeCases:
         # Should handle zero distance gracefully
         result = _marching_cubes(data, dist)
         if result is not None:
-            assert result.shape[1:] == (3, 1)
+            verts, faces = result
+            assert faces.shape[1] == 3
+            assert verts.shape[1] == 1
 
     def test_minimum_size_data(self):
         """Test with minimum possible data size."""
@@ -455,7 +447,9 @@ class TestMarchingCubesEdgeCases:
 
         result = _marching_cubes(data, dist)
         if result is not None:
-            assert result.shape[1:] == (3, 1)
+            verts, faces = result
+            assert faces.shape[1] == 3
+            assert verts.shape[1] == 1
 
     def test_interpolation_accuracy(self):
         """Test that linear interpolation is accurate."""
@@ -474,7 +468,7 @@ class TestMarchingCubesEdgeCases:
         if result is not None:
             # All interpolated values should be 0.3 (linear interpolation)
             expected_value = 0.3
-            np.testing.assert_allclose(result[..., 0], expected_value, atol=1e-10)
+            np.testing.assert_allclose(result[0][..., 0], expected_value, atol=1e-10)
 
 
 class TestUnstructuredIntegration:
@@ -513,7 +507,7 @@ class TestUnstructuredIntegration:
 
         if result is not None:
             # Each triangle should have 3 vertices
-            assert result.shape[1] == 3
+            assert result.faces.shape[1] == 3
 
             # All valid data should be finite
             valid_data = result._data[..., :8]
@@ -535,14 +529,14 @@ class TestUnstructuredIntegration:
             assert hasattr(result, "_data")
             assert hasattr(result, "shape")
             # Check that it has the expected number of variables (9 total, 8 valid)
-            assert result._data.shape[2] == simple_block.nvar
+            assert result._data.shape[1] == simple_block.nvar
 
 
 class TestUnstructuredTriangulatedProperty:
-    """Test that unstructured cuts set the triangulated property."""
+    """Test that unstructured cuts return an UnstructuredBlock."""
 
     def test_unstructured_sets_triangulated_flag(self):
-        """Test that unstructured() sets triangulated=True on output from 3D block."""
+        """Test that unstructured() returns an UnstructuredBlock from a 3D block."""
         # Create 3D block
         shape = (4, 5, 6)
         block = ember.block.Block(shape=shape)
@@ -574,28 +568,16 @@ class TestUnstructuredTriangulatedProperty:
         # Verify result is not None
         assert result is not None, "Unstructured cut should produce a result"
 
-        # Verify the triangulated property is set to True
-        assert hasattr(result, "triangulated"), (
-            "Result should have 'triangulated' property"
-        )
-        assert result.triangulated is True, (
-            "Unstructured cut output should have triangulated=True"
-        )
-
-        # Verify shape is (ntri, 3) for triangulated data
-        assert result.ndim == 2, (
-            f"Expected ndim=2 for triangulated output, got {result.ndim}"
-        )
-        assert result.shape[1] == 3, (
-            f"Expected 3 vertices per triangle, got {result.shape[1]}"
-        )
+        # Verify the result is an unstructured block of triangles
+        assert isinstance(result, UnstructuredBlock)
+        assert result.faces.shape[1] == 3
 
         # Verify data has finite values
         valid_data = result._data[..., :8]
         assert np.all(np.isfinite(valid_data)), "Triangulated data should be finite"
 
     def test_unstructured_multiblock_triangulated_flag(self):
-        """Test that unstructured() sets triangulated flag for multi-block grids."""
+        """Test that unstructured() returns an UnstructuredBlock for multi-block grids."""
         # Create two 3D blocks
         shape = (3, 4, 5)
 
@@ -630,17 +612,9 @@ class TestUnstructuredTriangulatedProperty:
 
         result = unstructured(grid, xr_cut)
 
-        # Verify triangulated flag is set
-        assert hasattr(result, "triangulated"), (
-            "Multi-block result should have 'triangulated' property"
-        )
-        assert result.triangulated is True, (
-            "Multi-block unstructured output should have triangulated=True"
-        )
-
-        # Verify shape
-        assert result.ndim == 2
-        assert result.shape[1] == 3
+        # Verify the result is an unstructured block of triangles
+        assert isinstance(result, UnstructuredBlock)
+        assert result.faces.shape[1] == 3
 
         # Verify data is finite
         valid_data = result._data[..., :8]
@@ -676,8 +650,8 @@ class TestUnstructuredPerformance:
         result = unstructured(grid, xr_cut)
 
         if result is not None:
-            assert result.shape[1] == 3
-            assert result._data.shape[2] == block.nvar
+            assert result.faces.shape[1] == 3
+            assert result._data.shape[1] == block.nvar
             valid_data = result._data[..., :8]
             assert np.all(np.isfinite(valid_data))
 
@@ -794,7 +768,7 @@ class TestNonIntersectionBehavior:
             # Check if result is None or effectively empty
             if result is not None:
                 # If not None, should have no triangles or all NaN data
-                if result.shape[0] > 0:
+                if result.n_face > 0:
                     # Check if all interpolated coordinates are outside the domain
                     coords = result._data[..., :3]  # x, r, t coordinates
                     x_coords, r_coords = coords[..., 0], coords[..., 1]
@@ -809,10 +783,7 @@ class TestNonIntersectionBehavior:
                     coords_in_domain = np.logical_and(x_in_bounds, r_in_bounds)
 
                     # Most coordinates should be outside domain for non-intersecting cut
-                    assert (
-                        np.sum(coords_in_domain)
-                        <= result.shape[0] * result.shape[1] * 0.1
-                    )
+                    assert np.sum(coords_in_domain) <= result.n_vert * 0.1
 
     def test_structured_meridional_no_intersection_definitive(self, simple_block):
         """Test structured_meridional with cuts that definitely don't intersect."""
@@ -887,7 +858,7 @@ class TestNonIntersectionBehavior:
             # Boundary cuts may or may not return results depending on numerics
             # Both functions should handle these gracefully
             if result_unstr is not None:
-                assert result_unstr.shape[1] == 3
+                assert result_unstr.faces.shape[1] == 3
             if result_struct is not None:
                 assert len(result_struct) >= 0
 
@@ -1077,7 +1048,7 @@ class TestInterpolateToStructured:
         xr_cut = np.array([[0.3, 0.8], [0.7, 1.2]])
         unstr_result = unstructured(grid, xr_cut)
 
-        if unstr_result is not None and unstr_result.shape[0] > 0:
+        if unstr_result is not None and unstr_result.n_face > 0:
             # Test with very small interpolation grid
             structured_result = interpolate_to_structured(
                 unstr_result, (2, 2), periodic=False
@@ -1475,8 +1446,8 @@ class TestTriangulate:
 
         # Check output shape - (ni-1)*(nj-1)*2 triangles, 3 vertices each
         expected_ntri = (shape[0] - 1) * (shape[1] - 1) * 2
-        assert result.shape == (expected_ntri, 3)
-        assert result._data.shape == (expected_ntri, 3, block.nvar)
+        assert result.n_face == expected_ntri
+        assert result._data.shape == (shape[0] * shape[1], block.nvar)
 
         # Check that all data is finite (no NaN in coordinates/variables)
         valid_data = result._data[..., :8]  # Exclude potential NaN component
@@ -1542,8 +1513,13 @@ class TestTriangulate:
 
         result = triangulate_to_unstructured(block)
 
-        # Should have (2-1)*(2-1)*2 = 2 triangles
-        assert result.shape == (2, 3)
+        # Should have (2-1)*(2-1)*2 = 2 triangles on the 4 nodes
+        assert result.n_face == 2
+        assert result.n_vert == 4
+
+        # The two triangles share the diagonal (i,j)-(i+1,j+1)
+        shared = set(result.faces[0]) & set(result.faces[1])
+        assert len(shared) == 2
 
         # Check that vertices have correct coordinates
         coords = result._data[..., :2]  # x, r coordinates
@@ -1580,8 +1556,8 @@ class TestTriangulate:
 
         # Check triangle count: (5-1)*(4-1)*2 = 24 triangles
         expected_ntri = (shape[0] - 1) * (shape[1] - 1) * 2
-        assert result.shape == (expected_ntri, 3)
-        assert result._data.shape == (expected_ntri, 3, block.nvar)
+        assert result.n_face == expected_ntri
+        assert result._data.shape == (shape[0] * shape[1], block.nvar)
 
         # All data should be finite
         valid_data = result._data[..., :8]
@@ -1614,8 +1590,8 @@ class TestTriangulate:
         result = triangulate_to_unstructured(block)
 
         # Should have exactly 2 triangles for 2x2 grid
-        assert result.shape == (2, 3)
-        assert result._data.shape == (2, 3, block.nvar)
+        assert result.n_face == 2
+        assert result._data.shape == (4, block.nvar)
 
     def test_triangulate_sets_triangulated_property(self):
         """Test that triangulate_to_unstructured sets the triangulated property correctly."""
@@ -1638,40 +1614,16 @@ class TestTriangulate:
         conserved[..., 4] = 300000.0  # rhoe
         block.set_conserved(conserved)
 
-        # Verify original block is not triangulated
-        assert not hasattr(block, "triangulated") or block.triangulated is False
-
         # Triangulate the block
         result = triangulate_to_unstructured(block)
+        assert isinstance(result, UnstructuredBlock)
 
-        # Verify the triangulated property is set to True
-        assert hasattr(result, "triangulated"), (
-            "Result should have 'triangulated' property"
-        )
-        assert result.triangulated is True, "triangulated property should be True"
-
-        # Verify the shape is correct: (ntri, 3) where ntri = (ni-1)*(nj-1)*2
+        # n_face = (ni-1)*(nj-1)*2 on the ni*nj nodes
         expected_ntri = (shape[0] - 1) * (shape[1] - 1) * 2
-        assert result.shape == (expected_ntri, 3), (
-            f"Expected shape ({expected_ntri}, 3), got {result.shape}"
-        )
-
-        # Verify ndim is 2 (triangles x vertices)
-        assert result.ndim == 2, (
-            f"Expected ndim=2 for triangulated data, got {result.ndim}"
-        )
-
-        # Verify the data array has correct shape
-        assert result._data.shape == (expected_ntri, 3, block.nvar), (
-            f"Expected _data shape ({expected_ntri}, 3, {block.nvar}), "
-            f"got {result._data.shape}"
-        )
-
-        # Verify ni and nj are set correctly on triangulated output
-        assert result.ni == expected_ntri, (
-            f"Expected ni={expected_ntri}, got {result.ni}"
-        )
-        assert result.nj == 3, f"Expected nj=3 (vertices per triangle), got {result.nj}"
+        assert result.n_face == expected_ntri
+        assert result.faces.shape == (expected_ntri, 3)
+        assert result.shape == (shape[0] * shape[1],)
+        assert result._data.shape == (shape[0] * shape[1], block.nvar)
 
         # Verify all data is finite
         valid_data = result._data[..., :8]
@@ -1703,15 +1655,10 @@ class TestTriangulate:
             # Expected number of triangles
             expected_ntri = (input_shape[0] - 1) * (input_shape[1] - 1) * 2
 
-            # Verify shape
-            assert result.shape == (expected_ntri, 3), (
-                f"For input shape {input_shape}, expected output shape "
-                f"({expected_ntri}, 3), got {result.shape}"
-            )
-
-            # Verify triangulated property
-            assert result.triangulated is True, (
-                f"For input shape {input_shape}, triangulated should be True"
+            # Verify face count
+            assert result.n_face == expected_ntri, (
+                f"For input shape {input_shape}, expected {expected_ntri} faces, "
+                f"got {result.n_face}"
             )
 
 
@@ -1727,9 +1674,8 @@ class TestSingleBlockAcceptance:
 
         # Should work and return valid result or None
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
-            assert result.triangulated is True
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
 
     def test_unstructured_single_block_equivalence(self, simple_block):
         """Test that single Block gives same result as Grid with one Block."""
@@ -1759,9 +1705,8 @@ class TestSingleBlockAcceptance:
         result = unstructured(simple_block, xr_cut)
 
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
-            assert result.triangulated is True
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
 
     def test_unstructured_diagonal_cut_single_block(self, simple_block):
         """Test unstructured with diagonal cut on single Block."""
@@ -1770,8 +1715,8 @@ class TestSingleBlockAcceptance:
         result = unstructured(simple_block, xr_cut)
 
         if result is not None:
-            assert result.ndim == 2
-            assert result.shape[1] == 3
+            assert isinstance(result, UnstructuredBlock)
+            assert result.faces.shape[1] == 3
 
     def test_structured_meridional_single_block(self, simple_block):
         """Test that structured_meridional() accepts a single Block."""
@@ -1842,7 +1787,7 @@ class TestSingleBlockAcceptance:
         # Should return None or empty result
         if result is not None:
             # If not None, should be empty or have very few triangles
-            assert result.shape[0] == 0 or result.shape[0] < 5
+            assert result.n_face < 5
 
     def test_structured_meridional_no_intersection_single_block(self, simple_block):
         """Test structured with non-intersecting cut on single Block."""
@@ -2033,10 +1978,12 @@ class TestSignedDistance:
     def test_signed_distance_matches_numpy_reference(self):
         """The Fortran kernel reproduces the numpy implementation it replaced.
 
-        Magnitudes must agree to round-off. Signs may disagree, but only at a
-        point equidistant from two segments, where which segment is nearest --
-        and hence which side the point is deemed to be on -- is decided by the
-        last bit of the distance and is arbitrary in both implementations.
+        The kernel works in single precision, as ember's coordinates are, so
+        both sides take the same single precision inputs and the magnitudes
+        must agree to its round-off. Signs may disagree, but only at a point
+        (near) equidistant from two segments, where which segment is nearest
+        -- and hence which side the point is deemed to be on -- is decided by
+        round-off and is arbitrary in both implementations.
         """
 
         def nearest_two(xr, q):
@@ -2071,17 +2018,22 @@ class TestSignedDistance:
             lo, hi = xr.min(axis=0) - 1.0, xr.max(axis=0) + 1.0
             q = rng.random((20000, 2)) * (hi - lo) + lo
 
+            # The inputs the kernel sees, so only its arithmetic differs
+            xr = xr.astype(np.float32).astype(float)
+            q = q.astype(np.float32).astype(float)
+
             expected = _signed_distance_numpy(xr, q)
             actual = signed_distance(xr, q)
 
             # Magnitude is the part that is not tie-dependent
+            scale = np.abs(q).max() + np.abs(xr).max()
             assert np.allclose(
-                np.abs(actual), np.abs(expected), rtol=0.0, atol=1e-14
+                np.abs(actual), np.abs(expected), rtol=0.0, atol=1e-6 * scale
             ), name
 
             # Every sign disagreement sits on a tie between two segments
             d_first, d_second = nearest_two(xr, q)
-            tied = (d_second - d_first) <= 1e-12 * np.maximum(d_first, 1e-300)
+            tied = (d_second - d_first) <= 1e-6 * scale
             disagrees = np.sign(actual) != np.sign(expected)
             assert not np.any(disagrees & ~tied), name
 
@@ -2211,7 +2163,7 @@ def _first_j_crossing_loop(data, dist):
 
     The per-``(i, k)`` Python walk that ``structured_meridional`` used before
     it was vectorised. Retained here, and nowhere in the package, purely so
-    the vectorised version can be checked against it.
+    the kernel can be checked against it.
     """
     ni, nj, nk = dist.shape
     cut_data = np.full((ni, nk, data.shape[-1]), np.nan)
@@ -2248,7 +2200,7 @@ def _first_j_crossing_loop(data, dist):
 
 
 class TestFirstJCrossing:
-    """The vectorised (i, k) walk behind structured_meridional."""
+    """The (i, k) walk behind structured_meridional."""
 
     @staticmethod
     def _fields(shape, style, rng):
@@ -2290,7 +2242,10 @@ class TestFirstJCrossing:
         for shape in [(4, 5, 3), (3, 2, 2), (6, 9, 4), (1, 7, 1)]:
             for style in styles:
                 for _ in range(20):
-                    dist, data = self._fields(shape, style, rng)
+                    # In single precision, as the kernel works
+                    dist, data = (
+                        v.astype(np.float32) for v in self._fields(shape, style, rng)
+                    )
 
                     expected = _first_j_crossing_loop(data, dist)
                     actual = _first_j_crossing(data, dist)
@@ -2301,8 +2256,11 @@ class TestFirstJCrossing:
                         style,
                     )
 
+                    # The kernel may divide by multiplying by a reciprocal
                     cut = ~np.isnan(expected)
-                    assert np.array_equal(expected[cut], actual[cut]), (shape, style)
+                    np.testing.assert_allclose(
+                        actual[cut], expected[cut], rtol=1e-6, atol=1e-6
+                    )
 
     def test_takes_the_first_crossing_not_the_nearest(self):
         """A line crossing several times is cut at the first crossing."""
@@ -2353,7 +2311,7 @@ _REF_EDGETABLE = np.array(
 
 
 def _cube_index_numpy(d):
-    """Reference for :func:`ember.cut._cube_index`, kept for comparison.
+    """Corner sign pattern of every cell, for the reference loop below.
 
     The numpy version used before the corner sign patterns moved into
     ``_fortran/marching.f90``, slicing the field once per corner.
@@ -2381,9 +2339,11 @@ def _marching_cubes_loop(data, dist):
     # Now treat each cell individually
     # Most cells are not cut so for loop is not too bad
     triangles = []
-    for i in range(ni - 1):
+    # Walk the cells i fastest, as the kernel does, so the triangles come
+    # out in the same order
+    for k in range(nk - 1):
         for j in range(nj - 1):
-            for k in range(nk - 1):
+            for i in range(ni - 1):
                 # Skip uncut cells
                 if not edge_index[i, j, k]:
                     continue
@@ -2427,15 +2387,186 @@ def _marching_cubes_loop(data, dist):
         return None
 
 
+class TestStraightCut:
+    """A cut along a single segment runs along the whole of its line."""
+
+    def test_line_distance_matches_signed_distance_on_the_segment(self):
+        """Where the foot of the perpendicular is on the segment, they agree."""
+        rng = np.random.default_rng(0)
+        for xr in (
+            np.array([[0.43, 0.4], [0.43, 1.6]]),
+            np.array([[-0.1, 1.03], [1.1, 1.03]]),
+            np.array([[0.2, 0.4], [0.7, 1.6]]),
+        ):
+            q = (rng.random((5000, 2)) * 2.0).astype(np.float32)
+            b = xr[1] - xr[0]
+            h = ((q - xr[0]) @ b) / (b @ b)
+            on = (h > 0.0) & (h < 1.0)
+            np.testing.assert_allclose(
+                _line_distance(xr, q)[on], signed_distance(xr, q)[on], atol=1e-6
+            )
+
+    def test_short_segment_cuts_the_whole_block(self):
+        """A segment ending inside a block still cuts right across it."""
+        block = TestCutScreen._block_spanning([0.0, 1.0], [0.5, 1.5], (9, 9, 5))
+        cut = unstructured(block, np.array([[0.5, 0.9], [0.5, 1.1]]))
+
+        np.testing.assert_allclose(cut.x, 0.5, atol=1e-6)
+        np.testing.assert_allclose([cut.r.min(), cut.r.max()], [0.5, 1.5], atol=1e-6)
+
+    def test_kernel_line_matches_a_distance_field(self):
+        """Forming a line's distance in the kernel cuts as the field would."""
+        block = TestCutScreen._block_spanning([0.0, 1.0], [0.5, 1.5], (9, 8, 7))
+        xr_cut = np.array([[0.13, 0.37], [0.71, 1.66]])
+        x, r = block.xrt_nd[..., 0], block.xrt_nd[..., 1]
+
+        verts, faces = _marching_cubes(block._data, x, r, _line_normal(xr_cut))
+        verts_f, faces_f = _marching_cubes(
+            block._data, _line_distance(xr_cut, block.xrt_nd[..., :2])
+        )
+
+        np.testing.assert_array_equal(faces, faces_f)
+        np.testing.assert_allclose(verts, verts_f, rtol=1e-5, atol=1e-6)
+
+    def test_screen_follows_the_line(self):
+        """The screen takes a block the line crosses, wherever the segment is."""
+        block = TestCutScreen._block_spanning([0.0, 1.0], [0.5, 1.5])
+
+        # The segment is well clear of the block, but its line runs through it
+        assert _cut_reaches_block(np.array([[0.5, 3.0], [0.5, 4.0]]), block)
+
+        # A line that misses the box altogether
+        assert not _cut_reaches_block(np.array([[2.0, 0.0], [2.0, 1.0]]), block)
+
+
+def _cut_field_reference(xr, q):
+    """Signed distance to a curve and its end rays, by brute force in float64.
+
+    Signed by the nearest piece, which for a curve and rays that do not cross
+    themselves is the side of the whole cut that ``cut_distance`` counts.
+    """
+    xr = np.asarray(xr, dtype=float)
+    u0 = (xr[1] - xr[0]) / np.linalg.norm(xr[1] - xr[0])
+    u1 = (xr[-1] - xr[-2]) / np.linalg.norm(xr[-1] - xr[-2])
+    pieces = (
+        [(xr[0], u0, -np.inf, 0.0)]
+        + [(xr[s], xr[s + 1] - xr[s], 0.0, 1.0) for s in range(len(xr) - 1)]
+        + [(xr[-1], u1, 0.0, np.inf)]
+    )
+    best = np.full(q.shape[:-1], np.inf)
+    sgn = np.ones(q.shape[:-1])
+    for o, b, h_lo, h_hi in pieces:
+        a = q - o
+        h = np.clip((a @ b) / (b @ b), h_lo, h_hi)
+        perp = a - h[..., np.newaxis] * b
+        dist = np.sqrt((perp * perp).sum(-1))
+        cross = perp[..., 1] * b[0] - perp[..., 0] * b[1]
+        nearer = dist < best
+        best = np.where(nearer, dist, best)
+        sgn = np.where(nearer, np.where(cross >= 0.0, 1.0, -1.0), sgn)
+    return best * sgn
+
+
+class TestCutField:
+    """The narrow-band field the cutting kernels take a polyline cut from."""
+
+    SHAPE = (60, 50, 7)
+
+    CURVES = {
+        "radial_wiggle": np.stack(
+            [0.5 + 0.1 * np.sin(np.linspace(0, 3, 17)), np.linspace(0.6, 1.4, 17)],
+            -1,
+        ),
+        "along_x": np.stack(
+            [np.linspace(0.1, 0.9, 9), 1.0 + 0.1 * np.sin(np.linspace(0, 3, 9))], -1
+        ),
+        "hook": np.array([[0.3, 0.6], [0.4, 1.0], [0.6, 1.2], [0.8, 1.1]]),
+        "single": np.array([[0.2, 0.7], [0.6, 1.3]]),
+        "u_turn": np.array([[0.2, 0.8], [0.7, 0.8], [0.7, 1.2], [0.2, 1.2]]),
+    }
+
+    @classmethod
+    def _query(cls):
+        xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.5], cls.SHAPE)
+        return xrt[..., :2].astype(np.float32)
+
+    def test_matches_brute_force(self):
+        """Signs everywhere, and distances wherever they are exact, agree."""
+        q = self._query()
+        for name, xr in self.CURVES.items():
+            xr = xr.astype(np.float32)
+            d = _cut_field(xr, q)
+            ref = _cut_field_reference(xr, q.astype(float))
+
+            # The far field carries only its sign
+            exact = np.abs(d) < 1e30
+            assert 0.0 < exact.mean() < 1.0, name
+
+            clear = np.abs(ref) > 1e-5
+            assert np.array_equal(np.sign(d)[clear], np.sign(ref)[clear]), name
+            np.testing.assert_allclose(d[exact], ref[exact], atol=1e-6, err_msg=name)
+
+    def test_exact_wherever_the_sign_changes(self):
+        """Both ends of every grid edge the cut crosses get an exact distance."""
+        q = self._query()
+        for name, xr in self.CURVES.items():
+            d = _cut_field(xr, q)
+            for axis in range(3):
+                changes = np.diff(np.sign(d), axis=axis) != 0
+                lo = np.take(d, range(d.shape[axis] - 1), axis=axis)
+                hi = np.take(d, range(1, d.shape[axis]), axis=axis)
+                assert np.all(np.abs(lo[changes]) < 1e30), name
+                assert np.all(np.abs(hi[changes]) < 1e30), name
+
+    def test_single_segment_is_its_line(self):
+        """A curve of one segment is the whole line through it."""
+        q = self._query()
+        xr = self.CURVES["single"]
+        d = _cut_field(xr, q)
+        line = _line_distance(xr, q)
+        exact = np.abs(d) < 1e30
+        np.testing.assert_allclose(d[exact], line[exact], atol=1e-6)
+        assert np.array_equal(np.sign(d), np.sign(line))
+
+    def test_u_turn_is_signed_by_side(self):
+        """Between the rays of a curve that turns back is its left."""
+        d = _cut_field(self.CURVES["u_turn"], self._query())
+        x, r = (self._query()[..., c] for c in range(2))
+        inside = (r > 0.85) & (r < 1.15) & (x < 0.65)
+        outside = (r < 0.75) | (r > 1.25) | (x > 0.75)
+        assert np.all(d[inside] > 0.0)
+        assert np.all(d[outside] < 0.0)
+
+    def test_no_sign_change_off_the_cut(self):
+        """Where the nearest segment switches, the sign does not.
+
+        :func:`signed_distance` changes sign across this block, which the
+        zigzag misses, without ever passing through zero; the cut field,
+        signed by side, holds one sign over it, so even without the block
+        screen marching cubes finds nothing to cut.
+        """
+        block = TestCutScreen._block_spanning([1.21, 1.39], [1.83, 2.19])
+        q = block.xrt_nd[..., :2] * block.L_ref
+        zigzag = TestCutScreen.ZIGZAG
+
+        assert signed_distance(zigzag, q).min() < 0.0 < signed_distance(zigzag, q).max()
+
+        d = _cut_field(zigzag, q)
+        assert np.all(d > 0.0) or np.all(d < 0.0)
+        assert _marching_cubes(block._data, d) is None
+
+
 class TestMarchingCubesKernel:
     """The Fortran topology kernel behind _marching_cubes."""
 
     def test_matches_the_python_loop(self):
         """The kernel reproduces the loop it replaced, triangle for triangle.
 
-        Order matters as much as content: the triangles come back as a soup
-        with no other index, so the kernel has to emit them in the order the
-        cells were walked in, which is what the caller's offsets arrange.
+        The triangles are compared with their vertices gathered back onto
+        them, in the order the cells were walked in, i fastest in both. The
+        kernel finds each fraction along an
+        edge in single precision, and the loop in double from some edges'
+        other ends, so a vertex differs from it by single precision round-off.
         """
         rng = np.random.default_rng(0)
 
@@ -2462,21 +2593,31 @@ class TestMarchingCubesKernel:
                 data = rng.normal(0.0, 1.0, shape + (4,))
 
                 expected = _marching_cubes_loop(data, dist)
-                actual = _marching_cubes(data, dist)
+                result = _marching_cubes(data, dist)
 
                 if expected is None:
-                    assert actual is None, (shape, trial)
+                    assert result is None, (shape, trial)
                     continue
 
-                assert actual is not None, (shape, trial)
+                assert result is not None, (shape, trial)
+                verts, faces = result
+                actual = verts[faces]
                 assert actual.shape == expected.shape, (shape, trial)
                 assert actual.dtype == expected.dtype, (shape, trial)
                 # equal_nan, because a block carries NaN for any variable
                 # that has not been set, and those ride through the cut
-                assert np.array_equal(actual, expected, equal_nan=True), (
-                    shape,
-                    trial,
+                np.testing.assert_allclose(
+                    actual,
+                    expected,
+                    rtol=1e-5,
+                    atol=1e-5,
+                    equal_nan=True,
+                    err_msg=str((shape, trial)),
                 )
+
+                # Each cut edge is one vertex, shared by every face on it
+                assert verts.shape[0] == np.unique(faces).size, (shape, trial)
+                assert verts.shape[0] <= faces.size, (shape, trial)
 
     def test_matches_on_a_real_block_cut(self, simple_block):
         """And on the distance field an actual cut produces."""
@@ -2487,22 +2628,33 @@ class TestMarchingCubesKernel:
         data = simple_block._data
 
         expected = _marching_cubes_loop(data, dist)
-        actual = _marching_cubes(data, dist)
+        verts, faces = _marching_cubes(data, dist)
 
         assert expected is not None
-        assert np.array_equal(actual, expected, equal_nan=True)
+        np.testing.assert_allclose(
+            verts[faces], expected, rtol=1e-6, atol=1e-6, equal_nan=True
+        )
 
-    def test_cube_index_matches_the_numpy_version(self):
-        """The corner sign patterns match the slicing version they replaced."""
-        rng = np.random.default_rng(0)
+        # A surface across many cells shares most of its vertices
+        assert verts.shape[0] < faces.size / 2
 
-        for shape in [(2, 2, 2), (3, 4, 5), (7, 6, 8)]:
-            for _ in range(20):
-                dist = rng.normal(0.0, 1.0, shape)
-                # Exact zeros count as positive, being not less than zero
-                dist[rng.random(shape) < 0.2] = 0.0
+    def test_more_triangles_than_cells(self):
+        """A cut making more triangles than the room first given is complete.
 
-                assert np.array_equal(_cube_index(dist), _cube_index_numpy(dist))
+        The kernel starts with room for one triangle per cell. A noisy field
+        cuts nearly every cell, several times over, so it overflows that and
+        has to be counted and run again; the result must still be the loop's.
+        """
+        rng = np.random.default_rng(3)
+        shape = (6, 7, 8)
+        dist = rng.normal(0.0, 1.0, shape)
+        data = rng.normal(0.0, 1.0, shape + (2,))
+
+        verts, faces = _marching_cubes(data, dist)
+        assert faces.shape[0] > np.prod(np.subtract(shape, 1))
+        np.testing.assert_allclose(
+            verts[faces], _marching_cubes_loop(data, dist), rtol=1e-5, atol=1e-5
+        )
 
     def test_uncut_field_returns_none(self):
         """A field of one sign produces no triangles at all."""

@@ -27,6 +27,7 @@ __all__ = [
     "grid",
     "patch",
     "cut",
+    "unstructured",
     "average",
     "cases",
 ]

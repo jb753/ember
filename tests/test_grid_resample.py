@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 from ember.grid import Grid
 from ember.block import Block
-from ember.patch import CoolingPatch, InviscidPatch, PeriodicPatch
+from ember.patch import CoolingPatch, InviscidPatch, MixingPatch, PeriodicPatch
 from ember.fluid import PerfectFluid
 from ember import util
 
@@ -767,3 +767,253 @@ class TestInterpFromArrays:
         Grid([tgt]).interp_from_arrays([self._arrays((4, 4, 4), T=400.0)])
 
         np.testing.assert_allclose(tgt.T, 400.0, rtol=1e-4)
+
+
+class TestResampleMatchedInterface:
+    """Blocks joined face to face must still meet node for node once resampled.
+
+    Two blocks, A then B in ``i``, share a whole ``k``-running face. A's other
+    ``i`` face is split at ``k = 3`` by two patches, as an O block's outer face
+    is split where it meets the blocks round it, so A's ``k`` direction has a
+    critical index there that B's has not. Each block allocates its ``k`` cells
+    by its own critical indices, so unless the index is carried across the
+    interface, wherever a segment's share of cells is not whole A places the
+    shared face's nodes differently from B. With ``flip``, B's ``k`` runs the
+    other way, so the index must land at B's ``k = 5``.
+    """
+
+    @staticmethod
+    def _pair(flip):
+        shape = (5, 3, 9)
+        blocks = []
+        for x0 in (0.0, 1.0):
+            block = _make_state_block(shape)
+            block.set_x(block.x + x0)
+            blocks.append(block)
+        a, b = blocks
+        if flip:
+            b.set_t(b.t[:, :, ::-1].copy())
+        a.patches.append(InviscidPatch(i=0, j=(0, -1), k=(0, 3)))
+        a.patches.append(InviscidPatch(i=0, j=(0, -1), k=(3, -1)))
+        a.patches.append(PeriodicPatch(i=-1, j=(0, -1), k=(0, -1)))
+        b.patches.append(PeriodicPatch(i=0, j=(0, -1), k=(0, -1)))
+        return Grid([a, b])
+
+    @pytest.mark.parametrize("flip", [False, True])
+    @pytest.mark.parametrize("factor", [2.0, 0.5, 1.5])
+    def test_shared_face_nodes_coincide(self, factor, flip):
+        a, b = self._pair(flip).resample(factor)
+
+        t_b = b.t[0][:, ::-1] if flip else b.t[0]
+        assert a.shape[1:] == b.shape[1:]
+        np.testing.assert_allclose(a.t[-1], t_b, atol=1e-6)
+
+
+def _geometric(n, ER=1.2):
+    """Node positions 0 to 1 whose spacing grows by ER from cell to cell."""
+    x = (ER ** np.arange(n) - 1.0) / (ER - 1.0)
+    return x / x[-1]
+
+
+class TestResampleStretching:
+    """Resampled coordinates follow the stretching of the old grid smoothly.
+
+    Each coordinate is stretched along its own index direction by expansion
+    ratio ER. Sampling that mapping at evenly spaced fractional indices should
+    give a spacing that grows by ER**(1/factor) from cell to cell, with no
+    step at the old nodes. Linear interpolation instead splits each old cell
+    evenly, so at factor 2 neighbouring cells alternate ratios of 1 and ER.
+    """
+
+    ER = 1.2
+
+    def _block(self):
+        shape = (9, 9, 9)
+        block = _make_state_block(shape)
+        g = _geometric(9, self.ER)
+        ones = np.ones(shape)
+        block.set_x(g.reshape(-1, 1, 1) * ones)
+        block.set_r(1.0 + 0.5 * g.reshape(1, -1, 1) * ones)
+        block.set_t(0.1 * g.reshape(1, 1, -1) * ones)
+        return block
+
+    @pytest.mark.parametrize("factor", [2.0, 1.5, 1.25])
+    @pytest.mark.parametrize("dim, name", [(0, "x"), (1, "r"), (2, "t")])
+    def test_spacing_ratio_is_smooth(self, dim, name, factor):
+        (block,) = Grid([self._block()]).resample(factor)
+
+        coord = np.moveaxis(np.asarray(getattr(block, name), dtype=float), dim, -1)
+        ds = np.diff(coord, axis=-1)
+        ratio = ds[..., 1:] / ds[..., :-1]
+        np.testing.assert_allclose(ratio, self.ER ** (1.0 / factor), rtol=0.01)
+
+    def test_old_nodes_are_kept_exactly(self):
+        old = self._block()
+        (new,) = Grid([old]).resample(2.0)
+
+        np.testing.assert_array_equal(new.xrt[::2, ::2, ::2], old.xrt)
+
+
+class TestResamplePermutedInterface:
+    """A matched interface with its axes permuted still meets once resampled.
+
+    B continues A across A's ``i = -1`` face, with B's ``j`` and ``k`` swapped
+    relative to A's. On the face each coordinate blends two distributions
+    stretched opposite ways, weighted by position in the other direction. A
+    monotone cubic is unchanged by shifting or scaling its data, so a face
+    that is a sum or a product of one-direction functions resamples the same
+    whichever direction goes first; a blend like this does not, so cubics
+    taken one direction after the other would leave the two sides apart.
+    The Gordon-Hall blend treats the directions alike, so they agree.
+    """
+
+    @staticmethod
+    def _pair():
+        nj, nk = 5, 9
+        J, K = np.meshgrid(_geometric(nj, 1.3), _geometric(nk, 1.2), indexing="ij")
+        k_up, k_down = _geometric(nk, 2.0)[None], _geometric(nk, 0.5)[None]
+        j_up, j_down = _geometric(nj, 2.0)[:, None], _geometric(nj, 0.5)[:, None]
+        r_face = 1.0 + 0.5 * (J * k_up + (1.0 - J) * k_down)
+        t_face = 0.05 * (K * j_up + (1.0 - K) * j_down)
+
+        shape_a, shape_b = (5, nj, nk), (5, nk, nj)
+        a, b = _make_state_block(shape_a), _make_state_block(shape_b)
+        xa = np.linspace(0.0, 1.0, 5).reshape(-1, 1, 1)
+        a.set_x(xa * np.ones(shape_a))
+        a.set_r(r_face[None] * np.ones(shape_a))
+        a.set_t(t_face[None] * np.ones(shape_a))
+        b.set_x((1.0 + xa) * np.ones(shape_b))
+        b.set_r(r_face.T[None] * np.ones(shape_b))
+        b.set_t(t_face.T[None] * np.ones(shape_b))
+        a.patches.append(PeriodicPatch(i=-1, j=(0, -1), k=(0, -1)))
+        b.patches.append(PeriodicPatch(i=0, j=(0, -1), k=(0, -1)))
+        return Grid([a, b])
+
+    @pytest.mark.parametrize("factor", [2.0, 1.5, 0.75])
+    def test_shared_face_nodes_coincide(self, factor):
+        a, b = self._pair().resample(factor)
+
+        for name in ("r", "t"):
+            face_a = np.asarray(getattr(a, name))[-1]
+            face_b = np.asarray(getattr(b, name))[0].T
+            np.testing.assert_allclose(face_a, face_b, atol=1e-6)
+
+
+class TestResamplePartialInterface:
+    """A block meeting only part of another's face still meets it once resampled.
+
+    A's ``i = -1`` face is split in ``k`` into two patches, and B continues
+    only the lower one, as the blocks round an O block each meet part of its
+    outer face. Along A's face the line runs on past the end of the patch;
+    along B's it ends there. A cubic through the node at the patch end must
+    not use what lies beyond it, or the two sides' curves differ beside it.
+    """
+
+    @staticmethod
+    def _pair():
+        nk, k_cut = 13, 6
+        t_line = 0.1 * _geometric(nk, 1.4) ** 2
+        shape_a, shape_b = (5, 3, nk), (5, 3, k_cut + 1)
+        a, b = _make_state_block(shape_a), _make_state_block(shape_b)
+        xa = np.linspace(0.0, 1.0, 5).reshape(-1, 1, 1)
+        a.set_x(xa * np.ones(shape_a))
+        a.set_t(t_line[None, None] * np.ones(shape_a))
+        b.set_x((1.0 + xa) * np.ones(shape_b))
+        b.set_t(t_line[None, None, : k_cut + 1] * np.ones(shape_b))
+        a.patches.append(PeriodicPatch(i=-1, j=(0, -1), k=(0, k_cut)))
+        a.patches.append(InviscidPatch(i=-1, j=(0, -1), k=(k_cut, -1)))
+        b.patches.append(PeriodicPatch(i=0, j=(0, -1), k=(0, -1)))
+        return Grid([a, b])
+
+    @pytest.mark.parametrize("factor", [2.0, 1.5])
+    def test_shared_face_nodes_coincide(self, factor):
+        a, b = self._pair().resample(factor)
+
+        nk_b = b.shape[2]
+        np.testing.assert_allclose(
+            np.asarray(a.t)[-1, :, :nk_b], np.asarray(b.t)[0], atol=1e-7
+        )
+
+
+class TestResampleMult:
+    """With ``mult``, a multi-block grid stays multigrid-ready at any factor.
+
+    Two blocks joined face to face, every segment between their critical
+    indices a multiple of eight cells, as an OH-passage mesh's are. Resampled
+    by a factor that does not divide eight, each segment is still a multiple
+    of eight, so each block keeps its three multigrid levels, and the shared
+    face still meets node for node.
+    """
+
+    @staticmethod
+    def _pair():
+        shape = (17, 9, 25)
+        blocks = []
+        for x0 in (0.0, 1.0):
+            block = _make_state_block(shape)
+            block.set_x(block.x + x0)
+            blocks.append(block)
+        a, b = blocks
+        a.patches.append(InviscidPatch(i=0, j=(0, -1), k=(0, 8)))
+        a.patches.append(InviscidPatch(i=0, j=(0, -1), k=(8, -1)))
+        a.patches.append(PeriodicPatch(i=-1, j=(0, -1), k=(0, -1)))
+        b.patches.append(PeriodicPatch(i=0, j=(0, -1), k=(0, -1)))
+        return Grid([a, b])
+
+    @pytest.mark.parametrize("factor", [1.3, 0.7, 1.6, 0.4])
+    def test_segments_stay_multiples_of_eight(self, factor):
+        grid = self._pair().resample(factor, mult=8)
+
+        for block in grid:
+            for d in range(3):
+                crit = {0, block.shape[d] - 1} | {
+                    int(i) for patch in block.patches for i in patch.ijk_lim_abs[d]
+                }
+                assert all(span % 8 == 0 for span in np.diff(sorted(crit)))
+            assert block.n_levels_max >= 3
+
+        a, b = grid
+        np.testing.assert_allclose(a.t[-1], b.t[0], atol=1e-6)
+
+    def test_without_mult_the_counts_follow_the_factor(self):
+        a, _ = self._pair().resample(1.3)
+
+        assert a.shape == (22, 11, 32)
+
+
+class TestResampleMixingPlane:
+    """The two sides of a mixing plane keep the same spanwise nodes.
+
+    A mixing plane matches its sides span for span, though not pitchwise. A's
+    span is cut at ``j = 12`` by a patch over its top, as a row with a tip
+    gap's is at the top of the blade, and B's is not. Unless the cut is
+    carried across the plane, each side shares its spanwise nodes out over
+    different segments, and they part.
+    """
+
+    @staticmethod
+    def _pair():
+        nj = 17
+        r = 0.5 + _geometric(nj, 1.15)
+        blocks = []
+        for x_lim, nk in (((0.0, 1.0), 9), ((1.0, 2.0), 13)):
+            block = Block(shape=(5, nj, nk))
+            x = np.linspace(*x_lim, 5)
+            t = np.linspace(0.0, 2 * np.pi, nk)
+            xv, rv, tv = np.meshgrid(x, r, t, indexing="ij")
+            block.set_x(xv)
+            block.set_r(rv)
+            block.set_t(tv)
+            blocks.append(block)
+        a, b = blocks
+        a.patches.append(InviscidPatch(i=(0, -1), j=(12, -1), k=0))
+        a.patches.append(MixingPatch(i=-1))
+        b.patches.append(MixingPatch(i=0))
+        return Grid([a, b])
+
+    @pytest.mark.parametrize("factor, mult", [(1.3, 1), (0.5, 8), (1.6, 8)])
+    def test_span_nodes_meet_across_the_plane(self, factor, mult):
+        a, b = self._pair().resample(factor, mult=mult)
+
+        assert a.shape[1] == b.shape[1]
+        np.testing.assert_allclose(a.r[-1, :, 0], b.r[0, :, 0], atol=1e-6)

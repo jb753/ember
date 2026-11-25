@@ -1402,9 +1402,32 @@ class Grid(_LabelledList):
         for tgt_block, src_block in zip(self, src):
             ember.block_util.interp_from_grid(tgt_block, src_block)
 
-    def resample(self, factors):
-        """Resample all blocks, returning a new Grid at the new resolution."""
-        return Grid([ember.block_util.resample(b, factors) for b in self])
+    def resample(self, factors, mult=1):
+        """Resample all blocks, returning a new Grid at the new resolution.
+
+        Each block keeps the nodes at its ends and patch boundaries, and shares
+        the rest out between the segments those cut it into. Two blocks that
+        meet node for node across a periodic or cusp interface must be cut into
+        the same segments along it, or the shares differ and the nodes no
+        longer meet: so a block's critical indices are first carried across
+        every such interface onto its neighbour, and on through the grid until
+        none is new.
+
+        Parameters
+        ----------
+        factors : float or tuple of 3 floats
+            Resampling factor, or one per index direction.
+        mult : int, optional
+            Give each segment a multiple of this many cells, the nearest to its
+            span times the factor and at least `mult`, so that multigrid can
+            halve every block however the factor divides; eight keeps three
+            levels on a grid whose segments are all multiples of eight. One,
+            the default, rounds to the nearest cell.
+        """
+        crit = _resample_crit(self)
+        return Grid(
+            [ember.block_util.resample(b, factors, c, mult) for b, c in zip(self, crit)]
+        )
 
     @util.profile
     def smooth(self, sf4, sf2, adaptive=False, sf2_T=None):
@@ -2168,7 +2191,9 @@ class GridConnectivity:
         self._pairs_computed = False
         self._communicator = None
 
-    def _compute_pairs(self, rtol=1e-5):
+    def _compute_pairs(self, rtol=1e-5, strict=True):
+        # With ``strict``, a patch with no partner is an error; without, it is
+        # left out, for a caller that only wants whatever pairs there are.
         # Collect patches of the specified type from all blocks
         patches = []
         blocks = []
@@ -2252,7 +2277,7 @@ class GridConnectivity:
                     found_match = True
                     break
 
-            if not found_match:
+            if not found_match and strict:
                 raise ValueError(
                     f"Unmatched: {patch} bid, pid={patch_indices[idx_self]})\n"
                     "Check:\n"
@@ -2345,6 +2370,79 @@ class GridConnectivity:
             self._pairs = self._compute_pairs(rtol)
             self._pairs_computed = True
         return self._pairs
+
+
+def _resample_crit(grid):
+    """Critical indices each block of `grid` must keep when resampled.
+
+    A block's own are its ends and its patch boundaries, which
+    :func:`ember.block_util.resample` finds for itself. Returned here, per
+    block and direction, are those it must keep besides: wherever a periodic or
+    cusp patch joins it node for node to another block, each critical index of
+    either inside the patch is carried across to the other, along the
+    direction the pair's transform maps it to, and so on through the grid
+    until none is new. Both sides of every such interface are then cut into
+    the same segments, which the resampling shares the nodes out between.
+
+    A mixing plane matches its two sides span for span but not pitchwise, so
+    across one only the spanwise indices are carried: a row with a tip gap
+    cuts its span at the top of the blade, and the rows either side of it
+    must be cut there too, or their spanwise nodes part.
+
+    An index carried across lands on a node, so keeping it costs nothing but
+    the freedom to share that block's nodes out more evenly. Patches without
+    a partner carry nothing: resampling never needed the grid to pair, and
+    still does not. The pairs are found afresh rather than taken from the
+    cache, which would fix them for the solver too.
+    """
+    own = [
+        [
+            {0, block.shape[d] - 1}
+            | {int(i) for patch in block.patches for i in patch.ijk_lim_abs[d]}
+            for d in range(3)
+        ]
+        for block in grid
+    ]
+    crit = [[set(s) for s in per_block] for per_block in own]
+
+    # Each link: this patch, the other, and per carried axis (d, e, reversed),
+    # axis d of this patch running along axis e of the other.
+    links = []
+    for conn in (grid.connectivity.periodic, grid.connectivity.cusp):
+        for (bid, pid), ((obid, opid), (perm, flip)) in conn._compute_pairs(
+            strict=False
+        ).items():
+            axes = [(d, perm[d], d in flip) for d in range(3)]
+            links.append((bid, pid, obid, opid, axes))
+    for (bid, pid), ((obid, opid), flipped) in grid.connectivity.mixing._compute_pairs(
+        strict=False
+    ).items():
+        d = grid[bid].patches[pid].span_dim
+        e = grid[obid].patches[opid].span_dim
+        links.append((bid, pid, obid, opid, [(d, e, bool(flipped))]))
+
+    changed = True
+    while changed:
+        changed = False
+        for bid, pid, obid, opid, axes in links:
+            lim = grid[bid].patches[pid].ijk_lim_abs
+            olim = grid[obid].patches[opid].ijk_lim_abs
+            for d, e, reverse in axes:
+                lo, hi = int(lim[d][0]), int(lim[d][1])
+                if lo == hi:
+                    continue
+                olo, ohi = int(olim[e][0]), int(olim[e][1])
+                for c in list(crit[bid][d]):
+                    if not lo < c < hi:
+                        continue
+                    oc = ohi - (c - lo) if reverse else olo + (c - lo)
+                    if oc not in crit[obid][e]:
+                        crit[obid][e].add(oc)
+                        changed = True
+
+    return [
+        [sorted(crit[b][d] - own[b][d]) for d in range(3)] for b in range(len(grid))
+    ]
 
 
 def _calculate_wdist_row(grid, limit_pitch=np.inf, ignore_inviscid=False):

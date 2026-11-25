@@ -327,27 +327,25 @@ def test_partial_integration():
 
 def test_invalid_axes():
     """Test that invalid axes raise errors."""
+    from ember.unstructured import UnstructuredBlock
+
+    structured = Block(shape=(2, 2))
+    unstructured = UnstructuredBlock(3)
+
     # axes > 1 should error
     with pytest.raises(ValueError):
-        average._get_axes((0, 2), triangulated=False)
+        average._get_axes((0, 2), structured)
 
     with pytest.raises(ValueError):
-        average._get_axes((-1,), triangulated=False)
+        average._get_axes((-1,), structured)
 
     with pytest.raises(ValueError):
-        average._get_axes((), triangulated=False)
+        average._get_axes((), structured)
 
-    with pytest.raises(ValueError):
-        average._get_axes((), triangulated=True)
-
-    with pytest.raises(ValueError):
-        average._get_axes((1,), triangulated=True)
-
-    with pytest.raises(ValueError):
-        average._get_axes((0,), triangulated=True)
-
-    with pytest.raises(ValueError):
-        average._get_axes((0, 1), triangulated=True)
+    # Unstructured blocks always sum over all faces
+    for axes in ((), (1,), (0,), (0, 1)):
+        with pytest.raises(ValueError):
+            average._get_axes(axes, unstructured)
 
 
 def test_integrate_scalar_triangulated():

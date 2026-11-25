@@ -33,7 +33,6 @@ import ember.solver
 from ember import average, solver
 from ember.convergence_history import ConvergenceHistory
 from ember.grid import Grid
-from ember.outlet import calc_radial_equilibrium
 from ember.patch import (
     InviscidPatch,
     InletPatch,
@@ -300,7 +299,7 @@ def test_target_carries_the_radial_equilibrium_profile():
     patch.update_target()
 
     got = _span_profile(patch, patch.P_nd - patch._P_level_nd)
-    expect = calc_radial_equilibrium(patch)
+    expect = patch.calc_radial_equilibrium()
     assert np.abs(got - expect).max() < 1e-5 * np.abs(expect).max()
     # Anchored at the hub, rising toward the casing, and worth having: a few
     # percent of the prescribed level on this much swirl.
@@ -317,7 +316,7 @@ def test_relaxation_approaches_the_profile_geometrically():
     # The first call seeds the history with the profile itself, so the target
     # starts where the flow is rather than crawling out from zero.
     patch.update_target()
-    profile = calc_radial_equilibrium(patch)
+    profile = patch.calc_radial_equilibrium()
     first = _span_profile(patch, patch.P_nd - patch._P_level_nd)
     np.testing.assert_allclose(first, profile, rtol=1e-5)
 
@@ -326,7 +325,7 @@ def test_relaxation_approaches_the_profile_geometrically():
     Vt = patch.block.Vt.copy()
     Vt[-2] *= 0.5
     patch.block.set_Vt(Vt)
-    target_profile = calc_radial_equilibrium(patch)
+    target_profile = patch.calc_radial_equilibrium()
 
     errs = []
     for _ in range(10):
@@ -624,7 +623,7 @@ def test_throttle_adds_to_the_radial_equilibrium_profile():
     offset = patch.P_nd - patch._P_level_nd
     profile = _span_profile(patch, offset)
     # The spanwise shape is still exactly the radial-equilibrium profile ...
-    expect = calc_radial_equilibrium(patch)
+    expect = patch.calc_radial_equilibrium()
     assert np.abs((profile - profile[0]) - expect).max() < 1e-5 * np.abs(expect).max()
     # ... sitting on the level the throttle chose, which is what the hub carries.
     eps = 1.0 / 0.9 - 1.0

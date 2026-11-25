@@ -183,8 +183,6 @@ class StructuredData:
         # Single version counter for all data and metadata keys
         self._versions = defaultdict(int)
 
-        self._metadata["triangulated"] = False
-
         # Initialize cache storage for cached properties
         self._store = {}
 
@@ -473,20 +471,6 @@ class StructuredData:
         else:
             return self._versions[key]  # end method
 
-    def set_triangulated(self, value):
-        """Set whether the data represents a triangulated mesh.
-
-        When ``True``, the data must have shape ``(ntri, 3)``: axis-0 indexes
-        triangles and axis-1 indexes the three nodes of each triangle. Points
-        may be duplicated across triangles.
-        """
-        if value and len(self.shape) >= 2 and self.shape[1] != 3:
-            raise ValueError(
-                f"Triangulated data requires shape[1] == 3, got {self.shape[1]}"
-            )
-        self._set_metadata_by_key("triangulated", value)
-        return self  # end method
-
     def clear_cache(self):
         """Clear all cached property values.
 
@@ -542,7 +526,7 @@ class StructuredData:
 
         """
         out = self.__class__(shape=shape)
-        out._metadata = {**self._metadata, "triangulated": False}
+        out._metadata = self._metadata.copy()
         out._versions = self._versions.copy()
         return out  # end method
 
@@ -904,11 +888,6 @@ class StructuredData:
     def size(self):
         """Total number of spatial points."""
         return int(np.prod(self.shape))  # end property
-
-    @property
-    def triangulated(self):
-        """Whether the data represents a triangulated mesh."""
-        return self._get_metadata_by_key("triangulated")  # end property
 
     #
     # numpy ndarray style functions
