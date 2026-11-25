@@ -16,6 +16,10 @@ subroutine signed_distance(xr, xq, d, nseg, npt)
     ! gfortran emits scalar code and the kernel runs 5x slower.  Vectorising it
     ! also needs the -ffast-math that the package's -Ofast implies; under a
     ! plain -O3 this form is no faster than the naive one.
+    !
+    ! The running minimum is of the squared distance, carrying the winning
+    ! segment's sign, so the square root is taken once per point rather than
+    ! once per segment.
 
     implicit none
 
@@ -32,13 +36,15 @@ subroutine signed_distance(xr, xq, d, nseg, npt)
     integer, parameter :: NTILE = 2048
 
     integer :: i, s, i0, i1
-    real :: bx, br, ax, ar, Lsq, h, px, pr, cross, di, sgn
+    real :: bx, br, ax, ar, rLsq, h, px, pr, cross, dsq, sgn
 
     do i0 = 1, npt, NTILE
         i1 = min(i0 + NTILE - 1, npt)
 
-        ! With no segments at all this sentinel is what the caller sees, but
-        ! the caller screens that case out before reaching the kernel.
+        ! Squared distance to the nearest segment so far, signed as that
+        ! segment puts the point. With no segments at all this sentinel is
+        ! what the caller sees, but the caller screens that case out before
+        ! reaching the kernel.
         d(i0:i1) = huge(1.0)
 
         do s = 1, nseg - 1
@@ -46,7 +52,7 @@ subroutine signed_distance(xr, xq, d, nseg, npt)
             br = xr(s + 1, 2) - xr(s, 2)
 
             ! Floor the squared length so a repeated node cannot divide by zero
-            Lsq = max(bx * bx + br * br, 1.0e-9)
+            rLsq = 1.0 / max(bx * bx + br * br, 1.0e-9)
 
             do i = i0, i1
                 ax = xq(i, 1) - xr(s, 1)
@@ -54,13 +60,13 @@ subroutine signed_distance(xr, xq, d, nseg, npt)
 
                 ! Fraction along the segment of the projected point, clamped to
                 ! the segment so the distance is to the segment, not to its line
-                h = min(max((ax * bx + ar * br) / Lsq, 0.0), 1.0)
+                h = min(max((ax * bx + ar * br) * rLsq, 0.0), 1.0)
 
                 ! Perpendicular from the segment to the point
                 px = ax - bx * h
                 pr = ar - br * h
 
-                di = sqrt(px * px + pr * pr)
+                dsq = px * px + pr * pr
 
                 ! Sign from the side of the segment the point falls on.  The
                 ! normal to (bx, br) is (-br, bx), so the sign is that of
@@ -79,11 +85,15 @@ subroutine signed_distance(xr, xq, d, nseg, npt)
                 ! reference gives: stored as zero, the running minimum below
                 ! can then never be beaten by a nearer segment.
                 sgn = merge(1.0, sign(1.0, cross), &
-                            cross * cross <= 1.0e-12 * (ax * ax + ar * ar) * Lsq)
+                            cross * cross * rLsq <= 1.0e-12 * (ax * ax + ar * ar))
 
                 ! Compare unsigned, store signed, as the reference does
-                d(i) = merge(di * sgn, d(i), di < abs(d(i)))
+                d(i) = merge(dsq * sgn, d(i), dsq < abs(d(i)))
             end do
+        end do
+
+        do i = i0, i1
+            d(i) = sign(sqrt(abs(d(i))), d(i))
         end do
     end do
 

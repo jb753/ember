@@ -521,16 +521,29 @@ def _line_distance(xr_cut, xr_query):
     return d
 
 
-def _cut_distance(xr_cut, xr_query):
-    """Signed distance the cutting functions take their zero level from.
+def _distance_args(xr_cut, block):
+    """Fields and coefficients the kernels form a block's cut distance from.
+
+    The cut is the zero level of a signed distance. Only its sign and the
+    fraction along a grid edge where it vanishes are used, neither of which a
+    uniform scaling changes, so it is measured in the block's nondimensional
+    coordinates, a view of its data, rather than in scaled copies of them.
 
     A cut along a single straight segment runs right across every block the
-    line through it reaches, so its distance is to that line. A polyline cut
-    is :func:`signed_distance` to the curve itself.
+    line through it reaches, and its distance is linear in the coordinates,
+    so the kernels form it node by node from ``(x, r)`` and the line's
+    coefficients and no field is built. A polyline cut is
+    :func:`signed_distance` to the curve itself, which the default
+    coefficients take as it is.
+
+    Returns the positional arguments ``(a, [b, coeffs])`` that follow the
+    data in :func:`_marching_cubes` and :func:`_first_j_crossing`.
     """
+    xr_cut_nd = xr_cut / block.L_ref
+    xrt_nd = block.xrt_nd
     if len(xr_cut) == 2:
-        return _line_distance(xr_cut, xr_query)
-    return signed_distance(xr_cut, xr_query)
+        return xrt_nd[..., 0], xrt_nd[..., 1], _line_normal(xr_cut_nd)
+    return (signed_distance(xr_cut_nd, xrt_nd[..., :2]),)
 
 
 def _cut_reaches_block(xr_cut, block):
@@ -672,21 +685,8 @@ def unstructured(grid, xr_cut):
         if not _cut_reaches_block(xr_cut, block):
             continue
 
-        # The cut is the zero level of a signed distance. Only its sign and
-        # the fraction along each edge where it vanishes are used, neither of
-        # which a uniform scaling changes, so it is measured in the block's
-        # nondimensional coordinates, a view of its data, rather than in
-        # scaled copies of them. A straight cut's distance is linear in them,
-        # so the kernel forms it node by node and no field is built.
-        xr_cut_nd = xr_cut / block.L_ref
-        x_nd, r_nd = block.xrt_nd[..., 0], block.xrt_nd[..., 1]
-        if len(xr_cut) == 2:
-            args = (x_nd, r_nd, _line_normal(xr_cut_nd))
-        else:
-            args = (signed_distance(xr_cut_nd, block.xrt_nd[..., :2]),)
-
         # Get triangles for this block, or None if the cut misses it
-        cut_block = _marching_cubes(block._data, *args)
+        cut_block = _marching_cubes(block._data, *_distance_args(xr_cut, block))
 
         # Add them to the list, numbering this block's vertices after those
         # of the blocks before. Vertices on an interface between blocks are
@@ -709,7 +709,7 @@ def unstructured(grid, xr_cut):
     return None
 
 
-def _first_j_crossing(data, dist):
+def _first_j_crossing(data, a, b=None, coeffs=(1.0, 0.0, 0.0)):
     r"""Interpolate a block's data to the first sign change along ``j``.
 
     Walks every :math:`(i, k)` grid line, finds the first ``j`` interval over
@@ -717,12 +717,17 @@ def _first_j_crossing(data, dist):
     to the zero. Lines with no sign change, and lines whose bracketing
     distances are too close together to interpolate between, come back as NaN.
 
+    The kernel forms the distance ``na * a + nb * b - c0`` node by node, as
+    :func:`_marching_cubes` does, so with only `a` given that is `a` itself.
+
     Parameters
     ----------
     data : Array, shape (ni, nj, nk, nvar)
         Nodal block data to interpolate.
-    dist : Array, shape (ni, nj, nk)
-        Signed distance to the cut curve at every node.
+    a, b : Array, shape (ni, nj, nk)
+        Fields the signed distance is formed from, zero on the cut.
+    coeffs : tuple of float
+        ``(na, nb, c0)``. The default makes the distance `a`.
 
     Returns
     -------
@@ -730,47 +735,29 @@ def _first_j_crossing(data, dist):
         Data on the cut, NaN on the lines that do not cross it.
 
     """
-    ni, nj, nk = dist.shape
+    a = np.asfortranarray(a, dtype=np.float32)
+    b = a if b is None else np.asfortranarray(b, dtype=np.float32)
+    ni, nj, nk = a.shape
 
-    cut_data = np.full((ni, nk, data.shape[-1]), np.nan)
+    j_cut = np.empty((ni, nk), dtype=np.int32, order="F")
+    frac = np.empty((ni, nk), dtype=np.float32, order="F")
+    d_lo = np.empty(ni, dtype=np.float32)
+    n_cut = ember.fortran.first_j_crossing(a, b, *coeffs, j_cut, frac, d_lo)
 
-    # A single j station spans no interval to cross, so no line can cut
-    if nj < 2:
-        return cut_data
-
-    # Comparing signs rather than differencing them keeps a node sitting
-    # exactly on the curve a sign change on both sides of itself, which is
-    # what walking the line one interval at a time gives.
-    sgn = np.sign(dist)
-    changes = sgn[:, 1:, :] != sgn[:, :-1, :]  # Shape (ni, nj-1, nk)
-
-    # First sign change along j. argmax reports the first True, and zero for a
-    # line with no sign change at all, which found masks off below.
-    found = changes.any(axis=1)  # Shape (ni, nk)
-    j_cut = changes.argmax(axis=1)  # Shape (ni, nk)
-
-    # Distances bracketing the cut, gathered from each line's own j_cut
-    j_gather = j_cut[:, np.newaxis, :]  # Put back the j axis to gather along
-    d1 = np.take_along_axis(dist, j_gather, axis=1)[:, 0, :]
-    d2 = np.take_along_axis(dist, j_gather + 1, axis=1)[:, 0, :]
-
-    # A line whose bracketing distances are too close to interpolate between
-    # is left uncut, rather than moved on to its next crossing
-    delta = d2 - d1
-    valid = found & (np.abs(delta) >= 1e-12)
-
-    # Linear interpolation, clamped to the interval it came from.  The invalid
-    # lines divide by a zero delta here, and are masked off immediately after.
-    with np.errstate(divide="ignore", invalid="ignore"):
-        frac = np.clip(-d1 / delta, 0.0, 1.0)
-
-    # Interpolate every variable across the bracketing pair of j stations
-    j_gather = j_gather[..., np.newaxis]  # Broadcast over the variables
-    data1 = np.take_along_axis(data, j_gather, axis=1)[:, 0, :, :]
-    data2 = np.take_along_axis(data, j_gather + 1, axis=1)[:, 0, :, :]
-    cut_data[valid] = (
-        data1[valid] + (data2[valid] - data1[valid]) * frac[valid, np.newaxis]
-    )
+    cut_data = util.full((ni, nk, data.shape[-1]), np.nan)
+    if n_cut:
+        # Interpolate every variable across each crossed line's bracketing
+        # pair of j stations, done here so the data keeps its own precision.
+        # Lines and nodes are both flattened i fastest, as the data is
+        # stored, so the flattened data are a view.
+        line = np.flatnonzero(j_cut.ravel(order="F") >= 0)
+        i, k = line % ni, line // ni
+        lo = i + ni * (j_cut.ravel(order="F")[line] + nj * k)
+        flat = data.reshape(-1, data.shape[-1], order="F")
+        data_lo = flat[lo]
+        data_hi = flat[lo + ni]
+        out = cut_data.reshape(-1, data.shape[-1], order="F")
+        out[line] = data_lo + (data_hi - data_lo) * frac.ravel(order="F")[line, None]
 
     return cut_data
 
@@ -811,18 +798,10 @@ def structured_meridional(grid, xr_cut):
         if not _cut_reaches_block(xr_cut, block):
             continue
 
-        # Signed distance, in nondimensional coordinates, as in unstructured()
-        # above
-        dist = _cut_distance(xr_cut / block.L_ref, block.xrt_nd[..., :2])
-
-        # Check for intersection
-        if np.all(dist >= 0) or np.all(dist <= 0):
-            continue
-
         ni, _, nk = block.shape
 
         # Interpolate to the first j crossing on every (i, k) line
-        cut_data = _first_j_crossing(block._data, dist)
+        cut_data = _first_j_crossing(block._data, *_distance_args(xr_cut, block))
 
         # Check if we found any valid cuts
         if not np.all(np.isnan(cut_data[..., 0])):

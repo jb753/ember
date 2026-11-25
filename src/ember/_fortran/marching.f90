@@ -1,4 +1,5 @@
-! Triangle topology for a marching cubes cut
+! Locating where a cut crosses a structured grid: marching cubes triangles
+! and the first crossing along each grid line
 
 subroutine marching_cubes( &
     a, b, na, nb, c0, vert_ijk, tritable, edge_ijk, lo, hi, frac, n_face, &
@@ -169,3 +170,108 @@ subroutine marching_cubes( &
     n_face = t
 
 end subroutine marching_cubes
+
+
+subroutine first_j_crossing( &
+    a, b, na, nb, c0, j_cut, frac, d_lo, n_cut, ni, nj, nk)
+    ! Find where each grid line along j first crosses a cut, in one pass.
+    !
+    ! The cut is the zero level of the signed distance d = na a + nb b - c0,
+    ! formed node by node exactly as in marching_cubes above, so a straight
+    ! cut passes the meridional coordinates and its line's coefficients, and
+    ! any other a distance field worked out already, with na = 1, nb = c0 = 0.
+    !
+    ! Every (i, k) line is walked along j to its first interval whose ends
+    ! differ in sign. A node exactly on the cut has a sign of its own, so it
+    ! is a change on both sides of itself. The crossing is reported as the
+    ! zero-based j of the interval's lower end and the fraction of the way
+    ! along it that the distance vanishes, clamped to [0, 1]. A line whose
+    ! ends there are too close in distance to interpolate between is left
+    ! uncut, rather than moved on to its next crossing, as is a line that
+    ! never crosses: both come back with j_cut = -1.
+    !
+    ! The lines of one k are walked together, a j at a time, so the loop over
+    ! i reads the field contiguously and has no branch to stop it vectorising.
+    ! A line already crossed is carried along unchanged, and once every line
+    ! of the k has crossed, the rest of j is skipped. The walk keeps only
+    ! where each line crosses: selecting a fraction as well, a real chosen by
+    ! a test on an integer, stops gfortran vectorising it. The fractions are
+    ! worked out after, once per line.
+
+    implicit none
+
+    integer, intent(in) :: ni, nj, nk
+
+    ! The two fields and the coefficients the distance is formed from
+    real, intent(in) :: a(ni, nj, nk), b(ni, nj, nk)
+    real, intent(in) :: na, nb, c0
+
+    ! Zero-based j of each line's crossing, -1 where there is none, and how
+    ! far along the interval it lies
+    integer, intent(inout) :: j_cut(ni, nk)
+    real, intent(inout) :: frac(ni, nk)
+
+    ! Room for the distance at the current j of every line of one k,
+    ! supplied by the caller
+    real, intent(inout) :: d_lo(ni)
+
+    ! Lines that cross
+    integer, intent(out) :: n_cut
+
+    ! Marks a line that has crossed between ends too close to interpolate
+    ! between, while the walk still has to tell it from one not yet crossed
+    integer, parameter :: DEGENERATE = -2
+
+    integer :: i, j, k, n_left
+    real :: d_hi
+    logical :: hit
+
+    n_cut = 0
+
+    do k = 1, nk
+        do i = 1, ni
+            d_lo(i) = na * a(i, 1, k) + nb * b(i, 1, k) - c0
+            j_cut(i, k) = -1
+        end do
+
+        do j = 1, nj - 1
+            do i = 1, ni
+                d_hi = na * a(i, j + 1, k) + nb * b(i, j + 1, k) - c0
+
+                ! Not crossed before, and the two ends differ in sign
+                hit = j_cut(i, k) == -1 .and. &
+                    ((d_lo(i) > 0.0 .neqv. d_hi > 0.0) .or. &
+                     (d_lo(i) < 0.0 .neqv. d_hi < 0.0))
+                j_cut(i, k) = merge( &
+                    merge(j - 1, DEGENERATE, abs(d_hi - d_lo(i)) >= 1.0e-12), &
+                    j_cut(i, k), hit)
+
+                d_lo(i) = d_hi
+            end do
+
+            ! Counted in a loop of its own, which, unlike a count taken in
+            ! the walk, leaves both loops to vectorise
+            n_left = 0
+            do i = 1, ni
+                n_left = n_left + merge(1, 0, j_cut(i, k) == -1)
+            end do
+            if (n_left == 0) exit
+        end do
+
+        ! Fraction along each crossed line's interval, from the same
+        ! expression as the walk, so the same distances and signs
+        do i = 1, ni
+            if (j_cut(i, k) >= 0) then
+                j = j_cut(i, k) + 1
+                d_lo(i) = na * a(i, j, k) + nb * b(i, j, k) - c0
+                d_hi = na * a(i, j + 1, k) + nb * b(i, j + 1, k) - c0
+                frac(i, k) = min(max(-d_lo(i) / (d_hi - d_lo(i)), 0.0), 1.0)
+                n_cut = n_cut + 1
+            else
+                j_cut(i, k) = -1
+                frac(i, k) = 0.0
+            end if
+        end do
+    end do
+
+end subroutine first_j_crossing

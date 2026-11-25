@@ -50,9 +50,12 @@ public API without a deprecation period.
   ``cut.structured_meridional``, now runs along the whole of its line across
   every block it reaches, rather than stopping near the segment's ends
 * ``cut.signed_distance`` returns single precision, as the coordinates are,
-  and ``cut.unstructured`` is about three times quicker: the distance and
-  marching cubes kernels work in single precision, a straight cut needs no
-  search over segments, and marching cubes is one pass of one kernel
+  and is about a third quicker on long curves; ``cut.unstructured`` and
+  ``cut.structured_meridional`` are three to four times quicker: the kernels
+  work in single precision, a straight cut needs no search over segments,
+  marching cubes is one pass of one kernel, and the walk along ``j`` is a
+  kernel of its own. ``cut.structured_meridional`` now returns single
+  precision data, as every other block holds
 
 .. _v0.4.10:
 

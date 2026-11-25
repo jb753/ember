@@ -2161,7 +2161,7 @@ def _first_j_crossing_loop(data, dist):
 
     The per-``(i, k)`` Python walk that ``structured_meridional`` used before
     it was vectorised. Retained here, and nowhere in the package, purely so
-    the vectorised version can be checked against it.
+    the kernel can be checked against it.
     """
     ni, nj, nk = dist.shape
     cut_data = np.full((ni, nk, data.shape[-1]), np.nan)
@@ -2198,7 +2198,7 @@ def _first_j_crossing_loop(data, dist):
 
 
 class TestFirstJCrossing:
-    """The vectorised (i, k) walk behind structured_meridional."""
+    """The (i, k) walk behind structured_meridional."""
 
     @staticmethod
     def _fields(shape, style, rng):
@@ -2240,7 +2240,10 @@ class TestFirstJCrossing:
         for shape in [(4, 5, 3), (3, 2, 2), (6, 9, 4), (1, 7, 1)]:
             for style in styles:
                 for _ in range(20):
-                    dist, data = self._fields(shape, style, rng)
+                    # In single precision, as the kernel works
+                    dist, data = (
+                        v.astype(np.float32) for v in self._fields(shape, style, rng)
+                    )
 
                     expected = _first_j_crossing_loop(data, dist)
                     actual = _first_j_crossing(data, dist)
@@ -2251,8 +2254,11 @@ class TestFirstJCrossing:
                         style,
                     )
 
+                    # The kernel may divide by multiplying by a reciprocal
                     cut = ~np.isnan(expected)
-                    assert np.array_equal(expected[cut], actual[cut]), (shape, style)
+                    np.testing.assert_allclose(
+                        actual[cut], expected[cut], rtol=1e-6, atol=1e-6
+                    )
 
     def test_takes_the_first_crossing_not_the_nearest(self):
         """A line crossing several times is cut at the first crossing."""
