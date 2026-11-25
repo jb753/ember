@@ -49,6 +49,10 @@ public API without a deprecation period.
 * A cut along a single straight segment, in ``cut.unstructured`` and
   ``cut.structured_meridional``, now runs along the whole of its line across
   every block it reaches, rather than stopping near the segment's ends
+* Polyline cuts in ``cut.unstructured`` and ``cut.structured_meridional`` run
+  on along the end segments' lines within the blocks they reach, and no longer
+  cut where the nearest segment switches; working out the distance only near
+  the cut makes long curves several times quicker
 * ``cut.signed_distance`` returns single precision, as the coordinates are,
   and is about a third quicker on long curves; ``cut.unstructured`` and
   ``cut.structured_meridional`` are three to four times quicker: the kernels

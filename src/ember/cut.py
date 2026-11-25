@@ -529,12 +529,13 @@ def _distance_args(xr_cut, block):
     uniform scaling changes, so it is measured in the block's nondimensional
     coordinates, a view of its data, rather than in scaled copies of them.
 
-    A cut along a single straight segment runs right across every block the
-    line through it reaches, and its distance is linear in the coordinates,
-    so the kernels form it node by node from ``(x, r)`` and the line's
-    coefficients and no field is built. A polyline cut is
-    :func:`signed_distance` to the curve itself, which the default
-    coefficients take as it is.
+    The cut runs on past both ends of the curve, straight along its end
+    segments, so through a block it reaches it is the curve and those two
+    rays, and the distance is to all three. A single straight segment is
+    then just its line, whose distance is linear in the coordinates, so the
+    kernels form it node by node from ``(x, r)`` and the line's coefficients
+    and no field is built. A polyline cut is :func:`_cut_field`, which the
+    default coefficients take as it is.
 
     Returns the positional arguments ``(a, [b, coeffs])`` that follow the
     data in :func:`_marching_cubes` and :func:`_first_j_crossing`.
@@ -543,7 +544,43 @@ def _distance_args(xr_cut, block):
     xrt_nd = block.xrt_nd
     if len(xr_cut) == 2:
         return xrt_nd[..., 0], xrt_nd[..., 1], _line_normal(xr_cut_nd)
-    return (signed_distance(xr_cut_nd, xrt_nd[..., :2]),)
+    return (_cut_field(xr_cut_nd, xrt_nd[..., :2]),)
+
+
+def _cut_field(xr_cut, xr_query):
+    """Signed distance to a cut curve and its end rays, exact near the cut.
+
+    The curve is carried on past both ends as straight rays along its end
+    segments. Each node is signed by the side of the curve and rays it lies
+    on, positive on the left of the direction the curve runs, as
+    :func:`signed_distance` signs it near the curve. Unlike
+    :func:`signed_distance`, which signs a node by the segment nearest it,
+    the sign changes only across the cut itself, never where the nearest
+    segment switches.
+
+    The distance is exact wherever the cutting kernels use it, at the nodes
+    of every grid edge the cut crosses, and at all nodes near the cut. Further
+    off only the sign is worked out, and the magnitude is the largest single
+    precision number. See ``cut_distance`` in ``_fortran/distance.f90``.
+
+    Parameters
+    ----------
+    xr_cut : array_like, shape (n_points, 2)
+        Cut curve, of at least two points; neither it nor its rays may cross
+        themselves.
+    xr_query : Array, shape (ni, nj, nk, 2)
+        Meridional coordinates of a block's nodes.
+
+    Returns
+    -------
+    Array, shape (ni, nj, nk)
+        Signed distance, in single precision.
+    """
+    xr_cut = np.asfortranarray(xr_cut, dtype=np.float32)
+    keep = np.empty(xr_cut.shape[0] + 1, dtype=np.int32)
+    return ember.fortran.cut_distance(
+        xr_cut, np.asfortranarray(xr_query, dtype=np.float32), keep
+    )
 
 
 def _cut_reaches_block(xr_cut, block):
@@ -619,9 +656,11 @@ def _cut_reaches_block(xr_cut, block):
 
 
 CUT_EXTEND = 0.1
-"""How far :func:`unstructured` carries a cut curve on past each end, as a
-fraction of the end segment's length. Enough to cover the wall cells straddling
-a hub-to-casing line; short enough not to reach back into the fluid."""
+"""How far past each end of a cut curve :func:`unstructured` looks for the
+blocks it reaches, as a fraction of the end segment's length. Enough to take in
+a block whose wall cells straddle the end of a hub-to-casing line; short enough
+not to reach back into the fluid. Within a block it does reach, the cut runs
+on along the end segments' lines regardless."""
 
 
 def _extend_ends(xr_cut, frac):
@@ -640,11 +679,12 @@ def unstructured(grid, xr_cut):
     Extracts a triangulated isosurface where the meridional cut curve
     intersects the grid, by running the marching cubes algorithm on the
     signed distance field of each block. Triangles from all intersected
-    blocks are concatenated into a single unstructured block. The curve's end
-    segments are carried on by :data:`CUT_EXTEND` of their length, so a curve
-    ending on an endwall cuts the wall cells cleanly. A single straight
-    segment is carried on along its whole line, across every block it
-    reaches, which is also the quicker case to evaluate.
+    blocks are concatenated into a single unstructured block. Within each
+    block the curve reaches, or comes within :data:`CUT_EXTEND` of its end
+    segments' length of reaching, the cut runs on past both ends straight
+    along those segments, so a curve ending on an endwall cuts the wall cells
+    cleanly. A single straight segment is thus its whole line, which is also
+    the quicker case to evaluate.
 
     Parameters
     ----------
@@ -664,11 +704,11 @@ def unstructured(grid, xr_cut):
         grid = [grid]
 
     # A cut curve usually ends on an endwall, but where that wall is sloped the
-    # wall cells straddling the cut have nodes past the end of the curve. Their
-    # distance is then to the end point rather than across the line, which is
-    # larger, so marching cubes puts the vertices on those edges off the line,
-    # tens of microns on a spinner, differently at every theta. Carry the end
-    # segments on straight so the zero level stays the line through the walls.
+    # wall cells straddling the cut have nodes past the end of the curve. The
+    # cut runs on along the end segments in any block it reaches, so those
+    # cells are cut on the line through the walls. Carry the curve on a little
+    # before screening the blocks too, so that one whose wall cells are all
+    # that straddle it is still reached.
     xr_cut = _extend_ends(np.asarray(xr_cut, dtype=float), CUT_EXTEND)
 
     # Loop over blocks
@@ -678,10 +718,8 @@ def unstructured(grid, xr_cut):
     last_block = None
     for block in grid:
         # Reject the blocks the curve does not reach before building any
-        # distance field. This also keeps out a block that the curve misses
-        # but whose field still changes sign, which happens across the medial
-        # axis between two segments, where the nearest segment switches and
-        # takes the sign with it without the distance passing through zero.
+        # distance field. This also keeps out a block that only the rays
+        # running on from the curve's ends would cut.
         if not _cut_reaches_block(xr_cut, block):
             continue
 
@@ -768,8 +806,10 @@ def structured_meridional(grid, xr_cut):
     For each block, walks every :math:`(i, k)` grid line and linearly
     interpolates to the first ``j`` location where the signed distance to the
     cut curve changes sign, producing one structured ``(ni, nk)`` cut per
-    intersected block. A single straight segment cuts along its whole line,
-    as in :func:`unstructured`.
+    intersected block. Within a block the curve reaches, the cut runs on
+    past both ends straight along the end segments, as in
+    :func:`unstructured`, so a single straight segment cuts along its whole
+    line.
 
     Parameters
     ----------

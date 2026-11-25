@@ -55,6 +55,7 @@ Test cases:
 - test_triangulate_minimal_grid: Triangulation on minimal 2x2 grid
 - test_triangulate_sets_triangulated_property: Verify the result is an UnstructuredBlock
 - test_triangulate_shape_calculation: Verify n_face follows the (ni-1)*(nj-1)*2 formula
+- TestCutField: the narrow-band field the cutting kernels take a polyline from
 """
 
 import numpy as np
@@ -80,6 +81,7 @@ from ember.cut import (
     _pitchwise_fluid,
     _line_distance,
     _line_normal,
+    _cut_field,
 )
 
 
@@ -2435,6 +2437,123 @@ class TestStraightCut:
 
         # A line that misses the box altogether
         assert not _cut_reaches_block(np.array([[2.0, 0.0], [2.0, 1.0]]), block)
+
+
+def _cut_field_reference(xr, q):
+    """Signed distance to a curve and its end rays, by brute force in float64.
+
+    Signed by the nearest piece, which for a curve and rays that do not cross
+    themselves is the side of the whole cut that ``cut_distance`` counts.
+    """
+    xr = np.asarray(xr, dtype=float)
+    u0 = (xr[1] - xr[0]) / np.linalg.norm(xr[1] - xr[0])
+    u1 = (xr[-1] - xr[-2]) / np.linalg.norm(xr[-1] - xr[-2])
+    pieces = (
+        [(xr[0], u0, -np.inf, 0.0)]
+        + [(xr[s], xr[s + 1] - xr[s], 0.0, 1.0) for s in range(len(xr) - 1)]
+        + [(xr[-1], u1, 0.0, np.inf)]
+    )
+    best = np.full(q.shape[:-1], np.inf)
+    sgn = np.ones(q.shape[:-1])
+    for o, b, h_lo, h_hi in pieces:
+        a = q - o
+        h = np.clip((a @ b) / (b @ b), h_lo, h_hi)
+        perp = a - h[..., np.newaxis] * b
+        dist = np.sqrt((perp * perp).sum(-1))
+        cross = perp[..., 1] * b[0] - perp[..., 0] * b[1]
+        nearer = dist < best
+        best = np.where(nearer, dist, best)
+        sgn = np.where(nearer, np.where(cross >= 0.0, 1.0, -1.0), sgn)
+    return best * sgn
+
+
+class TestCutField:
+    """The narrow-band field the cutting kernels take a polyline cut from."""
+
+    SHAPE = (60, 50, 7)
+
+    CURVES = {
+        "radial_wiggle": np.stack(
+            [0.5 + 0.1 * np.sin(np.linspace(0, 3, 17)), np.linspace(0.6, 1.4, 17)],
+            -1,
+        ),
+        "along_x": np.stack(
+            [np.linspace(0.1, 0.9, 9), 1.0 + 0.1 * np.sin(np.linspace(0, 3, 9))], -1
+        ),
+        "hook": np.array([[0.3, 0.6], [0.4, 1.0], [0.6, 1.2], [0.8, 1.1]]),
+        "single": np.array([[0.2, 0.7], [0.6, 1.3]]),
+        "u_turn": np.array([[0.2, 0.8], [0.7, 0.8], [0.7, 1.2], [0.2, 1.2]]),
+    }
+
+    @classmethod
+    def _query(cls):
+        xrt = util.linmesh3([0.0, 1.0], [0.5, 1.5], [0.0, 0.5], cls.SHAPE)
+        return xrt[..., :2].astype(np.float32)
+
+    def test_matches_brute_force(self):
+        """Signs everywhere, and distances wherever they are exact, agree."""
+        q = self._query()
+        for name, xr in self.CURVES.items():
+            xr = xr.astype(np.float32)
+            d = _cut_field(xr, q)
+            ref = _cut_field_reference(xr, q.astype(float))
+
+            # The far field carries only its sign
+            exact = np.abs(d) < 1e30
+            assert 0.0 < exact.mean() < 1.0, name
+
+            clear = np.abs(ref) > 1e-5
+            assert np.array_equal(np.sign(d)[clear], np.sign(ref)[clear]), name
+            np.testing.assert_allclose(d[exact], ref[exact], atol=1e-6, err_msg=name)
+
+    def test_exact_wherever_the_sign_changes(self):
+        """Both ends of every grid edge the cut crosses get an exact distance."""
+        q = self._query()
+        for name, xr in self.CURVES.items():
+            d = _cut_field(xr, q)
+            for axis in range(3):
+                changes = np.diff(np.sign(d), axis=axis) != 0
+                lo = np.take(d, range(d.shape[axis] - 1), axis=axis)
+                hi = np.take(d, range(1, d.shape[axis]), axis=axis)
+                assert np.all(np.abs(lo[changes]) < 1e30), name
+                assert np.all(np.abs(hi[changes]) < 1e30), name
+
+    def test_single_segment_is_its_line(self):
+        """A curve of one segment is the whole line through it."""
+        q = self._query()
+        xr = self.CURVES["single"]
+        d = _cut_field(xr, q)
+        line = _line_distance(xr, q)
+        exact = np.abs(d) < 1e30
+        np.testing.assert_allclose(d[exact], line[exact], atol=1e-6)
+        assert np.array_equal(np.sign(d), np.sign(line))
+
+    def test_u_turn_is_signed_by_side(self):
+        """Between the rays of a curve that turns back is its left."""
+        d = _cut_field(self.CURVES["u_turn"], self._query())
+        x, r = (self._query()[..., c] for c in range(2))
+        inside = (r > 0.85) & (r < 1.15) & (x < 0.65)
+        outside = (r < 0.75) | (r > 1.25) | (x > 0.75)
+        assert np.all(d[inside] > 0.0)
+        assert np.all(d[outside] < 0.0)
+
+    def test_no_sign_change_off_the_cut(self):
+        """Where the nearest segment switches, the sign does not.
+
+        :func:`signed_distance` changes sign across this block, which the
+        zigzag misses, without ever passing through zero; the cut field,
+        signed by side, holds one sign over it, so even without the block
+        screen marching cubes finds nothing to cut.
+        """
+        block = TestCutScreen._block_spanning([1.21, 1.39], [1.83, 2.19])
+        q = block.xrt_nd[..., :2] * block.L_ref
+        zigzag = TestCutScreen.ZIGZAG
+
+        assert signed_distance(zigzag, q).min() < 0.0 < signed_distance(zigzag, q).max()
+
+        d = _cut_field(zigzag, q)
+        assert np.all(d > 0.0) or np.all(d < 0.0)
+        assert _marching_cubes(block._data, d) is None
 
 
 class TestMarchingCubesKernel:
