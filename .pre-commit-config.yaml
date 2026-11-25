@@ -64,6 +64,14 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: check-private-docstring-refs
+        name: check public docstrings do not reference private members
+        entry: uv run python tools/check_private_docstring_refs.py
+        language: system
+        # With no files given it checks all of src/ember, as CI does.
+        pass_filenames: false
+        always_run: true
+
       - id: run-tests
         name: run tests
         entry: uv run pytest tests -q --tb=short
