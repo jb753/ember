@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ember.unstructured &#8212; ember 0.5.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f6a572b4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <script src="../../_static/documentation_options.js?v=1dd76d02"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">ember</a></h1>
+
+
+
+<p class="blurb">Version 0.5.0</p>
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_examples/index.html">Examples</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference manual</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../coordinate_system.html">Geometry and indexing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fluid.html">Fluid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/realgas_fit.html">Tabulated property fitting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block.html">Block</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/block_util.html">Block utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/set_iterative.html">Iterative flow-field setters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/grid.html">Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/communicators.html">Communicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/patch.html">Patch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/average.html">Averaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/cut.html">Cutting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/unstructured.html">Unstructured blocks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/elliptic.html">Elliptic grid generation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/solver.html">Solver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/convergence_history.html">Convergence history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/perturbation.html">Jacobians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/util.html">Array utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/yaml_util.html">YAML utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">Bibliography</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Version history</a></li>
+</ul>
+
+
+<hr />
+<ul>
+    
+    <li class="toctree-l1"><a href="https://github.com/jb753/ember">Source code repository</a></li>
+    
+</ul>
+
+<div id="ember-versions" hidden>
+    <h3>Versions</h3>
+    <select id="ember-version-select" aria-label="Documentation version"></select>
+</div>
+<script>
+(function () {
+    // pathto('', 1) is the relative path to this version's root, so one more
+    // level up is the site root holding versions.json and the version dirs.
+    var root = "../../" + "../";
+    var current = "0.5.0";
+    var page = "_modules/ember/unstructured.html";
+    var box = document.getElementById("ember-versions");
+    var select = document.getElementById("ember-version-select");
+
+    function go() {
+        var base = root + select.value;
+        // Prefer the same page in the target version, but fall back to its
+        // index: pages come and go between releases.
+        fetch(base + page, {method: "HEAD"}).then(function (response) {
+            window.location.href = response.ok ? base + page : base;
+        }).catch(function () {
+            window.location.href = base;
+        });
+    }
+
+    fetch(root + "versions.json").then(function (response) {
+        if (!response.ok) {
+            throw new Error("versions.json: " + response.status);
+        }
+        return response.json();
+    }).then(function (data) {
+        data.versions.forEach(function (version) {
+            var option = document.createElement("option");
+            option.value = version.url;
+            option.textContent = version.name;
+            option.selected = version.name === current;
+            select.appendChild(option);
+        });
+        select.addEventListener("change", go);
+        box.hidden = false;
+    }).catch(function () {
+        // Single-version or local build; leave the picker hidden.
+    });
+})();
+</script><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for ember.unstructured</h1><div class="highlight"><pre>
+<span></span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Flow data on an unstructured triangulated surface.</span>
+
+<span class="sd">An :class:`UnstructuredBlock` holds flow data at a set of vertices together</span>
+<span class="sd">with the triangular faces that join them. It is what</span>
+<span class="sd">:func:`ember.cut.unstructured` returns, and it is accepted by the integrals</span>
+<span class="sd">and averages in :mod:`ember.average` alongside a structured 2D cut.</span>
+
+<span class="sd">Each vertex is stored once, however many faces share it. Every flow</span>
+<span class="sd">property of a :class:`~ember.block.Block` is available, evaluated per</span>
+<span class="sd">vertex, with shape ``(n_vert,)``; face quantities have shape</span>
+<span class="sd">``(n_face, ...)``.</span>
+
+<span class="sd">Construction mirrors :class:`~ember.block.Block`: the constructor sizes the</span>
+<span class="sd">vertex data, and setters fill it in, connectivity included::</span>
+
+<span class="sd">    u = UnstructuredBlock(n_vert)</span>
+<span class="sd">    u.set_faces(faces)  # int, shape (n_face, 3)</span>
+<span class="sd">    u.set_xrt(xrt)  # shape (n_vert, 3)</span>
+<span class="sd">    u.set_fluid(fluid)</span>
+<span class="sd">    u.set_P_T(P, T)</span>
+<span class="sd">    u.set_Vxrt(Vxrt)</span>
+
+<span class="sd">.. autosummary::</span>
+
+<span class="sd">   UnstructuredBlock</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">ember.block</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ember._struct</span><span class="w"> </span><span class="kn">import</span> <span class="n">derived_array</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;UnstructuredBlock&quot;</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_like</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">n_vert</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;New :class:`UnstructuredBlock` carrying the point metadata of `block`.</span>
+
+<span class="sd">    The fluid, length scale, rotation, blade count and label come across;</span>
+<span class="sd">    the patches of a structured `block` do not. The data are left NaN for</span>
+<span class="sd">    the caller to fill, and are marked set, as :meth:`Block.empty</span>
+<span class="sd">    &lt;ember._struct.StructuredData.empty&gt;` marks them.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">UnstructuredBlock</span><span class="p">(</span><span class="n">n_vert</span><span class="p">)</span>
+    <span class="n">out</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+        <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">block</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;patches&quot;</span><span class="p">,</span> <span class="s2">&quot;faces&quot;</span><span class="p">)}</span>
+    <span class="p">)</span>
+    <span class="n">out</span><span class="o">.</span><span class="n">_versions</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">_versions</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_not_on_unstructured</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Raise for an array operation that would scramble the face indices.&quot;&quot;&quot;</span>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> is not supported on an UnstructuredBlock: it would reorder &quot;</span>
+        <span class="s2">&quot;or regroup the vertices that the faces index into.&quot;</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="UnstructuredBlock">
+<a class="viewcode-back" href="../../api/unstructured.html#ember.unstructured.UnstructuredBlock">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">UnstructuredBlock</span><span class="p">(</span><span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">_PointBlock</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_vert</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Allocate flow data at the vertices of an unstructured surface.</span>
+
+<span class="sd">        The vertex data hold every variable a :class:`~ember.block.Block`</span>
+<span class="sd">        does, and are set and read through the same methods and properties.</span>
+<span class="sd">        The triangles joining the vertices are set with :meth:`set_faces`.</span>
+
+<span class="sd">        Each face is a triple of vertex indices :math:`(A, B, C)`. Its area</span>
+<span class="sd">        vector, :attr:`dA`, follows the right-hand rule around</span>
+<span class="sd">        :math:`A \to B \to C` in the pseudo-Cartesian space</span>
+<span class="sd">        :math:`(x, r, r\theta)`, the same sense as the face areas of a</span>
+<span class="sd">        structured cut.</span>
+
+<span class="sd">        The vertices form a one-dimensional array, so the inherited</span>
+<span class="sd">        :attr:`ndim` is 1 whatever the dimension of the surface. Operations</span>
+<span class="sd">        that reorder or regroup the vertices (indexing, :meth:`flip`,</span>
+<span class="sd">        :meth:`reshape` and the like) raise, because they would leave the</span>
+<span class="sd">        faces pointing at the wrong vertices.</span>
+
+<span class="sd">        A volume mesh would extend this class rather than replace it: each</span>
+<span class="sd">        face would also store the cells either side of it, and the cells,</span>
+<span class="sd">        their volumes and their vertex lists would be derived from those.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        n_vert : int</span>
+<span class="sd">            Number of vertices.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">n_vert</span><span class="p">,))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raise: indexing would leave the faces pointing at the wrong vertices.&quot;&quot;&quot;</span>
+        <span class="n">_not_on_unstructured</span><span class="p">(</span><span class="s2">&quot;Indexing&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Unpickle, locking the faces again (pickle drops the read-only flag).&quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__setstate__</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;faces&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span><span class="p">[</span><span class="s2">&quot;faces&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_to_faces</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodal</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Average vertex values onto faces, shape ``(n_face, ...)``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">nodal</span><span class="p">)[</span><span class="bp">self</span><span class="o">.</span><span class="n">faces</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+<div class="viewcode-block" id="UnstructuredBlock.set_faces">
+<a class="viewcode-back" href="../../api/unstructured.html#ember.unstructured.UnstructuredBlock.set_faces">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_faces</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">faces</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the triangles joining the vertices.</span>
+
+<span class="sd">        The array is copied and stored read-only; set new faces to change</span>
+<span class="sd">        them.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        faces : array_like of int, shape (n_face, 3)</span>
+<span class="sd">            Indices of the three vertices of each face, each in</span>
+<span class="sd">            ``[0, n_vert)``. Their order sets the direction of the face&#39;s</span>
+<span class="sd">            area vector by the right-hand rule.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">faces</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">faces</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">issubdtype</span><span class="p">(</span><span class="n">faces</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Faces must be integer indices, got </span><span class="si">{</span><span class="n">faces</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">faces</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">faces</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Faces must have shape (n_face, 3), got </span><span class="si">{</span><span class="n">faces</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">faces</span><span class="o">.</span><span class="n">size</span> <span class="ow">and</span> <span class="p">(</span><span class="n">faces</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">faces</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_vert</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Face indices must lie in [0, </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_vert</span><span class="si">}</span><span class="s2">), got &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">faces</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">faces</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">].&quot;</span>
+            <span class="p">)</span>
+        <span class="n">faces</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">faces</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="n">faces</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_metadata_by_key</span><span class="p">(</span><span class="s2">&quot;faces&quot;</span><span class="p">,</span> <span class="n">faces</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="UnstructuredBlock.empty">
+<a class="viewcode-back" href="../../api/unstructured.html#ember.unstructured.UnstructuredBlock.empty">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">empty</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create an uninitialised block on the same mesh.</span>
+
+<span class="sd">        Returns a fresh :class:`UnstructuredBlock` with the same vertices,</span>
+<span class="sd">        faces and metadata and all data set to NaN, as</span>
+<span class="sd">        :func:`numpy.empty_like` keeps the type and shape of its argument.</span>
+<span class="sd">        A block of another shape is made with the :class:`~ember.block.Block`</span>
+<span class="sd">        constructor and setters.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : UnstructuredBlock</span>
+<span class="sd">            A new uninitialised block sharing this one&#39;s faces and metadata.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">UnstructuredBlock</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_vert</span><span class="p">)</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">_metadata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">_versions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_versions</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="UnstructuredBlock.flip">
+<a class="viewcode-back" href="../../api/unstructured.html#ember.unstructured.UnstructuredBlock.flip">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">flip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">axis</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raise: flipping would reorder the vertices.&quot;&quot;&quot;</span>
+        <span class="n">_not_on_unstructured</span><span class="p">(</span><span class="s2">&quot;flip&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="UnstructuredBlock.mean">
+<a class="viewcode-back" href="../../api/unstructured.html#ember.unstructured.UnstructuredBlock.mean">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">mean</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raise: use the face-weighted averages in :mod:`ember.average`.&quot;&quot;&quot;</span>
+        <span class="n">_not_on_unstructured</span><span class="p">(</span><span class="s2">&quot;mean&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="UnstructuredBlock.nanmean">
+<a class="viewcode-back" href="../../api/unstructured.html#ember.unstructured.UnstructuredBlock.nanmean">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nanmean</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raise: use the face-weighted averages in :mod:`ember.average`.&quot;&quot;&quot;</span>
+        <span class="n">_not_on_unstructured</span><span class="p">(</span><span class="s2">&quot;nanmean&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="UnstructuredBlock.reshape">
+<a class="viewcode-back" href="../../api/unstructured.html#ember.unstructured.UnstructuredBlock.reshape">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reshape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raise: reshaping would regroup the vertices.&quot;&quot;&quot;</span>
+        <span class="n">_not_on_unstructured</span><span class="p">(</span><span class="s2">&quot;reshape&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="UnstructuredBlock.squeeze">
+<a class="viewcode-back" href="../../api/unstructured.html#ember.unstructured.UnstructuredBlock.squeeze">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">squeeze</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raise: squeezing would regroup the vertices.&quot;&quot;&quot;</span>
+        <span class="n">_not_on_unstructured</span><span class="p">(</span><span class="s2">&quot;squeeze&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="UnstructuredBlock.transpose">
+<a class="viewcode-back" href="../../api/unstructured.html#ember.unstructured.UnstructuredBlock.transpose">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">transpose</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raise: transposing would reorder the vertices.&quot;&quot;&quot;</span>
+        <span class="n">_not_on_unstructured</span><span class="p">(</span><span class="s2">&quot;transpose&quot;</span><span class="p">)</span></div>
+
+
+    <span class="nd">@derived_array</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">dA</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Face area vectors :math:`\delta\!A` [m^2], shape ``(n_face, 3)``.</span>
+
+<span class="sd">        See :attr:`dA_nd` for the nondimensional form and the geometry</span>
+<span class="sd">        reference.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">dA_nd</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">L_ref</span><span class="o">**</span><span class="mi">2</span>
+
+    <span class="nd">@derived_array</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">dA_nd</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Face area vectors :math:`\delta\!A / L_\mathrm{ref}^2` [-], shape ``(n_face, 3)``.</span>
+
+<span class="sd">        Pseudo-Cartesian components :math:`(x, r, r\theta)` on the trailing</span>
+<span class="sd">        axis, directed by the right-hand rule around each face&#39;s vertices.</span>
+
+<span class="sd">        See :ref:`face-areas` for the calculation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">ember</span><span class="o">.</span><span class="n">block</span><span class="o">.</span><span class="n">_get_da_tri</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_xrt_nd</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">faces</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">faces</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Vertex indices of each face, read-only int32, shape ``(n_face, 3)``.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="s2">&quot;faces&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Faces have not been set: call set_faces first.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata</span><span class="p">[</span><span class="s2">&quot;faces&quot;</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">n_face</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Number of faces.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">faces</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">n_vert</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Number of vertices.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2023–2026, James Brind.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
