@@ -7,8 +7,8 @@ public API without a deprecation period.
 
 .. _v0.5.0:
 
-0.5.0
------
+0.5.0 (2026-11-25)
+------------------
 
 * Make ``ember.outlet.calc_radial_equilibrium(patch)`` a method
   ``OutletPatch.calc_radial_equilibrium()``
@@ -34,15 +34,10 @@ public API without a deprecation period.
 * A cut along a single straight segment, in ``cut.unstructured`` and
   ``cut.structured_meridional``, now runs along the whole of its line across
   every block it reaches, rather than stopping near the segment's ends
-* Speedup ``cut.unstructured`` and ``cut.structured_meridional`` run
-  by calculating distances only near the cut line
-* ``cut.signed_distance`` returns single precision, as the coordinates are,
-  and is about a third quicker on long curves; ``cut.unstructured`` and
-  ``cut.structured_meridional`` are three to four times quicker: the kernels
-  now work in single precision, a straight cut needs no search over segments,
-  marching cubes is one pass of one kernel, and the walk along ``j`` is a
-  kernel of its own. ``cut.structured_meridional`` now returns single
-  precision data, as every other block holds
+* Speedup ``cut.unstructured`` and ``cut.structured_meridional``:
+  calculating distances only near the cut line in single precision;
+  fused kernels for both cut types in single precision;
+  a straight cut does no search over segments
 
 .. _v0.4.10:
 
