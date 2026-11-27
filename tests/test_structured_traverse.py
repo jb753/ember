@@ -33,6 +33,13 @@ Test cases:
   other, crossed part-way by an inclined cut; closes round one pitch
 - test_an_unsnapped_ragged_grid_is_refused: an interface out by much more
   than round-off leaves a gap, and the error points to Grid.snap_periodic
+- test_untwist_slides_rows_into_straight_columns: grid lines twisted round
+  the annulus, every column at one theta, at twice the density, the hub
+  row's own nodes kept exactly
+- test_untwist_keeps_periodic_linear_fields_exact: fields linear in x and r
+  come through the interpolation along the rows exactly
+- test_slide_rows_does_not_overshoot_a_step: the monotone cubic stays within
+  the data either side of a jump
 """
 
 import numpy as np
@@ -160,7 +167,9 @@ def test_a_ring_comes_back_on_the_blocks_own_lines():
     block = _block([0.0, 1.0], [0.0, PITCH])
     ni, nj, nk = block.shape
     x_cut = 0.37
-    sheet = ember.cut.structured_traverse(block, [[x_cut, 0.4], [x_cut, 1.1]])
+    sheet = ember.cut.structured_traverse(
+        block, [[x_cut, 0.4], [x_cut, 1.1]], untwist=0
+    )
 
     assert sheet.shape == (nj, nk)
     x = np.asarray(block.x)[:, 0, 0]
@@ -174,7 +183,7 @@ def test_a_ring_comes_back_on_the_blocks_own_lines():
 
 def test_linear_fields_are_exact():
     block = _block([0.0, 1.0], [0.0, PITCH], lean=0.3)
-    sheet = ember.cut.structured_traverse(block, [[0.3, 0.4], [0.6, 1.1]])
+    sheet = ember.cut.structured_traverse(block, [[0.3, 0.4], [0.6, 1.1]], untwist=0)
     want = _linear(
         np.asarray(sheet.x, float),
         np.asarray(sheet.r, float),
@@ -191,8 +200,8 @@ def test_two_blocks_across_an_interface_make_one_sheet():
     upper = _block([0.0, 1.0], [split, PITCH], shape=(9, 6, 8), ct=0.0)
     xr_cut = [[0.42, 0.4], [0.42, 1.1]]
 
-    one = ember.cut.structured_traverse(whole, xr_cut)
-    two = ember.cut.structured_traverse([upper, lower], xr_cut)
+    one = ember.cut.structured_traverse(whole, xr_cut, untwist=0)
+    two = ember.cut.structured_traverse([upper, lower], xr_cut, untwist=0)
 
     assert two.shape == (6, 13)
     np.testing.assert_allclose(two.xrt, one.xrt, rtol=1e-5, atol=1e-6)
@@ -324,7 +333,7 @@ def _three_round_the_pitch():
 
 def test_a_hole_between_chains_is_filled():
     blocks = _three_round_the_pitch()
-    sheet = ember.cut.structured_traverse(blocks, [[0.4, 0.4], [0.6, 1.1]])
+    sheet = ember.cut.structured_traverse(blocks, [[0.4, 0.4], [0.6, 1.1]], untwist=0)
 
     t = np.asarray(sheet.t, float)
     assert (np.diff(t, axis=1) > 0).all()
@@ -335,7 +344,9 @@ def test_a_hole_between_chains_is_filled():
     # Columns from the clean blocks A and C are those of the same annulus
     # meshed as one block, whose nodes in theta coincide with theirs
     alone = ember.cut.structured_traverse(
-        _block([0.0, 1.0], [0.0, PITCH], (9, 6, 13), ct=0.0), [[0.4, 0.4], [0.6, 1.1]]
+        _block([0.0, 1.0], [0.0, PITCH], (9, 6, 13), ct=0.0),
+        [[0.4, 0.4], [0.6, 1.1]],
+        untwist=0,
     )
     k = t[0] / (PITCH / 12)
     exact = (np.abs(k - np.round(k)) < 1e-4) & ((np.round(k) <= 4) | (np.round(k) >= 8))
@@ -369,3 +380,43 @@ def test_an_unsnapped_ragged_grid_is_refused():
     blocks[2].set_x(x)
     with pytest.raises(ValueError, match="snap_periodic"):
         ember.cut.structured_traverse(blocks, [[0.4, 0.4], [0.6, 1.1]])
+
+
+def test_untwist_slides_rows_into_straight_columns():
+    block = _block([0.0, 1.0], [0.0, PITCH], lean=1.5, ct=0.0)
+    xr_cut = [[0.55, 0.4], [0.55, 1.1]]
+    twisted = ember.cut.structured_traverse(block, xr_cut, untwist=0)
+    flat = ember.cut.structured_traverse(block, xr_cut, untwist=2)
+
+    nj, nk = twisted.shape
+    assert flat.shape == (nj, 2 * (nk - 1) + 1)
+    t = np.asarray(flat.t, float)
+    np.testing.assert_allclose(t, np.broadcast_to(t[:1], t.shape), atol=1e-6)
+    np.testing.assert_allclose(t[0, -1] - t[0, 0], PITCH, rtol=1e-6)
+    assert (np.diff(t, axis=1) > 0).all()
+    # The hub row does not move: its own nodes are every other column
+    np.testing.assert_allclose(flat._data[0, ::2], twisted._data[0], rtol=1e-6)
+
+
+def test_untwist_keeps_periodic_linear_fields_exact():
+    block = _block([0.0, 1.0], [0.0, PITCH], lean=0.7, ct=0.0)
+    sheet = ember.cut.structured_traverse(block, [[0.3, 0.4], [0.6, 1.1]], untwist=2)
+    want = _linear(np.asarray(sheet.x, float), np.asarray(sheet.r, float), 0.0, ct=0.0)
+    np.testing.assert_allclose(sheet.conserved, want, rtol=2e-5)
+
+
+def test_slide_rows_does_not_overshoot_a_step():
+    m = 9
+    tn = np.linspace(0.0, 1.0, m, dtype=np.float32)[None]
+    tn = np.asfortranarray(
+        np.repeat(tn, 2, axis=0) + np.array([[0.0], [0.03]], np.float32)
+    )
+    step = np.where(np.arange(m) < 4, 1.0, 2.0).astype(np.float32)
+    step[-1] = step[0]
+    data = np.zeros((2, m, 2), dtype=np.float32, order="F")
+    data[..., 0] = tn * 2 * np.pi
+    data[..., 1] = step
+    out = np.empty((2, 4 * (m - 1) + 1, 2), dtype=np.float32, order="F")
+    ember.fortran.slide_rows(tn, data, 0.0, 2 * np.pi, 1, 4, out)
+    assert out[..., 1].min() >= 1.0 - 1e-6
+    assert out[..., 1].max() <= 2.0 + 1e-6

@@ -854,7 +854,7 @@ def structured_meridional(grid, xr_cut):
     return ember.grid.Grid(cut_blocks)
 
 
-def structured_traverse(grid, xr_cut, factor=1):
+def structured_traverse(grid, xr_cut, factor=1, untwist=0):
     r"""Cut a blade-free traverse plane into one structured sheet.
 
     The sheet is built from the grid's own lines rather than resampled. Where
@@ -873,7 +873,11 @@ def structured_traverse(grid, xr_cut, factor=1):
     :math:`\theta`, with the last column the first a pitch on. Rows follow the
     grid's own spanwise surfaces, so they lie at constant :math:`(x, r)` only
     where those surfaces are surfaces of revolution, and the spacing in
-    :math:`\theta` follows the grid's.
+    :math:`\theta` follows the grid's. Grid lines twisted round the annulus
+    twist the sheet's columns with them; `untwist` instead slides every row
+    round to start at the hub's first :math:`\theta`, keeping its own spacing,
+    so the boundary columns lie at constant :math:`\theta` and the others
+    nearly so, with the data interpolated along each row.
 
     The grid's periodic pairs must coincide exactly, as
     :meth:`ember.grid.Grid.snap_periodic` makes them: nodes are matched by
@@ -889,6 +893,13 @@ def structured_traverse(grid, xr_cut, factor=1):
     factor : int, default 1
         Cells across a filled region per grid cell along its endwalls. The
         exact patches are the grid's own lines and are not refined.
+    untwist : int, default 0
+        If not zero, slide the rows round so the columns lie at constant
+        :math:`\theta`, each interval along a row split into this many, the
+        data interpolated by monotone cubics. That costs accuracy where a flow
+        feature twists with the grid lines, as near a leading edge, whose
+        resolution the straight columns no longer follow: 2 is a reasonable
+        choice for a plot. Zero, the default, keeps every node exact.
 
     Returns
     -------
@@ -905,7 +916,7 @@ def structured_traverse(grid, xr_cut, factor=1):
     """
     if isinstance(grid, Block):
         grid = [grid]
-    return ember._traverse.traverse(grid, xr_cut, factor)
+    return ember._traverse.traverse(grid, xr_cut, factor, untwist)
 
 
 def interpolate_to_structured(

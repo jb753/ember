@@ -542,7 +542,7 @@ def _seam(tri, ix, pitch):
     return L, R
 
 
-def traverse(grid, xr_cut, factor=1):
+def traverse(grid, xr_cut, factor=1, untwist=0):
     """One structured sheet of the cut through `grid`, as a 2D Block."""
     xr_cut = np.asarray(xr_cut, dtype=float)
     xr_ext = ember.cut._extend_ends(xr_cut, ember.cut.CUT_EXTEND)
@@ -589,7 +589,7 @@ def traverse(grid, xr_cut, factor=1):
         hole = _fill(tri, L, R, factor, ix, pitch)
         sheet = hole
         T = hole[..., ix[2]].astype(float) / pitch
-        return _block(tmpl, _roll_to_start(sheet, T, ix, pitch))
+        return _finish(tmpl, _roll_to_start(sheet, T, ix, pitch), ix, pitch, untwist)
 
     # Chains in order round the pitch, each starting within the first pitch
     order = []
@@ -632,10 +632,25 @@ def traverse(grid, xr_cut, factor=1):
             "The cut does not close round the pitch: it meets a blade or other "
             "solid, which structured_meridional can cut."
         )
-    return _block(tmpl, _roll_to_start(sheet, T, ix, pitch))
+    return _finish(tmpl, _roll_to_start(sheet, T, ix, pitch), ix, pitch, untwist)
 
 
-def _block(tmpl, sheet):
+def _untwist(sheet, ix, pitch, factor):
+    """Every row slid round to start at the hub's first theta, its intervals
+    split `factor` ways, and the data interpolated by monotone cubics."""
+    sheet = np.asfortranarray(sheet, dtype=F32)
+    n, m, nvar = sheet.shape
+    tn = np.asfortranarray(sheet[..., ix[2]] / F32(pitch), dtype=F32)
+    out = np.empty((n, factor * (m - 1) + 1, nvar), dtype=F32, order="F")
+    ember.fortran.slide_rows(tn, sheet, tn[0, 0], F32(pitch), ix[2] + 1, factor, out)
+    return out
+
+
+def _finish(tmpl, sheet, ix, pitch, untwist):
+    """The sheet as a 2D Block, untwisted at `untwist` times the theta
+    density if that is not zero."""
+    if untwist:
+        sheet = _untwist(sheet, ix, pitch, int(untwist))
     out = tmpl.empty(shape=sheet.shape[:2])
     out._data = np.asfortranarray(sheet, dtype=F32)
     return out

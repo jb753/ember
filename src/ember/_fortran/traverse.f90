@@ -650,3 +650,114 @@ contains
     end subroutine add_nbr
 
 end subroutine edge_topology
+
+
+subroutine slide_rows(tn, data, theta0, pitch, it, factor, out, n, m, nvar, mm)
+    ! Slide every row of a closed sheet round to start at theta0.
+    !
+    ! Row j has m columns, the last its first a pitch on, at theta tn(j, :)
+    ! in pitches. Its nodes all move by the same amount, so that its first
+    ! is at theta0: the row's spacing is kept, and its columns stay on one
+    ! grid line each, straight wherever the rows' spacings are alike. Each
+    ! interval is then split into factor equal parts, mm = factor (m - 1) + 1
+    ! nodes in all, and every variable interpolated at the new nodes by a
+    ! periodic monotone cubic Hermite through the row's own (Fritsch and
+    ! Butland's slopes), which never overshoots the data either side of an
+    ! interval. Variable it of the data is theta in radians,
+    ! set from the new positions; the flow is periodic, so data a pitch
+    ! round is the same.
+
+    implicit none
+
+    integer, intent(in) :: n, m, nvar, it, factor, mm
+    real, intent(in) :: tn(n, m), data(n, m, nvar), theta0, pitch
+    real, intent(inout) :: out(n, mm, nvar)
+
+    integer :: j, k, r, q, nn, lo, hi, mid, k0, k1, km, kp, v
+    real :: shift, a, b, tq, xs, h0, hm, hp, s, d0, dm, dp, m0, m1
+    real :: h00, h10, h01, h11
+
+    nn = m - 1
+    do j = 1, n
+        shift = tn(j, 1) - theta0
+        do k = 1, nn
+            a = tn(j, k) - shift
+            b = tn(j, k + 1) - shift
+            do r = 0, factor - 1
+                q = (k - 1) * factor + r + 1
+                tq = a + (b - a) * real(r) / real(factor)
+
+                ! Interval of the row's own nodes holding tq, a pitch round
+                xs = tn(j, 1) + modulo(tq - tn(j, 1), 1.0)
+                lo = 1
+                hi = nn + 1
+                do while (hi - lo > 1)
+                    mid = (lo + hi) / 2
+                    if (tn(j, mid) <= xs) then
+                        lo = mid
+                    else
+                        hi = mid
+                    end if
+                end do
+                k0 = lo
+                k1 = mod(lo, nn) + 1
+                km = mod(lo - 2 + nn, nn) + 1
+                kp = mod(lo + 1, nn) + 1
+
+                ! Interval widths, wrapping a pitch at the ends of the row
+                h0 = width(k0)
+                hm = width(km)
+                hp = width(k1)
+                s = (xs - tn(j, k0)) / h0
+                h00 = (2.0 * s - 3.0) * s * s + 1.0
+                h10 = ((s - 2.0) * s + 1.0) * s
+                h01 = (3.0 - 2.0 * s) * s * s
+                h11 = (s - 1.0) * s * s
+
+                do v = 1, nvar
+                    d0 = (data(j, k1, v) - data(j, k0, v)) / h0
+                    dm = (data(j, k0, v) - data(j, km, v)) / hm
+                    dp = (data(j, kp, v) - data(j, k1, v)) / hp
+                    m0 = slope(dm, d0, hm, h0)
+                    m1 = slope(d0, dp, h0, hp)
+                    out(j, q, v) = h00 * data(j, k0, v) + h10 * h0 * m0 &
+                        + h01 * data(j, k1, v) + h11 * h0 * m1
+                end do
+                out(j, q, it) = tq * pitch
+            end do
+        end do
+
+        ! The last column is the first a pitch on
+        do v = 1, nvar
+            out(j, mm, v) = out(j, 1, v)
+        end do
+        out(j, mm, it) = (theta0 + 1.0) * pitch
+    end do
+
+contains
+
+    real function slope(dl, dr, hl, hr)
+        ! Monotone slope at a node between differences dl and dr over widths
+        ! hl and hr: zero at an extremum, else their weighted harmonic mean
+        real, intent(in) :: dl, dr, hl, hr
+        real :: wl, wr
+        if (dl * dr <= 0.0) then
+            slope = 0.0
+        else
+            wl = 2.0 * hr + hl
+            wr = hr + 2.0 * hl
+            slope = (wl + wr) / (wl / dl + wr / dr)
+        end if
+    end function slope
+
+    real function width(k)
+        ! Width of the row's interval from node k, the last one wrapping
+        integer, intent(in) :: k
+        if (k < nn) then
+            width = tn(j, k + 1) - tn(j, k)
+        else
+            width = tn(j, 1) + 1.0 - tn(j, nn)
+        end if
+    end function width
+
+end subroutine slide_rows

@@ -18,6 +18,11 @@ public API without a deprecation period.
   interface met at an angle, is the sheet filled from the cut's triangles.
   Far more accurate and faster than ``cut.unstructured`` followed by
   ``cut.interpolate_to_structured``
+* Add ``untwist`` to ``cut.structured_traverse``: slide each row of the sheet
+  round so its columns lie at constant theta rather than following grid lines
+  that twist round the annulus, the data interpolated along the rows by
+  monotone cubics at a multiple of the theta density. Off by default, as it
+  costs accuracy where flow features twist with the grid
 * Add ``Grid.snap_periodic``: move every periodically paired node onto the
   mean of its copies, so nodes a mesher meant to coincide do so exactly
 
