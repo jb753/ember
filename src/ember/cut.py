@@ -25,6 +25,7 @@ parent's data as a zero-copy view. See the indexing section of
 import numpy as np
 from pykdtree.kdtree import KDTree
 
+import ember._traverse
 import ember.fortran
 import ember.grid
 from ember import util
@@ -851,6 +852,60 @@ def structured_meridional(grid, xr_cut):
             cut_blocks.append(out_block)
 
     return ember.grid.Grid(cut_blocks)
+
+
+def structured_traverse(grid, xr_cut, factor=1):
+    r"""Cut a blade-free traverse plane into one structured sheet.
+
+    The sheet is built from the grid's own lines rather than resampled. Where
+    one family of a block's grid lines each crosses the cut the same number of
+    times, or a run of them crosses once from hub to casing, each node of the
+    sheet is a linear interpolation along one grid edge, exactly as the
+    vertices of :func:`unstructured` are. These exact patches are joined across
+    interfaces and periodic faces. Between them, where the cut crosses the
+    grid lines only part-way, as it does near an O-grid's nose or across an
+    interface it meets at an angle, the sheet is filled from the cut's
+    triangles along rows that start and end on the exact nodes either side;
+    with no exact patch at all, the rows run between two copies of the
+    periodic seam. The sheet runs once round the pitch.
+
+    Axis 0 of the result runs from hub to casing and axis 1 up in
+    :math:`\theta`, with the last column the first a pitch on. Rows follow the
+    grid's own spanwise surfaces, so they lie at constant :math:`(x, r)` only
+    where those surfaces are surfaces of revolution, and the spacing in
+    :math:`\theta` follows the grid's.
+
+    The grid's periodic pairs must coincide exactly, as
+    :meth:`ember.grid.Grid.snap_periodic` makes them: nodes are matched by
+    position, to within a few single precision steps.
+
+    Parameters
+    ----------
+    grid : Grid or Block
+        Grid to cut, or a single block.
+    xr_cut : array_like, shape (n_points, 2)
+        Meridional :math:`(x, r)` curve defining the cut surface, carried on
+        straight past both ends.
+    factor : int, default 1
+        Cells across a filled region per grid cell along its endwalls. The
+        exact patches are the grid's own lines and are not refined.
+
+    Returns
+    -------
+    Block
+        2D structured block, shape ``(n_span, n_pitch)``.
+
+    Raises
+    ------
+    ValueError
+        If the cut misses the grid; meets a blade, tip gap or other solid, so
+        does not close round the pitch or leaves a boundary that is not an
+        endwall; crosses blocks of different blade counts; or meets grid
+        pieces with different numbers of spanwise nodes.
+    """
+    if isinstance(grid, Block):
+        grid = [grid]
+    return ember._traverse.traverse(grid, xr_cut, factor)
 
 
 def interpolate_to_structured(

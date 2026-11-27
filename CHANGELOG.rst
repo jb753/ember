@@ -5,6 +5,22 @@ ember roughly follows `semantic versioning <https://semver.org/>`_ starting at
 0.1.0. However, until 1.0.0, minor releases may make breaking changes to the
 public API without a deprecation period.
 
+.. _v0.5.1:
+
+0.5.1 (unreleased)
+------------------
+
+* Add ``cut.structured_traverse``: a blade-free traverse cut as one
+  structured 2D block, hub to casing by once round the pitch, built from the
+  grid's own lines. Where a block's grid lines cross the cut cleanly, each
+  node is interpolated along one grid edge, as a vertex of ``cut.unstructured``
+  is; only where they cross it part-way, near an O-grid's nose or across an
+  interface met at an angle, is the sheet filled from the cut's triangles.
+  Far more accurate and faster than ``cut.unstructured`` followed by
+  ``cut.interpolate_to_structured``
+* Add ``Grid.snap_periodic``: move every periodically paired node onto the
+  mean of its copies, so nodes a mesher meant to coincide do so exactly
+
 .. _v0.5.0:
 
 0.5.0 (2026-11-25)

@@ -94,6 +94,10 @@ outlet; :attr:`Grid.n_row` is their count. The first row's upstream face is the
 domain inlet and the last row's downstream face is the domain outlet. Both
 properties will pair the periodic patches for themselves.
 
+Periodic patches pair within a tolerance. :meth:`Grid.snap_periodic` moves every
+paired node onto the mean of its copies, a whole pitch apart or none, so nodes
+that a mesher meant to coincide do so exactly.
+
 .. autosummary::
 
    Grid.connectivity
@@ -101,6 +105,7 @@ properties will pair the periodic patches for themselves.
    Grid.patches
    Grid.row_station_bid_pid
    Grid.rows
+   Grid.snap_periodic
 
 Global flow field setting
 ==========================
@@ -1495,6 +1500,117 @@ class Grid(_LabelledList):
                     sf2=sf2,
                     xs=util.carve_view(block.scratch, (ni, nj, kr)),
                 )
+
+    def snap_periodic(self):
+        r"""Make the coordinates of periodically paired nodes agree exactly.
+
+        Periodic patches pair within a tolerance, so nodes that a mesher meant
+        to coincide, across an interface between blocks or a pitch apart
+        across a passage's periodic faces, may differ by more than round-off.
+        Every set of nodes the pairs join, including the corners where several
+        patches meet, takes the mean of its members' :math:`(x, r)`, and the
+        mean of their :math:`\theta` once each is moved onto the same pitch.
+        Each member then takes that :math:`\theta` back with its own whole
+        number of pitches added. Afterwards :math:`x` and :math:`r` agree
+        exactly, and :math:`\theta` to within the float32 rounding of adding
+        the pitches.
+
+        Only nodes on paired periodic patches move, and by no more than the
+        tolerance they were paired within. Cusp, mixing and non-matching
+        patches are left alone. The grid is modified in place.
+
+        Returns
+        -------
+        float
+            The furthest any node moved [m], measured as
+            :math:`\sqrt{\delta x^2 + \delta r^2 + (r\,\delta\theta)^2}`;
+            zero if there are no pairs.
+        """
+        blocks = list(self)
+        offset = np.concatenate([[0], np.cumsum([b.size for b in blocks])])
+
+        # Global node ids, i fastest within each block as the data is stored,
+        # of every node and the node it is paired with
+        a, b = [], []
+        pairs = self.connectivity.periodic._compute_pairs(strict=False)
+        for (bid, pid), ((obid, opid), (perm, flip)) in pairs.items():
+            src = self[bid].patches[pid].get_ijk_node().reshape(-1, 3)
+            tgt = util.apply_perm_flip(
+                self[obid].patches[opid].get_ijk_node(), perm, flip
+            ).reshape(-1, 3)
+            a.append(
+                offset[bid]
+                + np.ravel_multi_index(tuple(src.T), blocks[bid].shape, order="F")
+            )
+            b.append(
+                offset[obid]
+                + np.ravel_multi_index(tuple(tgt.T), blocks[obid].shape, order="F")
+            )
+        if not a:
+            return 0.0
+        a = np.concatenate(a)
+        b = np.concatenate(b)
+
+        # Label every node with the least id joined to it, through any chain
+        # of pairs, by passing the least label across each pair until none
+        # changes
+        label = np.arange(offset[-1])
+        while True:
+            least = np.minimum(label[a], label[b])
+            new = label.copy()
+            np.minimum.at(new, a, least)
+            np.minimum.at(new, b, least)
+            new = new[new]
+            if np.array_equal(new, label):
+                break
+            label = new
+
+        # Coordinates of every paired node, in double precision
+        nodes = np.unique(np.concatenate([a, b]))
+        bid = np.searchsorted(offset, nodes, side="right") - 1
+        xrt = np.empty((nodes.size, 3))
+        pitch = np.empty(nodes.size)
+        for ib in np.unique(bid):
+            m = bid == ib
+            flat = blocks[ib].xrt.reshape(-1, 3, order="F")
+            xrt[m] = flat[nodes[m] - offset[ib]]
+            pitch[m] = blocks[ib].pitch
+
+        # Each set's least node is its reference: move every member onto the
+        # reference's pitch, average, and move each back by its own pitches
+        _, group = np.unique(label[nodes], return_inverse=True)
+        ref = np.searchsorted(nodes, label[nodes])
+        n_pitch = np.round((xrt[:, 2] - xrt[ref, 2]) / pitch)
+        t_ref = xrt[:, 2] - n_pitch * pitch
+        count = np.bincount(group)
+        mean = np.column_stack(
+            [
+                np.bincount(group, weights=v) / count
+                for v in (xrt[:, 0], xrt[:, 1], t_ref)
+            ]
+        )
+        snapped = mean[group]
+        snapped[:, 2] += n_pitch * pitch
+
+        moved = np.sqrt(
+            (snapped[:, 0] - xrt[:, 0]) ** 2
+            + (snapped[:, 1] - xrt[:, 1]) ** 2
+            + (xrt[:, 1] * (snapped[:, 2] - xrt[:, 2])) ** 2
+        ).max()
+
+        for ib in np.unique(bid):
+            m = bid == ib
+            block = blocks[ib]
+            idx = np.unravel_index(nodes[m] - offset[ib], block.shape, order="F")
+            x, r, t = (
+                np.array(v, dtype=np.float64) for v in (block.x, block.r, block.t)
+            )
+            x[idx], r[idx], t[idx] = snapped[m, 0], snapped[m, 1], snapped[m, 2]
+            block.set_x(x)
+            block.set_r(r)
+            block.set_t(t)
+
+        return float(moved)
 
     @util.profile
     def update_bconds(self, freeze=False, cfl=1.0):
